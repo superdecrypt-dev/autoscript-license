@@ -155,15 +155,23 @@ function bootstrap() {
 function bindEvents() {
   dom.loginForm.addEventListener("submit", handleLoginSubmit);
   dom.sidebarToggle.addEventListener("click", toggleSidebar);
-  dom.refreshCurrentBtn.addEventListener("click", refreshCurrentView);
+  dom.refreshCurrentBtn.addEventListener("click", () =>
+    withButtonBusy(dom.refreshCurrentBtn, "Refreshing...", refreshCurrentView)
+  );
   dom.logoutBtn.addEventListener("click", handleLogout);
   dom.clearAuthBtn.addEventListener("click", handleLogout);
   dom.navLinks.forEach((button) => {
     button.addEventListener("click", () => setActiveView(button.dataset.viewTarget));
   });
-  dom.refreshDashboardBtn.addEventListener("click", refreshEntries);
-  dom.refreshAuditBtn.addEventListener("click", refreshAuditLogs);
-  dom.refreshMetricsBtn.addEventListener("click", refreshMetrics);
+  dom.refreshDashboardBtn.addEventListener("click", () =>
+    withButtonBusy(dom.refreshDashboardBtn, "Refreshing...", refreshEntries)
+  );
+  dom.refreshAuditBtn.addEventListener("click", () =>
+    withButtonBusy(dom.refreshAuditBtn, "Refreshing...", refreshAuditLogs)
+  );
+  dom.refreshMetricsBtn.addEventListener("click", () =>
+    withButtonBusy(dom.refreshMetricsBtn, "Refreshing...", refreshMetrics)
+  );
   dom.resetFormBtn.addEventListener("click", resetForm);
   dom.cancelEditBtn.addEventListener("click", resetForm);
   dom.form.addEventListener("submit", handleSubmitEntry);
@@ -246,6 +254,24 @@ function setAuthState(status) {
 
 function toggleSidebar() {
   dom.app.classList.toggle("sidebar-open");
+}
+
+async function withButtonBusy(button, busyLabel, task) {
+  if (!button) {
+    return task();
+  }
+  const originalText = button.textContent;
+  const originalDisabled = button.disabled;
+  button.disabled = true;
+  button.dataset.loading = "true";
+  button.textContent = busyLabel;
+  try {
+    return await task();
+  } finally {
+    button.disabled = originalDisabled;
+    button.dataset.loading = "false";
+    button.textContent = originalText;
+  }
 }
 
 async function handleLoginSubmit(event) {
@@ -381,6 +407,10 @@ async function refreshDashboard() {
   if (!ensureAuthenticated()) {
     return;
   }
+  renderEntriesLoading();
+  renderAuditLogsLoading();
+  renderMetricsLoading();
+  setBanner("Memuat dashboard admin...", "muted");
   try {
     const [session, entriesPayload, auditPayload, metricsPayload] = await Promise.all([
       apiFetch("/api/admin/session"),
@@ -404,6 +434,7 @@ async function refreshEntries() {
   if (!ensureAuthenticated()) {
     return;
   }
+  renderEntriesLoading();
   try {
     const payload = await fetchEntries();
     state.entries = payload.items || [];
@@ -417,6 +448,7 @@ async function refreshAuditLogs() {
   if (!ensureAuthenticated()) {
     return;
   }
+  renderAuditLogsLoading();
   try {
     const payload = await fetchAuditLogs();
     state.auditLogs = payload.items || [];
@@ -430,6 +462,7 @@ async function refreshMetrics() {
   if (!ensureAuthenticated()) {
     return;
   }
+  renderMetricsLoading();
   try {
     const payload = await fetchMetrics();
     state.metrics = payload;
@@ -607,6 +640,11 @@ function openEditModal() {
   dom.editModal.setAttribute("aria-hidden", "false");
   document.body.classList.add("modal-open");
   window.setTimeout(() => {
+    const device = document.body.dataset.device || document.documentElement.dataset.device || "desktop";
+    if (device === "mobile" || device === "tablet") {
+      dom.editModalCloseBtn.focus();
+      return;
+    }
     dom.editFieldIp.focus();
     dom.editFieldIp.select();
   }, 0);
@@ -709,10 +747,10 @@ function renderHistoricalMetrics() {
 
 function renderEntries() {
   if (!state.entries.length) {
-    dom.entriesMobileList.innerHTML = `<div class="empty-row mobile-empty">Belum ada entry IP.</div>`;
+    dom.entriesMobileList.innerHTML = emptyStateMarkup("Belum ada entry IP.", "Coba ubah filter atau buat entry baru.", "mobile-empty");
     dom.entriesBody.innerHTML = `
       <tr>
-        <td colspan="6" class="empty-row">Belum ada entry IP. Tambahkan dari workspace di kanan.</td>
+        <td colspan="6" class="empty-row">${emptyStateMarkup("Belum ada entry IP.", "Tambahkan entry baru atau ubah filter pencarian.")}</td>
       </tr>
     `;
     return;
@@ -741,10 +779,10 @@ function renderEntries() {
           <td>${escapeHtml(formatDate(entry.updated_at) || "-")}</td>
           <td>
             <div class="action-stack">
-              <button type="button" data-action="edit" data-entry-id="${entry.id}">Edit</button>
-              ${canRevoke ? `<button type="button" data-action="revoke" data-entry-id="${entry.id}">Revoke</button>` : ""}
-              ${canReactivate ? `<button type="button" data-action="reactivate" data-entry-id="${entry.id}">Reactivate</button>` : ""}
-              <button type="button" data-action="delete" data-entry-id="${entry.id}">Delete</button>
+              <button class="action-btn action-btn-edit" type="button" data-action="edit" data-entry-id="${entry.id}">Edit</button>
+              ${canRevoke ? `<button class="action-btn action-btn-revoke" type="button" data-action="revoke" data-entry-id="${entry.id}">Revoke</button>` : ""}
+              ${canReactivate ? `<button class="action-btn action-btn-reactivate" type="button" data-action="reactivate" data-entry-id="${entry.id}">Reactivate</button>` : ""}
+              <button class="action-btn action-btn-delete" type="button" data-action="delete" data-entry-id="${entry.id}">Delete</button>
             </div>
           </td>
         </tr>
@@ -784,10 +822,10 @@ function renderEntries() {
             </div>
           </dl>
           <div class="mobile-action-row">
-            <button type="button" data-action="edit" data-entry-id="${entry.id}">Edit</button>
-            ${canRevoke ? `<button type="button" data-action="revoke" data-entry-id="${entry.id}">Revoke</button>` : ""}
-            ${canReactivate ? `<button type="button" data-action="reactivate" data-entry-id="${entry.id}">Reactivate</button>` : ""}
-            <button type="button" data-action="delete" data-entry-id="${entry.id}">Delete</button>
+            <button class="action-btn action-btn-edit" type="button" data-action="edit" data-entry-id="${entry.id}">Edit</button>
+            ${canRevoke ? `<button class="action-btn action-btn-revoke" type="button" data-action="revoke" data-entry-id="${entry.id}">Revoke</button>` : ""}
+            ${canReactivate ? `<button class="action-btn action-btn-reactivate" type="button" data-action="reactivate" data-entry-id="${entry.id}">Reactivate</button>` : ""}
+            <button class="action-btn action-btn-delete" type="button" data-action="delete" data-entry-id="${entry.id}">Delete</button>
           </div>
         </article>
       `;
@@ -817,10 +855,10 @@ function bindActionButtons(container) {
 
 function renderAuditLogs() {
   if (!state.auditLogs.length) {
-    dom.auditMobileList.innerHTML = `<div class="empty-row mobile-empty">Belum ada audit log.</div>`;
+    dom.auditMobileList.innerHTML = emptyStateMarkup("Belum ada audit log.", "Activity akan muncul setelah ada check atau perubahan.", "mobile-empty");
     dom.auditBody.innerHTML = `
       <tr>
-        <td colspan="6" class="empty-row">Belum ada audit log.</td>
+        <td colspan="6" class="empty-row">${emptyStateMarkup("Belum ada audit log.", "Coba ubah filter atau tunggu aktivitas berikutnya.")}</td>
       </tr>
     `;
     return;
@@ -830,12 +868,12 @@ function renderAuditLogs() {
     .map(
       (log) => `
         <tr>
-          <td>${escapeHtml(formatDate(log.created_at) || "-")}</td>
-          <td>${escapeHtml(log.event_type || "-")}</td>
+          <td class="audit-meta">${escapeHtml(formatDate(log.created_at) || "-")}</td>
+          <td><strong class="audit-event">${escapeHtml(log.event_type || "-")}</strong></td>
           <td class="mono">${escapeHtml(log.ip || "-")}</td>
-          <td>${escapeHtml(log.stage || "-")}</td>
-          <td>${escapeHtml(log.decision || "-")}</td>
-          <td>${escapeHtml(log.actor_email || "worker")}</td>
+          <td class="audit-meta">${escapeHtml(log.stage || "-")}</td>
+          <td><span class="status-pill ${decisionTone(log.decision)}">${escapeHtml(log.decision || "-")}</span></td>
+          <td class="audit-meta">${escapeHtml(log.actor_email || "worker")}</td>
         </tr>
       `
     )
@@ -911,7 +949,7 @@ function renderMobileSpotlight() {
 function renderTopEvents() {
   const items = state.metrics?.top_events || [];
   if (!items.length) {
-    dom.topEvents.innerHTML = `<div class="empty-chart">Belum ada event historis pada window ini.</div>`;
+    dom.topEvents.innerHTML = emptyStateMarkup("Belum ada event historis.", "Window ini belum memiliki cukup data.");
     return;
   }
   const max = Math.max(...items.map((item) => Number(item.count || 0)), 1);
@@ -988,7 +1026,7 @@ function decisionTone(value) {
 
 function renderTrendChart(container, points, series) {
   if (!points.length) {
-    container.innerHTML = `<div class="empty-chart">Belum ada data historis untuk window ini.</div>`;
+    container.innerHTML = emptyStateMarkup("Belum ada data historis.", "Window ini belum memiliki cukup aktivitas.");
     return;
   }
   const maxValue = Math.max(
@@ -1175,6 +1213,50 @@ function setBanner(message, tone = "muted") {
 function setLoginBanner(message, tone = "muted") {
   dom.loginBanner.textContent = message;
   dom.loginBanner.className = `status-banner ${tone}`;
+}
+
+function renderEntriesLoading() {
+  dom.entriesMobileList.innerHTML = loadingStateMarkup("Memuat entry lisensi...");
+  dom.entriesBody.innerHTML = `
+    <tr>
+      <td colspan="6" class="empty-row">${loadingStateMarkup("Memuat entry lisensi...")}</td>
+    </tr>
+  `;
+}
+
+function renderAuditLogsLoading() {
+  dom.auditMobileList.innerHTML = loadingStateMarkup("Memuat audit log...");
+  dom.auditBody.innerHTML = `
+    <tr>
+      <td colspan="6" class="empty-row">${loadingStateMarkup("Memuat audit log...")}</td>
+    </tr>
+  `;
+}
+
+function renderMetricsLoading() {
+  dom.checksChart.innerHTML = loadingStateMarkup("Memuat trend check...");
+  dom.mutationsChart.innerHTML = loadingStateMarkup("Memuat trend mutasi...");
+  dom.topEvents.innerHTML = loadingStateMarkup("Memuat top events...");
+  dom.entrySourceSummary.innerHTML = loadingStateMarkup("Memuat source split...");
+}
+
+function loadingStateMarkup(message) {
+  return `
+    <div class="empty-state loading-state">
+      <strong class="empty-title">${escapeHtml(message || "Memuat data...")}</strong>
+      <span class="empty-copy">Tunggu sebentar.</span>
+    </div>
+  `;
+}
+
+function emptyStateMarkup(title, copy, extraClass = "") {
+  const classes = ["empty-state", extraClass].filter(Boolean).join(" ");
+  return `
+    <div class="${classes}">
+      <strong class="empty-title">${escapeHtml(title || "Belum ada data.")}</strong>
+      <span class="empty-copy">${escapeHtml(copy || "Tidak ada informasi untuk ditampilkan.")}</span>
+    </div>
+  `;
 }
 
 function normalizeApiBase(value) {

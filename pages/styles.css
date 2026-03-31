@@ -14,8 +14,8 @@
   --success: #1c6c50;
   --danger: #b23d24;
   --warn: #b17b0e;
-  --shadow: 0 22px 60px rgba(66, 38, 16, 0.14);
-  --shadow-hover: 0 28px 80px rgba(66, 38, 16, 0.18);
+  --shadow: 0 16px 40px rgba(66, 38, 16, 0.11);
+  --shadow-hover: 0 20px 52px rgba(66, 38, 16, 0.14);
   --radius-xl: 28px;
   --radius-lg: 22px;
   --radius-md: 16px;
@@ -84,7 +84,7 @@ h3 {
   color: var(--accent);
   text-transform: uppercase;
   letter-spacing: 0.14em;
-  font-size: 0.74rem;
+  font-size: 0.7rem;
   font-weight: 700;
 }
 
@@ -111,12 +111,12 @@ label span,
 }
 
 .login-card {
-  width: min(100%, 460px);
+  width: min(100%, 440px);
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow);
-  padding: 34px 28px;
+  padding: 30px 26px;
   transition:
     transform 220ms ease,
     box-shadow 220ms ease,
@@ -124,14 +124,15 @@ label span,
 }
 
 .login-copy {
-  margin: 14px 0 0;
-  line-height: 1.65;
+  margin: 12px 0 0;
+  line-height: 1.55;
+  font-size: 0.97rem;
 }
 
 .login-session-note {
-  margin: 10px 0 0;
-  font-size: 0.95rem;
-  line-height: 1.6;
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
 }
 
 .login-form {
@@ -175,9 +176,9 @@ label span,
 
 .sidebar-copy {
   color: var(--sidebar-muted);
-  line-height: 1.6;
-  margin: 12px 0 0;
-  max-width: 24ch;
+  line-height: 1.55;
+  margin: 10px 0 0;
+  max-width: 20ch;
 }
 
 .sidebar-nav {
@@ -200,7 +201,8 @@ label span,
   transition:
     transform 180ms ease,
     background 180ms ease,
-    border-color 180ms ease;
+    border-color 180ms ease,
+    box-shadow 180ms ease;
 }
 
 .nav-link span {
@@ -213,13 +215,18 @@ label span,
 }
 
 .nav-link.is-active {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.nav-link.is-active small {
+  color: rgba(245, 236, 227, 0.9);
 }
 
 .nav-link:hover {
-  transform: translateX(4px);
-  background: rgba(255, 255, 255, 0.06);
+  transform: translateX(2px);
+  background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.12);
 }
 
@@ -253,7 +260,7 @@ label span,
 .panel {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: var(--radius-xl);
+  border-radius: 24px;
   box-shadow: var(--shadow);
   transition:
     transform 220ms ease,
@@ -267,7 +274,7 @@ label span,
   justify-content: space-between;
   align-items: flex-start;
   gap: 16px;
-  padding: 24px 24px 20px;
+  padding: 22px 22px 18px;
 }
 
 .topbar-main,
@@ -284,9 +291,16 @@ label span,
 }
 
 .topbar-copy {
-  margin: 10px 0 0;
-  max-width: 58ch;
-  line-height: 1.6;
+  margin: 8px 0 0;
+  max-width: 38ch;
+  line-height: 1.5;
+  font-size: 0.92rem;
+  color: rgba(114, 88, 69, 0.82);
+}
+
+.topbar .eyebrow {
+  margin-bottom: 8px;
+  color: rgba(212, 90, 31, 0.88);
 }
 
 .topbar-actions {
@@ -300,19 +314,23 @@ label span,
 }
 
 .status-banner {
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.72);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  padding: 14px 16px;
+  border-left: 3px solid rgba(107, 76, 50, 0.16);
+  padding: 12px 14px;
+  line-height: 1.5;
 }
 
 .status-banner.ok {
-  background: rgba(28, 108, 80, 0.1);
+  background: rgba(28, 108, 80, 0.08);
+  border-left-color: rgba(28, 108, 80, 0.42);
   color: var(--success);
 }
 
 .status-banner.error {
-  background: rgba(178, 61, 36, 0.1);
+  background: rgba(178, 61, 36, 0.08);
+  border-left-color: rgba(178, 61, 36, 0.42);
   color: var(--danger);
 }
 
@@ -364,9 +382,13 @@ label span,
 .source-card,
 .workspace-side,
 .settings-note {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 247, 237, 0.7));
+  background: rgba(255, 255, 255, 0.82);
   border: 1px solid rgba(69, 42, 20, 0.08);
-  border-radius: var(--radius-lg);
+  border-radius: 18px;
+}
+
+.metric-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 245, 233, 0.82));
 }
 
 .metric-card {
@@ -378,12 +400,14 @@ label span,
   display: block;
   margin-top: 10px;
   font-size: clamp(1.7rem, 3vw, 2.5rem);
+  letter-spacing: -0.03em;
 }
 
 .metric-label {
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
+  color: rgba(114, 88, 69, 0.82);
 }
 
 .metrics-summary-grid {
@@ -470,8 +494,8 @@ textarea {
 
 .ghost-btn {
   border: 1px solid rgba(69, 39, 15, 0.12);
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.8);
+  color: rgba(41, 23, 12, 0.94);
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .session-badge {
@@ -514,6 +538,11 @@ textarea {
   margin-bottom: 18px;
 }
 
+.chart-head h3,
+.section-head h3 {
+  line-height: 1.1;
+}
+
 .chart-surface {
   min-height: 270px;
 }
@@ -523,6 +552,10 @@ textarea {
   flex-wrap: wrap;
   gap: 14px;
   margin-bottom: 18px;
+}
+
+.chart-caption {
+  color: rgba(114, 88, 69, 0.72);
 }
 
 .legend-item {
@@ -687,7 +720,7 @@ textarea {
   border: 1px solid rgba(69, 42, 20, 0.08);
   border-radius: var(--radius-md);
   padding: 18px;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.58);
 }
 
 .settings-meta dt {
@@ -711,6 +744,7 @@ textarea {
 .settings-note {
   padding: 20px;
   margin-top: 20px;
+  background: rgba(255, 255, 255, 0.6);
 }
 
 .settings-note strong {
@@ -778,6 +812,9 @@ body.modal-open {
 
 .table-wrap {
   overflow-x: auto;
+  border: 1px solid rgba(69, 42, 20, 0.07);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.5);
 }
 
 table {
@@ -786,19 +823,32 @@ table {
   border-collapse: collapse;
 }
 
+tbody tr {
+  transition: background 160ms ease;
+}
+
+tbody tr:hover {
+  background: rgba(255, 248, 238, 0.78);
+}
+
 th,
 td {
   text-align: left;
   padding: 16px 12px;
   border-bottom: 1px solid rgba(69, 42, 20, 0.08);
   vertical-align: top;
+  line-height: 1.5;
 }
 
 th {
   font-size: 0.82rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--muted);
+  color: rgba(114, 88, 69, 0.8);
+  background: rgba(255, 252, 248, 0.72);
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .mono {
@@ -812,50 +862,127 @@ th {
   gap: 6px;
 }
 
+.entry-meta strong {
+  line-height: 1.2;
+}
+
+.entry-meta span {
+  color: rgba(114, 88, 69, 0.86);
+  line-height: 1.45;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;
   width: fit-content;
   padding: 6px 10px;
   border-radius: 999px;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
 }
 
 .status-pill.active {
   background: rgba(28, 108, 80, 0.12);
   color: var(--success);
+  border-color: rgba(28, 108, 80, 0.18);
 }
 
 .status-pill.expired {
   background: rgba(178, 61, 36, 0.12);
   color: var(--danger);
+  border-color: rgba(178, 61, 36, 0.18);
 }
 
 .status-pill.revoked {
   background: rgba(114, 88, 69, 0.12);
   color: #5f4634;
+  border-color: rgba(95, 70, 52, 0.12);
 }
 
 .action-stack {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  align-items: flex-start;
 }
 
+.action-btn,
 .action-stack button {
   border: 1px solid rgba(69, 42, 20, 0.12);
-  background: #fffdfa;
+  background: rgba(255, 255, 255, 0.68);
   color: var(--text);
   border-radius: 999px;
-  padding: 8px 12px;
+  padding: 7px 11px;
   cursor: pointer;
+  font-weight: 700;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.action-btn-edit,
+.action-btn-reactivate {
+  border-color: rgba(69, 42, 20, 0.1);
+}
+
+.action-btn-revoke {
+  border-color: rgba(177, 123, 14, 0.22);
+  color: #8c6003;
+  background: rgba(177, 123, 14, 0.08);
+}
+
+.action-btn-delete {
+  border-color: rgba(178, 61, 36, 0.18);
+  color: var(--danger);
+  background: rgba(178, 61, 36, 0.07);
 }
 
 .empty-row,
 .empty-chart {
   text-align: center;
   padding: 28px 14px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 124px;
+  padding: 18px 16px;
+  border: 1px dashed rgba(69, 42, 20, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.empty-title {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.empty-copy {
+  max-width: 30ch;
+  color: rgba(114, 88, 69, 0.88);
+  line-height: 1.55;
+}
+
+.loading-state {
+  position: relative;
+  overflow: hidden;
+}
+
+.loading-state::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.34), transparent);
+  transform: translateX(-100%);
 }
 
 .mobile-empty {
@@ -871,7 +998,7 @@ th {
   padding: 20px;
   border-radius: var(--radius-md);
   border: 1px solid rgba(69, 42, 20, 0.08);
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.74);
   transition:
     transform 180ms ease,
     box-shadow 180ms ease,
@@ -921,7 +1048,7 @@ th {
 .mobile-action-row button {
   flex: 1 1 120px;
   border: 1px solid rgba(69, 42, 20, 0.12);
-  background: #fffdfa;
+  background: rgba(255, 255, 255, 0.68);
   color: var(--text);
   border-radius: 999px;
   padding: 10px 12px;
@@ -942,7 +1069,7 @@ th {
   padding: 18px;
   border-radius: var(--radius-md);
   border: 1px solid rgba(69, 42, 20, 0.08);
-  background: rgba(255, 255, 255, 0.76);
+  background: rgba(255, 255, 255, 0.68);
   transition:
     transform 180ms ease,
     border-color 180ms ease,
@@ -960,6 +1087,15 @@ th {
   font-size: 0.84rem;
 }
 
+.audit-event {
+  display: inline-block;
+  line-height: 1.3;
+}
+
+.audit-meta {
+  color: rgba(114, 88, 69, 0.86);
+}
+
 .login-card:hover,
 .topbar:hover,
 .panel:hover,
@@ -968,7 +1104,7 @@ th {
 .source-card:hover,
 .mobile-card:hover,
 .mobile-spotlight-card:hover {
-  transform: translateY(-3px);
+  transform: translateY(-1px);
   box-shadow: var(--shadow-hover);
 }
 
@@ -977,6 +1113,27 @@ th {
 .action-stack button:hover,
 .mobile-action-row button:hover {
   transform: translateY(-2px);
+}
+
+.action-btn-edit:hover,
+.action-btn-reactivate:hover {
+  border-color: rgba(69, 42, 20, 0.2);
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.action-btn-revoke:hover {
+  border-color: rgba(177, 123, 14, 0.34);
+  background: rgba(177, 123, 14, 0.12);
+}
+
+.action-btn-delete:hover {
+  border-color: rgba(178, 61, 36, 0.28);
+  background: rgba(178, 61, 36, 0.11);
+}
+
+button[data-loading="true"] {
+  opacity: 0.76;
+  cursor: wait;
 }
 
 .primary-btn:active,
@@ -1024,7 +1181,7 @@ body[data-device="tablet"] .settings-meta-single {
 body[data-device="mobile"] .login-card,
 body[data-device="mobile"] .topbar,
 body[data-device="mobile"] .panel {
-  padding: 20px;
+  padding: 18px;
   border-radius: 20px;
 }
 
@@ -1035,6 +1192,17 @@ body[data-device="mobile"] .section-head,
 body[data-device="mobile"] .filter-row,
 body[data-device="mobile"] .form-actions {
   flex-direction: column;
+}
+
+body[data-device="mobile"] .topbar,
+body[data-device="mobile"] .topbar-actions {
+  gap: 10px;
+}
+
+body[data-device="mobile"] .topbar-copy {
+  margin-top: 6px;
+  line-height: 1.4;
+  font-size: 0.88rem;
 }
 
 body[data-device="mobile"] .workspace-grid,
@@ -1077,6 +1245,14 @@ body[data-device="mobile"] .workspace-side {
 body[data-device="mobile"] .mobile-card-meta,
 body[data-device="mobile"] .mobile-spotlight-grid {
   grid-template-columns: 1fr;
+}
+
+body[data-device="mobile"] .mobile-card {
+  gap: 16px;
+}
+
+body[data-device="mobile"] .mobile-action-row {
+  gap: 8px;
 }
 
 body[data-device="mobile"] .modal-shell {
@@ -1125,6 +1301,10 @@ body[data-device="mobile"] .modal-dialog {
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  .view-panel.is-active {
+    animation: admin-rise 220ms ease both;
+  }
+
   .modal-shell.is-open .modal-dialog {
     animation: admin-rise 220ms ease both;
   }
@@ -1181,6 +1361,10 @@ body[data-device="mobile"] .modal-dialog {
     animation: bar-grow-x 700ms ease both;
     transform-origin: left center;
   }
+
+  .loading-state::after {
+    animation: shimmer-slide 1.35s linear infinite;
+  }
 }
 
 @keyframes admin-rise {
@@ -1213,6 +1397,15 @@ body[data-device="mobile"] .modal-dialog {
   to {
     transform: scaleY(1);
     opacity: 1;
+  }
+}
+
+@keyframes shimmer-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
   }
 }
 
