@@ -24,6 +24,7 @@ const publicDom = {
 bootstrapPublicPortal();
 
 async function bootstrapPublicPortal() {
+  initPublicDeviceContext();
   bindPublicEvents();
   renderDurationDays();
   if (!publicState.apiBaseUrl) {
@@ -37,6 +38,33 @@ async function bootstrapPublicPortal() {
 function bindPublicEvents() {
   publicDom.createForm.addEventListener("submit", handleCreateSubmit);
   publicDom.statusForm.addEventListener("submit", handleStatusSubmit);
+}
+
+function initPublicDeviceContext() {
+  syncPublicDeviceContext();
+  window.addEventListener("resize", syncPublicDeviceContext, { passive: true });
+}
+
+function syncPublicDeviceContext() {
+  const device = detectClientDevice();
+  document.documentElement.dataset.device = device;
+  document.body.dataset.device = device;
+}
+
+function detectClientDevice() {
+  const userAgent = String(navigator.userAgent || "");
+  const width = window.innerWidth || document.documentElement.clientWidth || 0;
+  const touchPoints = Number(navigator.maxTouchPoints || 0);
+  const isTabletUa = /(iPad|Tablet|PlayBook|Silk)|(Android(?!.*Mobile))/i.test(userAgent);
+  const isMobileUa = /(iPhone|iPod|Android.*Mobile|Windows Phone|webOS|BlackBerry|Opera Mini|IEMobile)/i.test(userAgent);
+
+  if (isTabletUa || (touchPoints > 0 && width >= 768 && width <= 1180)) {
+    return "tablet";
+  }
+  if (isMobileUa || width < 768) {
+    return "mobile";
+  }
+  return "desktop";
 }
 
 async function loadWorkerPublicConfig() {

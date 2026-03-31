@@ -42,10 +42,12 @@ Repo ini adalah project standalone. Semua file Worker, Pages, dan migrasi ada la
 - `POST /api/v1/license/check`
 
 ### Admin
+- `POST /api/admin/session/login`
 - `GET /api/admin/session`
 - `GET /api/admin/license-entries`
 - `POST /api/admin/license-entries`
 - `PATCH /api/admin/license-entries/:id`
+- `DELETE /api/admin/license-entries/:id`
 - `POST /api/admin/license-entries/:id/revoke`
 - `POST /api/admin/license-entries/:id/reactivate`
 - `GET /api/admin/audit-logs`
@@ -69,17 +71,19 @@ Repo ini adalah project standalone. Semua file Worker, Pages, dan migrasi ada la
 ### Secret / Dashboard Env
 - `ADMIN_EMAIL`
 - `ADMIN_PASSWORD`
+- `ADMIN_SESSION_SECRET` optional, disarankan untuk signing session token admin
 
-`ADMIN_EMAIL` dan `ADMIN_PASSWORD` dipakai oleh `/admin/` dengan Basic Auth.
+Admin panel sekarang login lewat session token 24 jam yang diterbitkan Worker.
 
-Jika env ini tidak diisi di dashboard Worker, repo sekarang punya fallback bawaan:
+Jika env admin tidak diisi di dashboard Worker, repo ini punya fallback bawaan:
 
 ```text
 ADMIN_EMAIL=super@decrypt.dev
 ADMIN_PASSWORD=superdecrypt-dev
 ```
 
-Kalau Anda ingin mengganti kredensial tanpa mengubah source, cukup override dua env itu di dashboard Worker.
+Jika diisi, `ADMIN_SESSION_SECRET` akan dipakai untuk signing token itu; jika tidak, Worker akan fallback ke
+`ADMIN_PASSWORD` sebagai signing secret.
 
 `CACHE_TTL_SEC_DEFAULT` adalah masa grace cache allow yang dikirim ke client VPS saat API lisensi gagal dihubungi. Default yang aman untuk produksi adalah `3600` detik agar revoke IP tidak tertahan terlalu lama.
 

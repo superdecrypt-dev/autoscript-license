@@ -38,6 +38,14 @@ body {
   padding: 24px 14px 44px;
 }
 
+body[data-device="tablet"] {
+  padding: 18px 12px 34px;
+}
+
+body[data-device="mobile"] {
+  padding: 14px 10px 30px;
+}
+
 button,
 input {
   font: inherit;
@@ -527,6 +535,48 @@ label small {
 .public-footnote h3 {
   margin: 0 0 12px;
   font-size: 1.05rem;
+}
+
+body[data-device="tablet"] .public-hero,
+body[data-device="tablet"] .public-grid,
+body[data-device="mobile"] .public-hero,
+body[data-device="mobile"] .public-grid {
+  grid-template-columns: 1fr;
+}
+
+body[data-device="tablet"] .hero-strip,
+body[data-device="tablet"] .public-overview,
+body[data-device="mobile"] .hero-strip,
+body[data-device="mobile"] .public-overview,
+body[data-device="mobile"] .result-grid {
+  grid-template-columns: 1fr;
+}
+
+body[data-device="tablet"] .hero-copy,
+body[data-device="tablet"] .hero-sidecard,
+body[data-device="tablet"] .public-panel,
+body[data-device="tablet"] .public-footnote article {
+  padding: 24px;
+}
+
+body[data-device="mobile"] .hero-copy,
+body[data-device="mobile"] .hero-sidecard,
+body[data-device="mobile"] .public-panel,
+body[data-device="mobile"] .public-footnote article {
+  padding: 18px;
+}
+
+body[data-device="mobile"] .result-topline {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+body[data-device="mobile"] .hero-actions {
+  flex-direction: column;
+}
+
+body[data-device="mobile"] .hero-link {
+  width: 100%;
 }
 
 @media (max-width: 1080px) {

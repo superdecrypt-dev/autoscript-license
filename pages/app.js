@@ -20,7 +20,7 @@ const VIEW_META = {
 const ADMIN_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const STORAGE_KEYS = {
   email: "autoscriptLicenseAdminEmail",
-  password: "autoscriptLicenseAdminPassword",
+  token: "autoscriptLicenseAdminToken",
   activeView: "autoscriptLicenseAdminActiveView",
   metricsWindowDays: "autoscriptLicenseMetricsWindowDays",
   loginAt: "autoscriptLicenseAdminLoginAt",
@@ -30,7 +30,7 @@ const STORAGE_KEYS = {
 const state = {
   apiBaseUrl: normalizeApiBase(window.AUTOSCRIPT_PORTAL_CONFIG?.apiBaseUrl || ""),
   adminEmail: localStorage.getItem(STORAGE_KEYS.email) || "",
-  adminPassword: sessionStorage.getItem(STORAGE_KEYS.password) || "",
+  adminToken: sessionStorage.getItem(STORAGE_KEYS.token) || "",
   activeView: localStorage.getItem(STORAGE_KEYS.activeView) || "dashboard",
   authStatus: "locked",
   entries: [],
@@ -108,9 +108,10 @@ const dom = {
 bootstrap();
 
 function bootstrap() {
+  initAdminDeviceContext();
   localStorage.removeItem("autoscriptLicenseApiBaseUrl");
   dom.loginEmailInput.value = state.adminEmail;
-  dom.loginPasswordInput.value = state.adminPassword;
+  dom.loginPasswordInput.value = "";
   dom.metricsWindow.value = state.metricsWindowDays;
   bindEvents();
   setActiveView(state.activeView, { skipPersist: true });
@@ -128,7 +129,7 @@ function bootstrap() {
     return;
   }
 
-  if (state.adminEmail && state.adminPassword) {
+  if (state.adminEmail && state.adminToken) {
     authenticateWithStoredCredentials();
     return;
   }
@@ -156,6 +157,33 @@ function bindEvents() {
   dom.metricsWindow.addEventListener("change", handleMetricsWindowChange);
   dom.auditIpInput.addEventListener("input", refreshAuditLogs);
   dom.auditEventInput.addEventListener("input", refreshAuditLogs);
+}
+
+function initAdminDeviceContext() {
+  syncAdminDeviceContext();
+  window.addEventListener("resize", syncAdminDeviceContext, { passive: true });
+}
+
+function syncAdminDeviceContext() {
+  const device = detectClientDevice();
+  document.documentElement.dataset.device = device;
+  document.body.dataset.device = device;
+}
+
+function detectClientDevice() {
+  const userAgent = String(navigator.userAgent || "");
+  const width = window.innerWidth || document.documentElement.clientWidth || 0;
+  const touchPoints = Number(navigator.maxTouchPoints || 0);
+  const isTabletUa = /(iPad|Tablet|PlayBook|Silk)|(Android(?!.*Mobile))/i.test(userAgent);
+  const isMobileUa = /(iPhone|iPod|Android.*Mobile|Windows Phone|webOS|BlackBerry|Opera Mini|IEMobile)/i.test(userAgent);
+
+  if (isTabletUa || (touchPoints > 0 && width >= 768 && width <= 1180)) {
+    return "tablet";
+  }
+  if (isMobileUa || width < 768) {
+    return "mobile";
+  }
+  return "desktop";
 }
 
 function setActiveView(viewName, options = {}) {
@@ -214,7 +242,7 @@ async function handleLoginSubmit(event) {
   setLoginBanner("Memverifikasi...", "muted");
 
   try {
-    await authenticateAdmin(adminEmail, adminPassword, { renewExpiry: true });
+    await authenticateAdmin(adminEmail, adminPassword);
   } catch (error) {
     setAuthState("locked");
     setLoginBanner(error.message || "Login gagal.", "error");
@@ -230,7 +258,22 @@ async function authenticateWithStoredCredentials() {
   setLoginBanner("Memulihkan sesi...", "muted");
 
   try {
-    await authenticateAdmin(state.adminEmail, state.adminPassword, { renewExpiry: false });
+    const session = await apiFetch("/api/admin/session");
+    state.session = session;
+    if (session.admin_email) {
+      state.adminEmail = session.admin_email;
+      localStorage.setItem(STORAGE_KEYS.email, session.admin_email);
+    }
+    if (session.expires_at) {
+      setSessionExpiryMetadata({ expiresAt: session.expires_at });
+    } else {
+      scheduleSessionExpiry();
+    }
+    setSessionState(session);
+    setAuthState("authenticated");
+    setLoginBanner("Login berhasil.", "ok");
+    setBanner(`Connected as ${session.admin_email || "admin"}`, "ok");
+    await refreshDashboard();
   } catch (_error) {
     clearStoredCredentials();
     setAuthState("locked");
@@ -238,21 +281,25 @@ async function authenticateWithStoredCredentials() {
   }
 }
 
-async function authenticateAdmin(adminEmail, adminPassword, options = {}) {
-  const session = await apiFetch("/api/admin/session", {
-    auth: { email: adminEmail, password: adminPassword },
+async function authenticateAdmin(adminEmail, adminPassword) {
+  const session = await apiFetch("/api/admin/session/login", {
+    method: "POST",
+    body: JSON.stringify({
+      email: adminEmail,
+      password: adminPassword,
+    }),
   });
 
-  state.adminEmail = adminEmail;
-  state.adminPassword = adminPassword;
+  state.adminEmail = session.admin_email || adminEmail;
+  state.adminToken = session.token || "";
   state.session = session;
-  localStorage.setItem(STORAGE_KEYS.email, adminEmail);
-  sessionStorage.setItem(STORAGE_KEYS.password, adminPassword);
-  if (options.renewExpiry !== false || !state.sessionExpiresAt) {
-    setSessionExpiryMetadata();
-  } else {
-    scheduleSessionExpiry();
-  }
+  localStorage.setItem(STORAGE_KEYS.email, state.adminEmail);
+  sessionStorage.setItem(STORAGE_KEYS.token, state.adminToken);
+  dom.loginPasswordInput.value = "";
+  setSessionExpiryMetadata({
+    loginAt: session.issued_at,
+    expiresAt: session.expires_at,
+  });
   setSessionState(session);
   setAuthState("authenticated");
   setLoginBanner("Login berhasil.", "ok");
@@ -277,13 +324,13 @@ function handleLogout(options = {}) {
 
 function clearStoredCredentials() {
   state.adminEmail = "";
-  state.adminPassword = "";
+  state.adminToken = "";
   state.sessionLoginAt = 0;
   state.sessionExpiresAt = 0;
   clearSessionTimer();
   clearSessionTicker();
   localStorage.removeItem(STORAGE_KEYS.email);
-  sessionStorage.removeItem(STORAGE_KEYS.password);
+  sessionStorage.removeItem(STORAGE_KEYS.token);
   localStorage.removeItem(STORAGE_KEYS.loginAt);
   localStorage.removeItem(STORAGE_KEYS.expiresAt);
   dom.loginEmailInput.value = "";
@@ -512,7 +559,7 @@ function ensureAuthenticated() {
     handleLogout({ message: "Sesi admin sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
     return false;
   }
-  if (state.authStatus === "authenticated" && state.adminEmail && state.adminPassword && state.apiBaseUrl) {
+  if (state.authStatus === "authenticated" && state.adminEmail && state.adminToken && state.apiBaseUrl) {
     return true;
   }
   setAuthState("locked");
@@ -781,16 +828,16 @@ function handleMetricsWindowChange() {
 }
 
 function hasStoredCredentials() {
-  return Boolean(state.adminEmail && state.adminPassword);
+  return Boolean(state.adminEmail && state.adminToken);
 }
 
-function setSessionExpiryMetadata() {
-  const now = Date.now();
-  const expiresAt = now + ADMIN_SESSION_TTL_MS;
-  state.sessionLoginAt = now;
-  state.sessionExpiresAt = expiresAt;
-  localStorage.setItem(STORAGE_KEYS.loginAt, String(now));
-  localStorage.setItem(STORAGE_KEYS.expiresAt, String(expiresAt));
+function setSessionExpiryMetadata(options = {}) {
+  const loginAtMs = options.loginAt ? Date.parse(options.loginAt) : Date.now();
+  const expiresAtMs = options.expiresAt ? Date.parse(options.expiresAt) : loginAtMs + ADMIN_SESSION_TTL_MS;
+  state.sessionLoginAt = Number.isFinite(loginAtMs) ? loginAtMs : Date.now();
+  state.sessionExpiresAt = Number.isFinite(expiresAtMs) ? expiresAtMs : state.sessionLoginAt + ADMIN_SESSION_TTL_MS;
+  localStorage.setItem(STORAGE_KEYS.loginAt, String(state.sessionLoginAt));
+  localStorage.setItem(STORAGE_KEYS.expiresAt, String(state.sessionExpiresAt));
   scheduleSessionExpiry();
 }
 
@@ -879,10 +926,9 @@ async function apiFetch(path, options = {}) {
     "Content-Type": "application/json",
     ...(options.headers || {}),
   };
-  const authEmail = options.auth?.email ?? state.adminEmail;
-  const authPassword = options.auth?.password ?? state.adminPassword;
-  if (authEmail && authPassword) {
-    headers.Authorization = `Basic ${btoa(`${authEmail}:${authPassword}`)}`;
+  const token = options.token ?? state.adminToken;
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
   }
   const response = await fetch(`${state.apiBaseUrl}${path}`, {
     method: options.method || "GET",

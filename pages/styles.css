@@ -40,6 +40,14 @@ body {
   padding: 18px;
 }
 
+body[data-device="tablet"] {
+  padding: 14px;
+}
+
+body[data-device="mobile"] {
+  padding: 12px;
+}
+
 button,
 input,
 select,
@@ -753,6 +761,76 @@ th {
 .empty-chart {
   text-align: center;
   padding: 28px 14px;
+}
+
+body[data-device="tablet"] .admin-app,
+body[data-device="mobile"] .admin-app {
+  grid-template-columns: 1fr;
+}
+
+body[data-device="tablet"] .admin-sidebar,
+body[data-device="mobile"] .admin-sidebar {
+  display: none;
+}
+
+body[data-device="tablet"] .admin-app.sidebar-open .admin-sidebar,
+body[data-device="mobile"] .admin-app.sidebar-open .admin-sidebar {
+  display: flex;
+  position: fixed;
+  z-index: 20;
+  inset: 12px 12px auto 12px;
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+}
+
+body[data-device="tablet"] .mobile-nav-btn,
+body[data-device="mobile"] .mobile-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+body[data-device="tablet"] .workspace-grid,
+body[data-device="tablet"] .summary-grid,
+body[data-device="tablet"] .charts-grid,
+body[data-device="tablet"] .settings-meta,
+body[data-device="tablet"] .settings-meta-single {
+  grid-template-columns: 1fr 1fr;
+}
+
+body[data-device="mobile"] .login-card,
+body[data-device="mobile"] .topbar,
+body[data-device="mobile"] .panel {
+  padding: 18px;
+  border-radius: 20px;
+}
+
+body[data-device="mobile"] .topbar,
+body[data-device="mobile"] .topbar-main,
+body[data-device="mobile"] .topbar-actions,
+body[data-device="mobile"] .section-head,
+body[data-device="mobile"] .filter-row,
+body[data-device="mobile"] .form-actions {
+  flex-direction: column;
+}
+
+body[data-device="mobile"] .workspace-grid,
+body[data-device="mobile"] .summary-grid,
+body[data-device="mobile"] .charts-grid,
+body[data-device="mobile"] .source-grid,
+body[data-device="mobile"] .settings-meta,
+body[data-device="mobile"] .settings-meta-single,
+body[data-device="mobile"] .form-grid {
+  grid-template-columns: 1fr;
+}
+
+body[data-device="mobile"] .topbar-actions {
+  align-items: stretch;
+}
+
+body[data-device="mobile"] .session-badge {
+  width: 100%;
+  justify-content: center;
 }
 
 @media (max-width: 1180px) {

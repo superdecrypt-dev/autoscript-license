@@ -1,6 +1,9 @@
 const IPV4_RE = /^(?:\d{1,3}\.){3}\d{1,3}$/;
 const DEFAULT_ADMIN_EMAIL = "super@decrypt.dev";
 const DEFAULT_ADMIN_PASSWORD = "superdecrypt-dev";
+const ADMIN_SESSION_TTL_SEC = 24 * 60 * 60;
+const ADMIN_LOGIN_LIMIT_MAX = 10;
+const ADMIN_LOGIN_WINDOW_SEC = 15 * 60;
 
 export default {
   async fetch(request, env) {
@@ -410,7 +413,11 @@ async function handlePublicStatus(request, env) {
 }
 
 async function routeAdminRequest(request, env, pathname) {
-  const auth = authenticateAdminRequest(request, env);
+  if (request.method === "POST" && pathname === "/api/admin/session/login") {
+    return handleAdminSessionLogin(request, env);
+  }
+
+  const auth = await authenticateAdminRequest(request, env);
   if (!auth.ok) {
     return auth.response;
   }
@@ -419,6 +426,7 @@ async function routeAdminRequest(request, env, pathname) {
   if (request.method === "GET" && pathname === "/api/admin/session") {
     return jsonResponse({
       admin_email: actorEmail,
+      expires_at: auth.expiresAt || "",
       ok: true,
     });
   }
@@ -644,43 +652,105 @@ async function handleAdminMetrics(request, env) {
 }
 
 function authenticateAdminRequest(request, env) {
-  const expectedEmail = String(env.ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL).trim();
-  const expectedPassword = String(env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD).trim();
-
   const authHeader = String(request.headers.get("Authorization") || "").trim();
-  if (!authHeader.startsWith("Basic ")) {
-    return {
+  if (!authHeader.startsWith("Bearer ")) {
+    return Promise.resolve({
       ok: false,
       response: jsonResponse(
         {
           error: "unauthorized",
-          message: "Authorization header dibutuhkan.",
+          message: "Admin session token dibutuhkan. Login ulang dari panel admin.",
         },
-        401,
-        { "WWW-Authenticate": 'Basic realm="Autoscript License Admin"' }
+        401
       ),
-    };
+    });
   }
 
-  const decoded = decodeBasicAuth(authHeader.slice(6));
-  if (!decoded) {
+  const token = authHeader.slice(7).trim();
+  return verifyAdminSessionToken(token, env).then((session) => {
+    if (!session.ok) {
+      return {
+        ok: false,
+        response: jsonResponse({ error: "unauthorized", message: session.message }, 401),
+      };
+    }
     return {
-      ok: false,
-      response: jsonResponse({ error: "unauthorized", message: "Authorization header tidak valid." }, 401),
+      ok: true,
+      actorEmail: session.adminEmail,
+      expiresAt: session.expiresAt,
     };
+  });
+}
+
+async function handleAdminSessionLogin(request, env) {
+  const expectedEmail = String(env.ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL).trim();
+  const expectedPassword = String(env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD).trim();
+
+  const visitorIp = getVisitorIp(request);
+  const limit = await enforcePublicRateLimit(
+    env,
+    "admin_login",
+    visitorIp,
+    parseIntSafe(env.ADMIN_LOGIN_LIMIT_MAX, ADMIN_LOGIN_LIMIT_MAX),
+    parseIntSafe(env.ADMIN_LOGIN_WINDOW_SEC, ADMIN_LOGIN_WINDOW_SEC)
+  );
+  if (!limit.allowed) {
+    return jsonResponse(
+      {
+        error: "rate_limited",
+        message: "Terlalu banyak percobaan login admin. Coba lagi nanti.",
+        retry_after_sec: limit.retryAfterSec,
+      },
+      429
+    );
   }
 
-  if (decoded.username !== expectedEmail || decoded.password !== expectedPassword) {
-    return {
-      ok: false,
-      response: jsonResponse({ error: "unauthorized", message: "Email atau password admin salah." }, 401),
-    };
+  const body = await parseJsonBody(request);
+  if (body.error) {
+    return body.error;
   }
 
-  return {
-    ok: true,
+  const email = normalizeShortText(body.data?.email, 255);
+  const password = String(body.data?.password || "");
+  if (!email || !password) {
+    return jsonResponse({ error: "invalid_request", message: "Email dan password admin wajib diisi." }, 400);
+  }
+
+  if (email !== expectedEmail || password !== expectedPassword) {
+    await insertAuditLog(env, {
+      eventType: "admin_login_failed",
+      ip: "",
+      entryId: "",
+      stage: "admin",
+      decision: "deny",
+      actorEmail: email,
+      requestIp: visitorIp,
+      userAgent: request.headers.get("User-Agent") || "",
+      payload: { reason: "invalid_credentials" },
+    });
+    return jsonResponse({ error: "unauthorized", message: "Email atau password admin salah." }, 401);
+  }
+
+  const session = await createAdminSessionToken(expectedEmail, env);
+  await insertAuditLog(env, {
+    eventType: "admin_login_success",
+    ip: "",
+    entryId: "",
+    stage: "admin",
+    decision: "allow",
     actorEmail: expectedEmail,
-  };
+    requestIp: visitorIp,
+    userAgent: request.headers.get("User-Agent") || "",
+    payload: { expires_at: session.expiresAt },
+  });
+
+  return jsonResponse({
+    ok: true,
+    admin_email: expectedEmail,
+    token: session.token,
+    issued_at: session.issuedAt,
+    expires_at: session.expiresAt,
+  });
 }
 
 async function handleAdminCreateEntry(request, env, actorEmail) {
@@ -1298,7 +1368,7 @@ function buildAdminCorsResponse(request, env) {
     headers: buildCorsHeaders(request, env, {
       origin: getAdminUiOrigin(env),
       allowHeaders: "Authorization, Content-Type",
-      allowMethods: "GET, POST, PATCH, OPTIONS",
+      allowMethods: "GET, POST, PATCH, DELETE, OPTIONS",
       allowCredentials: false,
     }),
   });
@@ -1308,7 +1378,7 @@ function withAdminCors(request, env, response) {
   return withCors(request, env, response, {
     origin: getAdminUiOrigin(env),
     allowHeaders: "Authorization, Content-Type",
-    allowMethods: "GET, POST, PATCH, OPTIONS",
+    allowMethods: "GET, POST, PATCH, DELETE, OPTIONS",
     allowCredentials: false,
   });
 }
@@ -1398,6 +1468,106 @@ function decodeBasicAuth(encoded) {
   } catch (_error) {
     return null;
   }
+}
+
+async function createAdminSessionToken(adminEmail, env) {
+  const issuedAtMs = Date.now();
+  const issuedAt = new Date(issuedAtMs).toISOString();
+  const expiresAt = new Date(issuedAtMs + ADMIN_SESSION_TTL_SEC * 1000).toISOString();
+  const payload = {
+    type: "admin_session",
+    sub: adminEmail,
+    iat: Math.floor(issuedAtMs / 1000),
+    exp: Math.floor(issuedAtMs / 1000) + ADMIN_SESSION_TTL_SEC,
+  };
+  const payloadEncoded = encodeBase64Url(JSON.stringify(payload));
+  const signature = await signAdminSessionPayload(payloadEncoded, env);
+  return {
+    token: `${payloadEncoded}.${signature}`,
+    issuedAt,
+    expiresAt,
+  };
+}
+
+async function verifyAdminSessionToken(token, env) {
+  const parts = String(token || "").split(".");
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+    return { ok: false, message: "Token admin tidak valid." };
+  }
+  const [payloadEncoded, providedSignature] = parts;
+  const expectedSignature = await signAdminSessionPayload(payloadEncoded, env);
+  if (providedSignature !== expectedSignature) {
+    return { ok: false, message: "Token admin tidak valid." };
+  }
+
+  let payload = null;
+  try {
+    payload = JSON.parse(decodeBase64Url(payloadEncoded));
+  } catch (_error) {
+    return { ok: false, message: "Token admin tidak valid." };
+  }
+
+  if (payload?.type !== "admin_session" || !payload?.sub || !payload?.exp) {
+    return { ok: false, message: "Token admin tidak valid." };
+  }
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (Number(payload.exp) <= nowSec) {
+    return { ok: false, message: "Sesi admin sudah kedaluwarsa." };
+  }
+
+  return {
+    ok: true,
+    adminEmail: String(payload.sub),
+    expiresAt: new Date(Number(payload.exp) * 1000).toISOString(),
+  };
+}
+
+async function signAdminSessionPayload(payloadEncoded, env) {
+  const secret = getAdminSessionSecret(env);
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(payloadEncoded)
+  );
+  return encodeBase64Url(signature);
+}
+
+function getAdminSessionSecret(env) {
+  const secret = String(env.ADMIN_SESSION_SECRET || env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD).trim();
+  if (!secret) {
+    throw new Error("ADMIN session secret tidak tersedia.");
+  }
+  return secret;
+}
+
+function encodeBase64Url(value) {
+  const bytes =
+    typeof value === "string"
+      ? new TextEncoder().encode(value)
+      : value instanceof Uint8Array
+        ? value
+        : new Uint8Array(value);
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+}
+
+function decodeBase64Url(value) {
+  const normalized = String(value || "").replaceAll("-", "+").replaceAll("_", "/");
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+  const binary = atob(padded);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
 }
 
 function getVisitorIp(request) {
