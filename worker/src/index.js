@@ -214,7 +214,33 @@ async function handlePublicActivate(request, env, options = {}) {
       );
     }
 
-    await extendPublicLicenseEntry(env, existing.id, nowIso, durationDays, eventBase);
+    const extendResult = await extendPublicLicenseEntry(env, existing.id, nowIso, durationDays, eventBase);
+    if (statementChanges(extendResult) === 0) {
+      const refreshed = await getLicenseEntryById(env, existing.id);
+      if (refreshed?.status === "revoked") {
+        await insertAuditLog(env, {
+          eventType: `${eventBase}_revoked_during_update`,
+          ip: publicIp,
+          entryId: existing.id,
+          stage: "public",
+          decision: "deny",
+          actorEmail: "",
+          requestIp: visitorIp,
+          userAgent: request.headers.get("User-Agent") || "",
+          payload: {
+            source: "public-race-revoked",
+          },
+        });
+        return jsonResponse(
+          {
+            error: "revoked",
+            message: "IP ini sedang diblokir dan tidak bisa diaktifkan dari website publik.",
+          },
+          403
+        );
+      }
+      throw new Error(`Gagal memperbarui entry IP publik: ${existing.id}`);
+    }
     const updated = await getLicenseEntryById(env, existing.id);
     const newExpiresAt = updated?.expires_at || "";
 
@@ -358,7 +384,7 @@ async function handlePublicStatus(request, env) {
   }
 
   const entry = await getLicenseEntryByIp(env, publicIp);
-  const statusPayload = serializePublicStatusEntry(entry, nowIsoString());
+  const statusPayload = serializePublicLookupStatusEntry(entry, nowIsoString());
 
   await insertAuditLog(env, {
     eventType: "public_status",
@@ -676,12 +702,28 @@ function serializePublicStatusEntry(row, nowIso = nowIsoString()) {
   return {
     status: effectiveStatus,
     allowed: effectiveStatus === "active",
-      entry_id: row.id,
-      ip: row.ip,
-      expires_at: row.expires_at || "",
-      days_remaining: calculateDaysRemaining(row.expires_at || "", nowIso),
+    entry_id: row.id,
+    ip: row.ip,
+    expires_at: row.expires_at || "",
+    days_remaining: calculateDaysRemaining(row.expires_at || "", nowIso),
+  };
+}
+
+function serializePublicLookupStatusEntry(row, nowIso = nowIsoString()) {
+  if (!row) {
+    return {
+      status: "not_found",
+      allowed: false,
+      renewable: false,
     };
   }
+  const effectiveStatus = effectiveStatusForRow(row, nowIso);
+  return {
+    status: effectiveStatus,
+    allowed: effectiveStatus === "active",
+    renewable: effectiveStatus !== "revoked" && effectiveStatus !== "not_found",
+  };
+}
 
 function effectiveStatusForRow(row, nowIso) {
   if ((row.status || "active") === "revoked") {
@@ -809,7 +851,7 @@ async function enforcePublicRateLimit(env, endpoint, clientIp, maxRequests, wind
 }
 
 async function extendPublicLicenseEntry(env, entryId, nowIso, durationDays, updatedBy) {
-  await runStatement(
+  return runStatement(
     env,
     `
       UPDATE license_entries

@@ -131,7 +131,7 @@ async function handleStatusSubmit(event) {
     const tone = statusToTone(payload.status);
     showPublicResult(
       publicDom.statusResult,
-      renderStatusResult(payload),
+      renderStatusResult(payload, ip),
       tone,
       true
     );
@@ -186,7 +186,7 @@ function renderCreateResult(payload) {
   `;
 }
 
-function renderStatusResult(payload) {
+function renderStatusResult(payload, ip) {
   const tone = statusToTone(payload.status);
   const summary = describeStatus(payload);
   return `
@@ -203,20 +203,16 @@ function renderStatusResult(payload) {
         <span>${escapeHtml(payload.status || "-")}</span>
       </article>
       <article>
-        <strong>IPv4</strong>
-        <span class="mono">${escapeHtml(payload.ip || "-")}</span>
+        <strong>IP Dicek</strong>
+        <span class="mono">${escapeHtml(ip || "-")}</span>
       </article>
       <article>
-        <strong>Entry ID</strong>
-        <span class="mono">${escapeHtml(payload.entry_id || "-")}</span>
+        <strong>Akses Portal Publik</strong>
+        <span>${payload.allowed ? "Diizinkan" : "Tidak diizinkan"}</span>
       </article>
       <article>
-        <strong>Days Remaining</strong>
-        <span>${escapeHtml(formatDaysRemaining(payload.days_remaining))}</span>
-      </article>
-      <article>
-        <strong>Aktif Sampai</strong>
-        <span>${escapeHtml(formatDate(payload.expires_at) || "-")}</span>
+        <strong>Bisa Renew Publik</strong>
+        <span>${payload.renewable ? "Ya" : "Tidak"}</span>
       </article>
     </div>
     <p class="result-caption">${escapeHtml(nextActionForStatus(payload))}</p>
@@ -332,7 +328,7 @@ function statusLabel(status) {
 function describeStatus(payload) {
   const status = payload.status || "unknown";
   if (status === "active") {
-    return `IP ini aktif dan masih bisa dipakai. ${formatDaysRemaining(payload.days_remaining)} tersisa sebelum perlu renew lagi.`;
+    return "IP ini aktif dan masih bisa dipakai oleh VPS yang memakai IP tersebut.";
   }
   if (status === "expired") {
     return "IP ini pernah aktif, tetapi masa berlakunya sudah habis dan perlu diaktifkan ulang.";
