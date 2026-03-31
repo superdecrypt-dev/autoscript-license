@@ -74,7 +74,7 @@ Repo ini adalah project standalone. Semua file Worker, Pages, dan migrasi ada la
    - `Build output directory`: `dist`
 5. Tambahkan environment variable di Pages:
    - `PAGES_API_BASE_URL=https://<worker-host>`
-6. Buat atau connect project `Worker` ke repo GitHub yang sama dan pastikan name-nya `autoscript`.
+6. Buat atau connect project `Worker` ke repo GitHub yang sama dan pastikan name-nya `autoscript-license`.
 7. Isi vars Worker di dashboard Cloudflare agar sesuai dengan `wrangler.toml`.
 8. Pastikan cron trigger Worker ikut terpasang saat deploy, karena cleanup `audit_logs` dan `public_rate_limits`
    sekarang dijalankan terjadwal dari Worker.
@@ -104,7 +104,7 @@ Repo ini adalah project standalone. Semua file Worker, Pages, dan migrasi ada la
 Autoscript sekarang bisa memakai URL built-in ini tanpa env manual di VPS:
 
 ```bash
-export AUTOSCRIPT_LICENSE_DEFAULT_API_URL="https://autoscript.temp10sgt.workers.dev/api/v1/license/check"
+export AUTOSCRIPT_LICENSE_DEFAULT_API_URL="https://autoscript-license.minidecrypt.workers.dev/api/v1/license/check"
 ```
 
 Di repo ini URL itu sudah ditanam sebagai default bawaan. `run.sh`, `setup.sh`, `manage.sh`, dan runtime enforcer autoscript akan memakai endpoint yang sama dan Worker akan mengecek izin berdasarkan IP sumber request VPS.
