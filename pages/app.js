@@ -1,19 +1,19 @@
 const VIEW_META = {
   dashboard: {
     title: "Dashboard",
-    description: "Pantau kesehatan lisensi, activity trend, dan sinyal operasional terbaru.",
+    description: "Pantau lisensi dan aktivitas terbaru.",
   },
   entries: {
     title: "Entries",
-    description: "Cari, edit, blokir, buka blokir, dan hapus entry lisensi IP dari satu workspace.",
+    description: "Cari dan kelola entry lisensi.",
   },
   audit: {
     title: "Audit Log",
-    description: "Lihat jejak perubahan dan filter event operasional berdasarkan IP atau event type.",
+    description: "Lihat jejak perubahan.",
   },
   settings: {
     title: "Settings",
-    description: "Kelola sesi admin dan akses panel tanpa menampilkan endpoint Worker di UI.",
+    description: "Kelola sesi admin.",
   },
 };
 
@@ -118,7 +118,7 @@ function bootstrap() {
 
   if (!state.apiBaseUrl) {
     setAuthState("locked");
-    setLoginBanner("Config API admin belum tersedia di deploy ini. Isi PAGES_API_BASE_URL lalu redeploy Pages.", "error");
+    setLoginBanner("Config admin belum tersedia.", "error");
     dom.loginSubmitBtn.disabled = true;
     return;
   }
@@ -199,25 +199,25 @@ function toggleSidebar() {
 async function handleLoginSubmit(event) {
   event.preventDefault();
   if (!state.apiBaseUrl) {
-    setLoginBanner("Config API admin belum tersedia di deploy ini.", "error");
+    setLoginBanner("Config admin belum tersedia.", "error");
     return;
   }
 
   const adminEmail = dom.loginEmailInput.value.trim();
   const adminPassword = dom.loginPasswordInput.value;
   if (!adminEmail || !adminPassword) {
-    setLoginBanner("Masukkan user/email dan password admin terlebih dahulu.", "error");
+    setLoginBanner("Masukkan user dan password admin.", "error");
     return;
   }
 
   setAuthState("authenticating");
-  setLoginBanner("Memverifikasi kredensial admin...", "muted");
+  setLoginBanner("Memverifikasi...", "muted");
 
   try {
     await authenticateAdmin(adminEmail, adminPassword, { renewExpiry: true });
   } catch (error) {
     setAuthState("locked");
-    setLoginBanner(error.message || "Login admin gagal.", "error");
+    setLoginBanner(error.message || "Login gagal.", "error");
   }
 }
 
@@ -227,14 +227,14 @@ async function authenticateWithStoredCredentials() {
     return;
   }
   setAuthState("authenticating");
-  setLoginBanner("Memulihkan sesi admin sebelumnya...", "muted");
+  setLoginBanner("Memulihkan sesi...", "muted");
 
   try {
     await authenticateAdmin(state.adminEmail, state.adminPassword, { renewExpiry: false });
   } catch (_error) {
     clearStoredCredentials();
     setAuthState("locked");
-    setLoginBanner("Sesi sebelumnya tidak valid. Silakan login ulang.", "error");
+    setLoginBanner("Sesi tidak valid. Silakan login ulang.", "error");
   }
 }
 
@@ -255,7 +255,7 @@ async function authenticateAdmin(adminEmail, adminPassword, options = {}) {
   }
   setSessionState(session);
   setAuthState("authenticated");
-  setLoginBanner("Akses admin berhasil diverifikasi.", "ok");
+  setLoginBanner("Login berhasil.", "ok");
   setBanner(`Connected as ${session.admin_email || "admin"}`, "ok");
   await refreshDashboard();
 }
@@ -270,7 +270,7 @@ function handleLogout(options = {}) {
   refreshVisuals();
   setAuthState("locked");
   setLoginBanner(
-    options.message || "Sesi admin dibersihkan. Masukkan kredensial untuk membuka panel lagi.",
+    options.message || "Sesi admin dibersihkan.",
     options.tone || "muted"
   );
 }

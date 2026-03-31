@@ -27,8 +27,8 @@ async function bootstrapPublicPortal() {
   bindPublicEvents();
   renderDurationDays();
   if (!publicState.apiBaseUrl) {
-    setPublicBanner("Operator belum mengisi API base URL di config.js.", "error");
-    setStatusBadge("Portal not configured", "error");
+    setPublicBanner("Portal belum siap.", "error");
+    setStatusBadge("Not ready", "error");
     return;
   }
   await loadWorkerPublicConfig();
@@ -45,11 +45,11 @@ async function loadWorkerPublicConfig() {
     publicState.workerConfigLoaded = true;
     publicState.licenseDurationDays = Number(payload.license_duration_days || 14);
     renderDurationDays();
-    setPublicBanner("Portal siap dipakai. Input IP VPS untuk create, cek status, atau renew.", "ok");
-    setStatusBadge("Worker connected", "ok");
+    setPublicBanner("Portal siap digunakan.", "ok");
+    setStatusBadge("Ready", "ok");
   } catch (error) {
-    setPublicBanner(error.message || "Gagal mengambil konfigurasi Worker publik.", "error");
-    setStatusBadge("Worker config failed", "error");
+    setPublicBanner(error.message || "Gagal memuat konfigurasi.", "error");
+    setStatusBadge("Config failed", "error");
   }
 }
 
@@ -91,7 +91,7 @@ async function handleCreateSubmit(event) {
       true
     );
     publicDom.statusIp.value = ip;
-    setPublicBanner("Aktivasi berhasil diproses. Gunakan form status untuk verifikasi bila perlu.", "ok");
+    setPublicBanner("Aktivasi berhasil.", "ok");
   } catch (error) {
     showPublicResult(publicDom.createResult, error.message || "Create gagal.", "error");
   } finally {
@@ -135,7 +135,7 @@ async function handleStatusSubmit(event) {
       tone,
       true
     );
-    setPublicBanner(`Status terbaru untuk ${ip} berhasil diambil.`, tone === "error" ? "warn" : "ok");
+    setPublicBanner(`Status ${ip} berhasil diambil.`, tone === "error" ? "warn" : "ok");
   } catch (error) {
     showPublicResult(publicDom.statusResult, error.message || "Check status gagal.", "error");
   } finally {
@@ -151,7 +151,7 @@ function renderCreateResult(payload) {
   return `
     <div class="result-topline">
       <div>
-        <h3 class="result-title">Aktivasi IP Berhasil Diproses</h3>
+        <h3 class="result-title">Aktivasi Berhasil</h3>
         <p class="result-lead">${escapeHtml(payload.message || "")}</p>
       </div>
       <span class="tone-chip ${tone}">${escapeHtml(statusLabel(status))}</span>
@@ -179,9 +179,9 @@ function renderCreateResult(payload) {
       </article>
     </div>
     <ul class="action-list">
-      <li>Gunakan IP yang sama lagi kapan pun untuk memperpanjang masa aktif.</li>
-      <li>Simpan hasil ini jika Anda perlu konfirmasi ke operator.</li>
-      <li>Jika VPS berganti IP, lakukan aktivasi ulang dengan IP baru.</li>
+      <li>Gunakan IP yang sama untuk renew.</li>
+      <li>Simpan hasil ini bila diperlukan.</li>
+      <li>Jika IP berubah, aktivasi ulang.</li>
     </ul>
   `;
 }
@@ -203,15 +203,15 @@ function renderStatusResult(payload, ip) {
         <span>${escapeHtml(payload.status || "-")}</span>
       </article>
       <article>
-        <strong>IP Dicek</strong>
+        <strong>IP</strong>
         <span class="mono">${escapeHtml(ip || "-")}</span>
       </article>
       <article>
-        <strong>Akses Portal Publik</strong>
-        <span>${payload.allowed ? "Diizinkan" : "Tidak diizinkan"}</span>
+        <strong>Akses Publik</strong>
+        <span>${payload.allowed ? "Diizinkan" : "Tidak"}</span>
       </article>
       <article>
-        <strong>Bisa Renew Publik</strong>
+        <strong>Bisa Renew</strong>
         <span>${payload.renewable ? "Ya" : "Tidak"}</span>
       </article>
     </div>
