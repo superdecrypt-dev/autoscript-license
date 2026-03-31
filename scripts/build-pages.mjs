@@ -10,8 +10,9 @@ const outputDir = resolve(rootDir, "dist");
 const fallbackConfigPath = resolve(sourceDir, "config.js");
 const fallbackConfig = readFileSync(fallbackConfigPath, "utf8");
 const fallbackValues = extractFallbackConfig(fallbackConfig);
-
-const apiBaseUrl = normalizeUrl(process.env.PAGES_API_BASE_URL || fallbackValues.apiBaseUrl);
+const configuredApiBaseUrl = normalizeUrl(process.env.PAGES_API_BASE_URL);
+const fallbackApiBaseUrl = normalizeUrl(fallbackValues.apiBaseUrl);
+const apiBaseUrl = configuredApiBaseUrl || fallbackApiBaseUrl;
 
 rmSync(outputDir, { force: true, recursive: true });
 mkdirSync(outputDir, { recursive: true });
@@ -27,7 +28,9 @@ const generatedConfig = `window.AUTOSCRIPT_PORTAL_CONFIG = ${JSON.stringify(
 
 writeFileSync(resolve(outputDir, "config.js"), generatedConfig, "utf8");
 
-if (!apiBaseUrl) {
+if (!configuredApiBaseUrl && fallbackApiBaseUrl) {
+  console.log(`[build:pages] using fallback apiBaseUrl from pages/config.js: ${fallbackApiBaseUrl}`);
+} else if (!apiBaseUrl) {
   console.warn("[build:pages] PAGES_API_BASE_URL belum di-set; dist/config.js tetap kosong.");
 }
 

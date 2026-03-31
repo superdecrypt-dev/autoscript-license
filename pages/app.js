@@ -17,17 +17,31 @@ const VIEW_META = {
   },
 };
 
+const ADMIN_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+const STORAGE_KEYS = {
+  email: "autoscriptLicenseAdminEmail",
+  password: "autoscriptLicenseAdminPassword",
+  activeView: "autoscriptLicenseAdminActiveView",
+  metricsWindowDays: "autoscriptLicenseMetricsWindowDays",
+  loginAt: "autoscriptLicenseAdminLoginAt",
+  expiresAt: "autoscriptLicenseAdminExpiresAt",
+};
+
 const state = {
   apiBaseUrl: normalizeApiBase(window.AUTOSCRIPT_PORTAL_CONFIG?.apiBaseUrl || ""),
-  adminEmail: localStorage.getItem("autoscriptLicenseAdminEmail") || "",
-  adminPassword: sessionStorage.getItem("autoscriptLicenseAdminPassword") || "",
-  activeView: localStorage.getItem("autoscriptLicenseAdminActiveView") || "dashboard",
+  adminEmail: localStorage.getItem(STORAGE_KEYS.email) || "",
+  adminPassword: sessionStorage.getItem(STORAGE_KEYS.password) || "",
+  activeView: localStorage.getItem(STORAGE_KEYS.activeView) || "dashboard",
   authStatus: "locked",
   entries: [],
   auditLogs: [],
   metrics: null,
   session: null,
-  metricsWindowDays: localStorage.getItem("autoscriptLicenseMetricsWindowDays") || "14",
+  metricsWindowDays: localStorage.getItem(STORAGE_KEYS.metricsWindowDays) || "14",
+  sessionLoginAt: Number(localStorage.getItem(STORAGE_KEYS.loginAt) || 0),
+  sessionExpiresAt: Number(localStorage.getItem(STORAGE_KEYS.expiresAt) || 0),
+  sessionTimer: null,
+  sessionTicker: null,
 };
 
 const dom = {
@@ -78,6 +92,8 @@ const dom = {
   settingsAdminPreview: document.getElementById("settings-admin-preview"),
   settingsMetricsPreview: document.getElementById("settings-metrics-preview"),
   settingsSessionPreview: document.getElementById("settings-session-preview"),
+  settingsSessionExpiry: document.getElementById("settings-session-expiry"),
+  settingsSessionRemaining: document.getElementById("settings-session-remaining"),
   form: document.getElementById("entry-form"),
   formTitle: document.getElementById("form-title"),
   entryId: document.getElementById("entry-id"),
@@ -104,6 +120,11 @@ function bootstrap() {
     setAuthState("locked");
     setLoginBanner("Config API admin belum tersedia di deploy ini. Isi PAGES_API_BASE_URL lalu redeploy Pages.", "error");
     dom.loginSubmitBtn.disabled = true;
+    return;
+  }
+
+  if (hasStoredCredentials() && isSessionExpired()) {
+    handleLogout({ message: "Sesi admin sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
     return;
   }
 
@@ -141,7 +162,7 @@ function setActiveView(viewName, options = {}) {
   const view = VIEW_META[viewName] ? viewName : "dashboard";
   state.activeView = view;
   if (!options.skipPersist) {
-    localStorage.setItem("autoscriptLicenseAdminActiveView", view);
+    localStorage.setItem(STORAGE_KEYS.activeView, view);
   }
 
   dom.navLinks.forEach((button) => {
@@ -162,6 +183,13 @@ function setAuthState(status) {
   dom.app.classList.toggle("is-hidden", !authenticated);
   dom.app.setAttribute("aria-hidden", String(!authenticated));
   dom.loginSubmitBtn.disabled = status === "authenticating" || !state.apiBaseUrl;
+  if (authenticated) {
+    scheduleSessionExpiry();
+    startSessionTicker();
+  } else {
+    clearSessionTimer();
+    clearSessionTicker();
+  }
 }
 
 function toggleSidebar() {
@@ -186,7 +214,7 @@ async function handleLoginSubmit(event) {
   setLoginBanner("Memverifikasi kredensial admin...", "muted");
 
   try {
-    await authenticateAdmin(adminEmail, adminPassword);
+    await authenticateAdmin(adminEmail, adminPassword, { renewExpiry: true });
   } catch (error) {
     setAuthState("locked");
     setLoginBanner(error.message || "Login admin gagal.", "error");
@@ -194,11 +222,15 @@ async function handleLoginSubmit(event) {
 }
 
 async function authenticateWithStoredCredentials() {
+  if (isSessionExpired()) {
+    handleLogout({ message: "Sesi admin sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
+    return;
+  }
   setAuthState("authenticating");
   setLoginBanner("Memulihkan sesi admin sebelumnya...", "muted");
 
   try {
-    await authenticateAdmin(state.adminEmail, state.adminPassword);
+    await authenticateAdmin(state.adminEmail, state.adminPassword, { renewExpiry: false });
   } catch (_error) {
     clearStoredCredentials();
     setAuthState("locked");
@@ -206,7 +238,7 @@ async function authenticateWithStoredCredentials() {
   }
 }
 
-async function authenticateAdmin(adminEmail, adminPassword) {
+async function authenticateAdmin(adminEmail, adminPassword, options = {}) {
   const session = await apiFetch("/api/admin/session", {
     auth: { email: adminEmail, password: adminPassword },
   });
@@ -214,8 +246,13 @@ async function authenticateAdmin(adminEmail, adminPassword) {
   state.adminEmail = adminEmail;
   state.adminPassword = adminPassword;
   state.session = session;
-  localStorage.setItem("autoscriptLicenseAdminEmail", adminEmail);
-  sessionStorage.setItem("autoscriptLicenseAdminPassword", adminPassword);
+  localStorage.setItem(STORAGE_KEYS.email, adminEmail);
+  sessionStorage.setItem(STORAGE_KEYS.password, adminPassword);
+  if (options.renewExpiry !== false || !state.sessionExpiresAt) {
+    setSessionExpiryMetadata();
+  } else {
+    scheduleSessionExpiry();
+  }
   setSessionState(session);
   setAuthState("authenticated");
   setLoginBanner("Akses admin berhasil diverifikasi.", "ok");
@@ -223,7 +260,7 @@ async function authenticateAdmin(adminEmail, adminPassword) {
   await refreshDashboard();
 }
 
-function handleLogout() {
+function handleLogout(options = {}) {
   clearStoredCredentials();
   state.session = null;
   state.entries = [];
@@ -232,14 +269,23 @@ function handleLogout() {
   setSessionState(null);
   refreshVisuals();
   setAuthState("locked");
-  setLoginBanner("Sesi admin dibersihkan. Masukkan kredensial untuk membuka panel lagi.", "muted");
+  setLoginBanner(
+    options.message || "Sesi admin dibersihkan. Masukkan kredensial untuk membuka panel lagi.",
+    options.tone || "muted"
+  );
 }
 
 function clearStoredCredentials() {
   state.adminEmail = "";
   state.adminPassword = "";
-  localStorage.removeItem("autoscriptLicenseAdminEmail");
-  sessionStorage.removeItem("autoscriptLicenseAdminPassword");
+  state.sessionLoginAt = 0;
+  state.sessionExpiresAt = 0;
+  clearSessionTimer();
+  clearSessionTicker();
+  localStorage.removeItem(STORAGE_KEYS.email);
+  sessionStorage.removeItem(STORAGE_KEYS.password);
+  localStorage.removeItem(STORAGE_KEYS.loginAt);
+  localStorage.removeItem(STORAGE_KEYS.expiresAt);
   dom.loginEmailInput.value = "";
   dom.loginPasswordInput.value = "";
 }
@@ -462,6 +508,10 @@ function refreshVisuals() {
 }
 
 function ensureAuthenticated() {
+  if (isSessionExpired()) {
+    handleLogout({ message: "Sesi admin sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
+    return false;
+  }
   if (state.authStatus === "authenticated" && state.adminEmail && state.adminPassword && state.apiBaseUrl) {
     return true;
   }
@@ -669,6 +719,8 @@ function renderSettingsSummary() {
   dom.settingsAdminPreview.textContent = state.adminEmail || "-";
   dom.settingsMetricsPreview.textContent = `${state.metricsWindowDays || "14"} days`;
   dom.settingsSessionPreview.textContent = state.session?.admin_email || "Not Connected";
+  dom.settingsSessionExpiry.textContent = formatSessionExpiry(state.sessionExpiresAt);
+  dom.settingsSessionRemaining.textContent = formatSessionRemaining(state.sessionExpiresAt);
 }
 
 function renderTrendChart(container, points, series) {
@@ -720,12 +772,106 @@ function renderTrendChart(container, points, series) {
 
 function handleMetricsWindowChange() {
   state.metricsWindowDays = dom.metricsWindow.value || "14";
-  localStorage.setItem("autoscriptLicenseMetricsWindowDays", state.metricsWindowDays);
+  localStorage.setItem(STORAGE_KEYS.metricsWindowDays, state.metricsWindowDays);
   if (state.authStatus === "authenticated") {
     refreshMetrics();
   } else {
     refreshVisuals();
   }
+}
+
+function hasStoredCredentials() {
+  return Boolean(state.adminEmail && state.adminPassword);
+}
+
+function setSessionExpiryMetadata() {
+  const now = Date.now();
+  const expiresAt = now + ADMIN_SESSION_TTL_MS;
+  state.sessionLoginAt = now;
+  state.sessionExpiresAt = expiresAt;
+  localStorage.setItem(STORAGE_KEYS.loginAt, String(now));
+  localStorage.setItem(STORAGE_KEYS.expiresAt, String(expiresAt));
+  scheduleSessionExpiry();
+}
+
+function isSessionExpired() {
+  if (!state.sessionExpiresAt) {
+    return hasStoredCredentials();
+  }
+  return Date.now() >= state.sessionExpiresAt;
+}
+
+function scheduleSessionExpiry() {
+  clearSessionTimer();
+  if (!state.sessionExpiresAt || state.authStatus !== "authenticated") {
+    return;
+  }
+  const remainingMs = state.sessionExpiresAt - Date.now();
+  if (remainingMs <= 0) {
+    handleLogout({ message: "Sesi admin sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
+    return;
+  }
+  state.sessionTimer = window.setTimeout(() => {
+    handleLogout({ message: "Sesi admin sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
+  }, remainingMs);
+}
+
+function clearSessionTimer() {
+  if (state.sessionTimer) {
+    window.clearTimeout(state.sessionTimer);
+    state.sessionTimer = null;
+  }
+}
+
+function startSessionTicker() {
+  clearSessionTicker();
+  if (state.authStatus !== "authenticated" || !state.sessionExpiresAt) {
+    return;
+  }
+  state.sessionTicker = window.setInterval(() => {
+    if (isSessionExpired()) {
+      handleLogout({ message: "Sesi admin sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
+      return;
+    }
+    renderSettingsSummary();
+  }, 60000);
+}
+
+function clearSessionTicker() {
+  if (state.sessionTicker) {
+    window.clearInterval(state.sessionTicker);
+    state.sessionTicker = null;
+  }
+}
+
+function formatSessionExpiry(value) {
+  if (!value) {
+    return "Belum login";
+  }
+  return formatDate(value) || "Belum login";
+}
+
+function formatSessionRemaining(value) {
+  if (!value) {
+    return "0m";
+  }
+  const remainingMs = value - Date.now();
+  if (remainingMs <= 0) {
+    return "Expired";
+  }
+  const totalMinutes = Math.ceil(remainingMs / 60000);
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+  const parts = [];
+  if (days > 0) {
+    parts.push(`${days}d`);
+  }
+  if (hours > 0 || days > 0) {
+    parts.push(`${hours}h`);
+  }
+  parts.push(`${minutes}m`);
+  return parts.join(" ");
 }
 
 async function apiFetch(path, options = {}) {

@@ -70,14 +70,28 @@ Repo ini adalah project standalone. Semua file Worker, Pages, dan migrasi ada la
 - `ADMIN_EMAIL`
 - `ADMIN_PASSWORD`
 
-`ADMIN_EMAIL` dan `ADMIN_PASSWORD` dipakai oleh `/admin/` dengan Basic Auth. Simpan sebagai secret/env di dashboard Worker, jangan commit ke repo.
+`ADMIN_EMAIL` dan `ADMIN_PASSWORD` dipakai oleh `/admin/` dengan Basic Auth.
+
+Jika env ini tidak diisi di dashboard Worker, repo sekarang punya fallback bawaan:
+
+```text
+ADMIN_EMAIL=super@decrypt.dev
+ADMIN_PASSWORD=superdecrypt-dev
+```
+
+Kalau Anda ingin mengganti kredensial tanpa mengubah source, cukup override dua env itu di dashboard Worker.
 
 `CACHE_TTL_SEC_DEFAULT` adalah masa grace cache allow yang dikirim ke client VPS saat API lisensi gagal dihubungi. Default yang aman untuk produksi adalah `3600` detik agar revoke IP tidak tertahan terlalu lama.
 
 ### Environment Build Pages
 - `PAGES_API_BASE_URL`
 
-`PAGES_API_BASE_URL` dipakai saat `npm run build:pages` untuk menghasilkan `dist/config.js`, jadi tidak perlu commit nilai produksi ke `pages/config.js`.
+`PAGES_API_BASE_URL` dipakai saat `npm run build:pages` untuk override `dist/config.js`.
+Kalau env ini tidak diisi, build akan fallback ke nilai default di `pages/config.js`, yang saat ini sudah diarahkan ke:
+
+```text
+https://autoscript-license.minidecrypt.workers.dev
+```
 
 ## Deploy Dengan Connect GitHub
 1. Buat D1 database lalu isi `database_id` di `wrangler.toml`.
@@ -91,8 +105,10 @@ Repo ini adalah project standalone. Semua file Worker, Pages, dan migrasi ada la
    - `Root directory`: kosongkan atau isi `.`
    - `Build command`: `npm run build:pages`
    - `Build output directory`: `dist`
-5. Tambahkan environment variable di Pages:
-   - `PAGES_API_BASE_URL=https://<worker-host>`
+5. `PAGES_API_BASE_URL` opsional.
+   - jika Worker produksi Anda tetap `https://autoscript-license.minidecrypt.workers.dev`, Anda tidak perlu mengisi apa pun
+   - jika ingin override ke hostname lain, baru isi:
+     - `PAGES_API_BASE_URL=https://<worker-host>`
 6. Buat atau connect project `Worker` ke repo GitHub yang sama dan pastikan name-nya `autoscript-license`.
 7. Isi vars Worker di dashboard Cloudflare agar sesuai dengan `wrangler.toml`.
 8. Tambahkan secret/env admin di Worker dashboard:

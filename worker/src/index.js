@@ -1,4 +1,6 @@
 const IPV4_RE = /^(?:\d{1,3}\.){3}\d{1,3}$/;
+const DEFAULT_ADMIN_EMAIL = "super@decrypt.dev";
+const DEFAULT_ADMIN_PASSWORD = "superdecrypt-dev";
 
 export default {
   async fetch(request, env) {
@@ -642,21 +644,8 @@ async function handleAdminMetrics(request, env) {
 }
 
 function authenticateAdminRequest(request, env) {
-  const expectedEmail = String(env.ADMIN_EMAIL || "").trim();
-  const expectedPassword = String(env.ADMIN_PASSWORD || "").trim();
-
-  if (!expectedEmail || !expectedPassword) {
-    return {
-      ok: false,
-      response: jsonResponse(
-        {
-          error: "admin_not_configured",
-          message: "Admin panel belum dikonfigurasi di Worker.",
-        },
-        503
-      ),
-    };
-  }
+  const expectedEmail = String(env.ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL).trim();
+  const expectedPassword = String(env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD).trim();
 
   const authHeader = String(request.headers.get("Authorization") || "").trim();
   if (!authHeader.startsWith("Basic ")) {

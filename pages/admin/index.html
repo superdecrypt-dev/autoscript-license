@@ -20,6 +20,9 @@
         <p class="login-copy">
           Panel admin disembunyikan penuh sampai kredensial valid diverifikasi ke Worker.
         </p>
+        <p class="login-session-note">
+          Akses admin aktif selama 24 jam sejak login berhasil, lalu browser akan meminta login ulang.
+        </p>
 
         <form id="login-form" class="login-form">
           <label>
@@ -348,6 +351,14 @@
                   <div>
                     <dt>Session State</dt>
                     <dd id="settings-session-preview">Not Connected</dd>
+                  </div>
+                  <div>
+                    <dt>Session Expires</dt>
+                    <dd id="settings-session-expiry">Belum login</dd>
+                  </div>
+                  <div>
+                    <dt>Remaining Access</dt>
+                    <dd id="settings-session-remaining">0m</dd>
                   </div>
                 </dl>
 

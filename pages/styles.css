@@ -90,7 +90,8 @@ label span,
 .top-event-meta span,
 .trend-label,
 .source-card span,
-.login-copy {
+.login-copy,
+.login-session-note {
   color: var(--muted);
 }
 
@@ -112,6 +113,12 @@ label span,
 .login-copy {
   margin: 14px 0 0;
   line-height: 1.65;
+}
+
+.login-session-note {
+  margin: 10px 0 0;
+  font-size: 0.95rem;
+  line-height: 1.6;
 }
 
 .login-form {
