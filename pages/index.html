@@ -20,7 +20,7 @@
           <p class="eyebrow">Public Self-Service</p>
           <h1>Autoscript IP License</h1>
           <p class="hero-text">
-            Aktifkan atau perpanjang izin IP VPS.
+            Aktivasi dan cek status lisensi IP VPS.
             Setiap aktivasi menambah masa aktif <strong><span id="license-duration-days">14</span> hari</strong>.
           </p>
           <div class="hero-actions">
@@ -29,7 +29,7 @@
           </div>
           <div class="hero-strip">
             <article>
-              <strong>1 IP</strong>
+              <strong>1 Public IPv4</strong>
               <span>Gunakan public IPv4 VPS</span>
             </article>
             <article>
@@ -37,13 +37,13 @@
               <span>Aktivasi dan renew langsung</span>
             </article>
             <article>
-              <strong>Status cepat</strong>
-              <span>Cek active, expired, atau revoked</span>
+              <strong>Status jelas</strong>
+              <span>Active, expired, atau revoked</span>
             </article>
           </div>
         </div>
         <div class="hero-sidecard">
-          <p class="sidecard-label">Langkah</p>
+          <p class="sidecard-label">3 Langkah</p>
           <ol class="flow-list">
             <li>Masukkan public IPv4 VPS.</li>
             <li>Aktifkan atau perpanjang IP.</li>
@@ -65,30 +65,30 @@
 
       <section class="public-overview" aria-label="Portal overview">
         <article class="overview-card">
-          <span class="overview-label">Durasi default</span>
+          <span class="overview-label">Durasi</span>
           <strong><span id="overview-duration-days">14</span> hari</strong>
           <p>Satu aktivasi menambah durasi yang sama.</p>
         </article>
         <article class="overview-card">
-          <span class="overview-label">Kapan renew?</span>
+          <span class="overview-label">Renew</span>
           <strong>Sebelum expired</strong>
           <p>Submit IP yang sama untuk menambah masa aktif.</p>
         </article>
         <article class="overview-card">
           <span class="overview-label">Jika ditolak</span>
-          <strong>Cek status dulu</strong>
+          <strong>Cek status IP</strong>
           <p>Pastikan IP sesuai dengan public IPv4 VPS.</p>
         </article>
       </section>
 
       <main class="public-grid">
-        <section id="activate-panel" class="public-panel">
+        <section id="activate-panel" class="public-panel public-panel-primary">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Activate</p>
               <h2>Aktifkan / Perpanjang IP</h2>
               <p class="panel-copy">
-                Untuk aktivasi baru atau perpanjang IP yang sama.
+                Untuk IP baru atau perpanjang IP yang sama.
               </p>
             </div>
           </div>
@@ -96,7 +96,7 @@
             <label>
               <span>IPv4 VPS</span>
               <input id="create-ip" type="text" placeholder="123.45.67.89" required />
-              <small>Masukkan public IPv4 VPS.</small>
+              <small>Masukkan public IPv4 VPS yang aktif dipakai server.</small>
             </label>
             <button id="create-submit-btn" class="primary-btn" type="submit">
               <span id="create-submit-label">Aktifkan 14 Hari</span>
@@ -105,13 +105,13 @@
           <div id="create-result" class="result-card hidden"></div>
         </section>
 
-        <section id="status-panel" class="public-panel">
+        <section id="status-panel" class="public-panel public-panel-secondary">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Status</p>
               <h2>Cek Status License</h2>
               <p class="panel-copy">
-                Cek apakah IP masih aktif.
+                Cek apakah IP masih aktif atau perlu diaktifkan ulang.
               </p>
             </div>
           </div>
@@ -119,7 +119,7 @@
             <label>
               <span>IPv4 VPS</span>
               <input id="status-ip" type="text" placeholder="123.45.67.89" required />
-              <small>Gunakan IP yang sama untuk verifikasi hasil.</small>
+              <small>Gunakan IP yang sama dengan yang ingin diverifikasi.</small>
             </label>
             <button id="status-submit-btn" class="primary-btn secondary-btn" type="submit">
               <span id="status-submit-label">Check Status</span>

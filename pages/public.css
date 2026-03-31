@@ -87,6 +87,7 @@ input {
 .hero-copy {
   padding: 42px;
   min-height: 100%;
+  background: linear-gradient(180deg, rgba(255, 252, 247, 0.95), rgba(251, 242, 229, 0.84));
 }
 
 .hero-copy::after {
@@ -103,6 +104,10 @@ input {
 .hero-sidecard,
 .public-panel {
   padding: 28px;
+}
+
+.hero-sidecard {
+  background: rgba(255, 250, 244, 0.88);
 }
 
 .eyebrow {
@@ -143,8 +148,8 @@ label small,
 
 .hero-text {
   margin-top: 20px;
-  max-width: 60ch;
-  line-height: 1.7;
+  max-width: 52ch;
+  line-height: 1.62;
   font-size: 1.02rem;
 }
 
@@ -193,7 +198,7 @@ label small,
 .overview-card {
   padding: 20px 22px;
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.56);
+  background: rgba(255, 255, 255, 0.62);
   border: 1px solid rgba(76, 48, 23, 0.08);
   transition:
     transform 180ms ease,
@@ -359,13 +364,23 @@ label small,
   gap: 24px;
 }
 
+.public-panel-primary {
+  background: linear-gradient(180deg, rgba(255, 251, 246, 0.96), rgba(255, 242, 230, 0.86));
+  border-color: rgba(199, 81, 36, 0.14);
+}
+
+.public-panel-secondary {
+  background: rgba(255, 251, 246, 0.88);
+}
+
 .panel-head {
   margin-bottom: 22px;
 }
 
 .panel-copy {
-  margin: 14px 0 0;
-  line-height: 1.6;
+  margin: 12px 0 0;
+  line-height: 1.52;
+  max-width: 34ch;
 }
 
 .public-form {
@@ -431,7 +446,8 @@ label small {
 }
 
 .secondary-btn {
-  background: linear-gradient(135deg, #7a4523, #54311a);
+  background: linear-gradient(135deg, #6f4325, #4d2f1b);
+  box-shadow: 0 12px 24px rgba(77, 47, 27, 0.16);
 }
 
 .primary-btn:hover {
@@ -449,8 +465,10 @@ label small {
   margin-top: 22px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.76);
+  background: rgba(255, 255, 255, 0.82);
   padding: 22px;
+  position: relative;
+  overflow: hidden;
 }
 
 .result-card.hidden {
@@ -472,9 +490,29 @@ label small {
   background: linear-gradient(180deg, rgba(255, 248, 232, 0.94), rgba(255, 255, 255, 0.72));
 }
 
+.result-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: rgba(116, 91, 71, 0.18);
+}
+
+.result-card.ok::before {
+  background: rgba(31, 106, 74, 0.58);
+}
+
+.result-card.error::before {
+  background: rgba(168, 52, 28, 0.58);
+}
+
+.result-card.warn::before {
+  background: rgba(140, 93, 24, 0.58);
+}
+
 .result-title {
   margin: 0 0 8px;
-  font-size: 1.05rem;
+  font-size: 1.08rem;
 }
 
 .result-lead {
@@ -483,9 +521,19 @@ label small {
   line-height: 1.6;
 }
 
+.result-kicker {
+  display: inline-block;
+  margin-bottom: 10px;
+  color: rgba(114, 87, 68, 0.8);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
 .result-topline {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 16px;
@@ -526,19 +574,28 @@ label small {
 
 .result-grid article {
   border-radius: var(--radius-md);
-  background: rgba(255, 251, 245, 0.92);
+  background: rgba(255, 251, 245, 0.96);
   padding: 16px 18px;
+  border: 1px solid rgba(76, 48, 23, 0.06);
 }
 
 .result-grid strong {
   display: block;
   margin-bottom: 8px;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(114, 87, 68, 0.82);
 }
 
 .result-grid span,
 .action-list,
 .result-caption {
   line-height: 1.55;
+}
+
+.result-grid span {
+  color: var(--text);
 }
 
 .mono,
@@ -563,6 +620,19 @@ label small {
 .result-caption {
   margin-top: 18px;
   color: var(--muted);
+}
+
+.result-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+  color: rgba(114, 87, 68, 0.84);
+  line-height: 1.5;
+}
+
+.result-summary strong {
+  color: var(--text);
 }
 
 .public-footnote {
@@ -607,6 +677,11 @@ body[data-device="mobile"] .public-footnote article {
   padding: 20px;
 }
 
+body[data-device="mobile"] .hero-text {
+  max-width: none;
+  font-size: 0.97rem;
+}
+
 body[data-device="mobile"] .result-topline {
   flex-direction: column;
   align-items: flex-start;
@@ -618,6 +693,14 @@ body[data-device="mobile"] .hero-actions {
 
 body[data-device="mobile"] .hero-link {
   width: 100%;
+}
+
+body[data-device="mobile"] .public-banner {
+  padding: 12px 14px;
+}
+
+body[data-device="mobile"] .result-grid article {
+  padding: 14px 16px;
 }
 
 @media (max-width: 1080px) {

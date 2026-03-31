@@ -179,8 +179,10 @@ function renderCreateResult(payload) {
   return `
     <div class="result-topline">
       <div>
+        <span class="result-kicker">Aktivasi</span>
         <h3 class="result-title">Aktivasi Berhasil</h3>
         <p class="result-lead">${escapeHtml(payload.message || "")}</p>
+        <p class="result-summary"><strong>${escapeHtml(item.ip || "-")}</strong> siap dipakai untuk validasi lisensi VPS.</p>
       </div>
       <span class="tone-chip ${tone}">${escapeHtml(statusLabel(status))}</span>
     </div>
@@ -221,8 +223,10 @@ function renderStatusResult(payload, ip) {
   return `
     <div class="result-topline">
       <div>
+        <span class="result-kicker">Status</span>
         <h3 class="result-title">Status License</h3>
         <p class="result-lead">${escapeHtml(summary)}</p>
+        <p class="result-summary"><strong>${escapeHtml(ip || "-")}</strong> diperiksa dari portal publik.</p>
       </div>
       <span class="tone-chip ${tone}">${escapeHtml(statusLabel(payload.status))}</span>
     </div>
