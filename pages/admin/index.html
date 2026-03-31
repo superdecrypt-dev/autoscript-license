@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Autoscript License Admin</title>
+    <title>Autoscript License</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -15,27 +15,27 @@
   <body>
     <div id="login-shell" class="login-shell">
       <section class="login-card">
-        <p class="eyebrow">Admin Access</p>
-        <h1>Masuk ke Panel Admin</h1>
-        <p class="login-copy">Masuk untuk membuka admin.</p>
+        <p class="eyebrow">Access</p>
+        <h1>Masuk</h1>
+        <p class="login-copy">Masuk untuk membuka halaman ini.</p>
         <p class="login-session-note">
           Sesi aktif 24 jam.
         </p>
 
         <form id="login-form" class="login-form">
           <label>
-            <span>User / Email Admin</span>
-            <input id="login-email-input" type="text" placeholder="admin@example.com" autocomplete="username" />
+            <span>User / Email</span>
+            <input id="login-email-input" type="text" placeholder="user@example.com" autocomplete="username" />
           </label>
           <label>
             <span>Password</span>
-            <input id="login-password-input" type="password" placeholder="Admin password" autocomplete="current-password" />
+            <input id="login-password-input" type="password" placeholder="Password" autocomplete="current-password" />
           </label>
-          <button id="login-submit-btn" class="primary-btn login-submit-btn" type="submit">Masuk Panel</button>
+          <button id="login-submit-btn" class="primary-btn login-submit-btn" type="submit">Masuk</button>
         </form>
 
         <div id="login-banner" class="status-banner muted">
-          Masukkan user dan password admin.
+          Masukkan user dan password.
         </div>
       </section>
     </div>
@@ -98,7 +98,7 @@
         </header>
 
         <div id="status-banner" class="status-banner muted">
-          Sesi admin aktif.
+          Sesi aktif.
         </div>
 
         <main class="view-stage">
@@ -306,7 +306,7 @@
 
               <div class="filter-row panel-filters">
                 <input id="audit-ip-input" type="search" inputmode="numeric" placeholder="Filter IP audit, contoh: 1.2.3.4" />
-                <input id="audit-event-input" type="search" placeholder="Filter event, contoh: admin_update" />
+                <input id="audit-event-input" type="search" placeholder="Filter event, contoh: update" />
               </div>
 
               <div id="audit-mobile-list" class="mobile-list"></div>
@@ -345,7 +345,7 @@
 
                 <dl class="settings-meta settings-meta-single">
                   <div>
-                    <dt>Admin Identity</dt>
+                    <dt>Identity</dt>
                     <dd id="settings-admin-preview">-</dd>
                   </div>
                   <div>
@@ -371,10 +371,10 @@
                 </div>
 
                 <div class="settings-note">
-                  <strong>Catatan Operasional</strong>
+                  <strong>Catatan</strong>
                   <p>
-                    URL API Worker disembunyikan dari panel admin dan dibaca tetap dari konfigurasi deploy.
-                    Panel hanya bisa dibuka setelah kredensial admin berhasil diverifikasi ke Worker.
+                    URL API Worker dibaca dari konfigurasi deploy.
+                    Halaman ini hanya bisa dibuka setelah kredensial berhasil diverifikasi ke Worker.
                   </p>
                 </div>
               </section>

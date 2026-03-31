@@ -28,7 +28,7 @@ async function bootstrapPublicPortal() {
   bindPublicEvents();
   renderDurationDays();
   if (!publicState.apiBaseUrl) {
-    setPublicBanner("Portal belum siap.", "error");
+    setPublicBanner("Belum siap.", "error");
     setStatusBadge("Not ready", "error");
     return;
   }
@@ -73,7 +73,7 @@ async function loadWorkerPublicConfig() {
     publicState.workerConfigLoaded = true;
     publicState.licenseDurationDays = Number(payload.license_duration_days || 14);
     renderDurationDays();
-    setPublicBanner("Portal siap digunakan.", "ok");
+    setPublicBanner("Siap digunakan.", "ok");
     setStatusBadge("Ready", "ok");
   } catch (error) {
     setPublicBanner(error.message || "Gagal memuat konfigurasi.", "error");
@@ -226,7 +226,7 @@ function renderStatusResult(payload, ip) {
         <span class="result-kicker">Status</span>
         <h3 class="result-title">Status License</h3>
         <p class="result-lead">${escapeHtml(summary)}</p>
-        <p class="result-summary"><strong>${escapeHtml(ip || "-")}</strong> diperiksa dari portal publik.</p>
+        <p class="result-summary"><strong>${escapeHtml(ip || "-")}</strong> berhasil diperiksa.</p>
       </div>
       <span class="tone-chip ${tone}">${escapeHtml(statusLabel(payload.status))}</span>
     </div>
@@ -375,10 +375,10 @@ function describeStatus(payload) {
     return "IP ini pernah aktif, tetapi masa berlakunya sudah habis dan perlu diaktifkan ulang.";
   }
   if (status === "revoked") {
-    return "IP ini sedang diblokir dan tidak bisa diaktifkan kembali dari portal publik.";
+    return "IP ini sedang diblokir dan tidak bisa diaktifkan kembali dari halaman ini.";
   }
   if (status === "not_found") {
-    return "IP ini belum terdaftar pada portal lisensi publik.";
+    return "IP ini belum terdaftar.";
   }
   return "Status IP berhasil diambil dari Worker.";
 }

@@ -13,7 +13,7 @@ const VIEW_META = {
   },
   settings: {
     title: "Settings",
-    description: "Kelola sesi admin.",
+    description: "Kelola sesi.",
   },
 };
 
@@ -134,13 +134,13 @@ function bootstrap() {
 
   if (!state.apiBaseUrl) {
     setAuthState("locked");
-    setLoginBanner("Config admin belum tersedia.", "error");
+    setLoginBanner("Konfigurasi belum tersedia.", "error");
     dom.loginSubmitBtn.disabled = true;
     return;
   }
 
   if (hasStoredCredentials() && isSessionExpired()) {
-    handleLogout({ message: "Sesi admin sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
+    handleLogout({ message: "Sesi sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
     return;
   }
 
@@ -277,14 +277,14 @@ async function withButtonBusy(button, busyLabel, task) {
 async function handleLoginSubmit(event) {
   event.preventDefault();
   if (!state.apiBaseUrl) {
-    setLoginBanner("Config admin belum tersedia.", "error");
+    setLoginBanner("Konfigurasi belum tersedia.", "error");
     return;
   }
 
   const adminEmail = dom.loginEmailInput.value.trim();
   const adminPassword = dom.loginPasswordInput.value;
   if (!adminEmail || !adminPassword) {
-    setLoginBanner("Masukkan user dan password admin.", "error");
+    setLoginBanner("Masukkan user dan password.", "error");
     return;
   }
 
@@ -301,7 +301,7 @@ async function handleLoginSubmit(event) {
 
 async function authenticateWithStoredCredentials() {
   if (isSessionExpired()) {
-    handleLogout({ message: "Sesi admin sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
+    handleLogout({ message: "Sesi sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
     return;
   }
   setAuthState("authenticating");
@@ -322,7 +322,7 @@ async function authenticateWithStoredCredentials() {
     setSessionState(session);
     setAuthState("authenticated");
     setLoginBanner("Login berhasil.", "ok");
-    setBanner(`Connected as ${session.admin_email || "admin"}`, "ok");
+    setBanner(`Terhubung: ${session.admin_email || "-"}`, "ok");
     await refreshDashboard();
   } catch (_error) {
     clearStoredCredentials();
@@ -353,7 +353,7 @@ async function authenticateAdmin(adminEmail, adminPassword) {
   setSessionState(session);
   setAuthState("authenticated");
   setLoginBanner("Login berhasil.", "ok");
-  setBanner(`Connected as ${session.admin_email || "admin"}`, "ok");
+  setBanner(`Terhubung: ${session.admin_email || "-"}`, "ok");
   await refreshDashboard();
 }
 
@@ -368,7 +368,7 @@ function handleLogout(options = {}) {
   refreshVisuals();
   setAuthState("locked");
   setLoginBanner(
-    options.message || "Sesi admin dibersihkan.",
+    options.message || "Sesi dibersihkan.",
     options.tone || "muted"
   );
 }
@@ -410,7 +410,7 @@ async function refreshDashboard() {
   renderEntriesLoading();
   renderAuditLogsLoading();
   renderMetricsLoading();
-  setBanner("Memuat dashboard admin...", "muted");
+  setBanner("Memuat data...", "muted");
   try {
     const [session, entriesPayload, auditPayload, metricsPayload] = await Promise.all([
       apiFetch("/api/admin/session"),
@@ -423,7 +423,7 @@ async function refreshDashboard() {
     state.auditLogs = auditPayload.items || [];
     state.metrics = metricsPayload;
     setSessionState(session);
-    setBanner(`Connected as ${session.admin_email || "admin"}`, "ok");
+    setBanner(`Terhubung: ${session.admin_email || "-"}`, "ok");
     refreshVisuals();
   } catch (error) {
     handleAuthFailure(error);
@@ -684,7 +684,7 @@ function refreshVisuals() {
 
 function ensureAuthenticated() {
   if (isSessionExpired()) {
-    handleLogout({ message: "Sesi admin sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
+    handleLogout({ message: "Sesi sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
     return false;
   }
   if (state.authStatus === "authenticated" && state.adminEmail && state.adminToken && state.apiBaseUrl) {
@@ -694,10 +694,10 @@ function ensureAuthenticated() {
   return false;
 }
 
-function handleAuthFailure(error, fallbackMessage = "Akses admin gagal.") {
+function handleAuthFailure(error, fallbackMessage = "Akses gagal.") {
   if (error?.status === 401 || String(error?.message || "").includes("401")) {
     handleLogout();
-    setLoginBanner("Sesi admin tidak valid. Silakan login ulang.", "error");
+    setLoginBanner("Sesi tidak valid. Silakan login ulang.", "error");
     return;
   }
   setBanner(error.message || fallbackMessage, "error");
@@ -739,7 +739,7 @@ function renderHistoricalMetrics() {
   renderTrendChart(dom.mutationsChart, state.metrics?.daily || [], [
     { key: "public_activations", label: "Activate", tone: "accent" },
     { key: "public_renewals", label: "Renew", tone: "warn" },
-    { key: "admin_mutations", label: "Admin", tone: "muted" },
+    { key: "admin_mutations", label: "Manual", tone: "muted" },
   ]);
   renderTopEvents();
   renderEntrySourceSummary();
@@ -991,11 +991,11 @@ function renderEntrySourceSummary() {
       </div>
       <div class="source-card">
         <strong>${adminEntries}</strong>
-        <span>Admin Entry</span>
+        <span>Manual Entry</span>
       </div>
       <div class="source-card">
         <strong>${Number(summary.admin_mutations || 0)}</strong>
-        <span>Admin Mutations</span>
+        <span>Manual Updates</span>
       </div>
       <div class="source-card">
         <strong>${Number(summary.audit_rows_window || 0)}</strong>
@@ -1109,11 +1109,11 @@ function scheduleSessionExpiry() {
   }
   const remainingMs = state.sessionExpiresAt - Date.now();
   if (remainingMs <= 0) {
-    handleLogout({ message: "Sesi admin sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
+    handleLogout({ message: "Sesi sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
     return;
   }
   state.sessionTimer = window.setTimeout(() => {
-    handleLogout({ message: "Sesi admin sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
+    handleLogout({ message: "Sesi sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
   }, remainingMs);
 }
 
@@ -1131,7 +1131,7 @@ function startSessionTicker() {
   }
   state.sessionTicker = window.setInterval(() => {
     if (isSessionExpired()) {
-      handleLogout({ message: "Sesi admin sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
+      handleLogout({ message: "Sesi sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
       return;
     }
     renderSettingsSummary();
