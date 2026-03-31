@@ -51,19 +51,19 @@
         <nav class="sidebar-nav" aria-label="Admin sections">
           <button class="nav-link is-active" type="button" data-view-target="dashboard">
             <span>Dashboard</span>
-            <small>Metrics & trend</small>
+            <small>Overview & trend</small>
           </button>
           <button class="nav-link" type="button" data-view-target="entries">
             <span>Entries</span>
-            <small>Create, edit, revoke</small>
+            <small>Lookup & actions</small>
           </button>
           <button class="nav-link" type="button" data-view-target="audit">
             <span>Audit Log</span>
-            <small>Track mutations</small>
+            <small>Event history</small>
           </button>
           <button class="nav-link" type="button" data-view-target="settings">
             <span>Settings</span>
-            <small>Session & access</small>
+            <small>Session</small>
           </button>
         </nav>
 
@@ -92,7 +92,7 @@
 
           <div class="topbar-actions">
             <div id="session-badge" class="session-badge muted">Not Connected</div>
-            <button id="refresh-current-btn" class="ghost-btn" type="button">Refresh View</button>
+            <button id="refresh-current-btn" class="ghost-btn" type="button">Refresh</button>
             <button id="logout-btn" class="ghost-btn" type="button">Logout</button>
           </div>
         </header>
@@ -128,7 +128,7 @@
               <div class="section-head">
                 <div>
                   <p class="eyebrow">Historical Metrics</p>
-                  <h3>Dashboard Trend</h3>
+                  <h3>Trend</h3>
                 </div>
                 <div class="filter-row metrics-controls">
                   <select id="metrics-window">
@@ -214,7 +214,7 @@
                 <div class="section-head">
                   <div>
                     <p class="eyebrow">Lookup</p>
-                    <h3>License Entries</h3>
+                    <h3>Entries</h3>
                   </div>
                   <button id="refresh-dashboard-btn" class="ghost-btn" type="button">Refresh Entries</button>
                 </div>
@@ -374,7 +374,7 @@
                   <strong>Catatan</strong>
                   <p>
                     URL API Worker dibaca dari konfigurasi deploy.
-                    Halaman ini hanya bisa dibuka setelah kredensial berhasil diverifikasi ke Worker.
+                    Akses dibuka setelah kredensial berhasil diverifikasi.
                   </p>
                 </div>
               </section>

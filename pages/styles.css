@@ -125,8 +125,8 @@ label span,
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow);
-  padding: 30px 26px;
+  box-shadow: 0 14px 32px rgba(66, 38, 16, 0.09);
+  padding: 28px 24px;
   transition:
     transform 220ms ease,
     box-shadow 220ms ease,
@@ -206,7 +206,7 @@ label span,
   text-align: left;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   cursor: pointer;
   transition:
     transform 180ms ease,
@@ -217,11 +217,12 @@ label span,
 
 .nav-link span {
   font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .nav-link small {
   color: var(--sidebar-muted);
-  font-size: 0.84rem;
+  font-size: 0.79rem;
 }
 
 .nav-link.is-active {
@@ -286,6 +287,7 @@ label span,
   gap: 14px;
   padding: 18px 20px 16px;
   background: rgba(255, 252, 248, 0.88);
+  border-radius: 20px;
 }
 
 .topbar-main,
@@ -321,6 +323,11 @@ label span,
   gap: 10px;
 }
 
+.topbar-actions .ghost-btn {
+  min-height: 38px;
+  padding: 9px 14px;
+}
+
 .mobile-nav-btn {
   display: none;
 }
@@ -330,7 +337,7 @@ label span,
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   border-left: 3px solid rgba(107, 76, 50, 0.16);
-  padding: 12px 14px;
+  padding: 11px 13px;
   line-height: 1.5;
 }
 
@@ -374,7 +381,8 @@ label span,
 
 .view-panel[data-view="dashboard"] .chart-card,
 .view-panel[data-view="dashboard"] .source-card,
-.view-panel[data-view="dashboard"] .settings-note {
+.view-panel[data-view="dashboard"] .settings-note,
+.view-panel[data-view="dashboard"] .top-event-row {
   background: rgba(255, 255, 255, 0.72);
   border-color: rgba(69, 42, 20, 0.07);
 }
@@ -407,6 +415,11 @@ label span,
   letter-spacing: -0.02em;
 }
 
+.section-head h3,
+.chart-head h3 {
+  font-size: 1.08rem;
+}
+
 .summary-grid,
 .charts-grid {
   display: grid;
@@ -434,6 +447,7 @@ label span,
 
 .metric-card {
   padding: 20px 22px;
+  box-shadow: 0 10px 24px rgba(66, 38, 16, 0.06);
 }
 
 .metric-card strong,
@@ -481,6 +495,10 @@ label span,
   padding: 22px;
 }
 
+.workspace-main {
+  background: rgba(255, 255, 255, 0.94);
+}
+
 .filter-row input,
 .filter-row select,
 label input,
@@ -491,6 +509,10 @@ label textarea {
   background: var(--surface-2);
   color: var(--text);
   padding: 13px 15px;
+}
+
+.panel-filters {
+  gap: 10px;
 }
 
 label {
@@ -569,6 +591,7 @@ textarea {
 
 .chart-card {
   padding: 22px;
+  box-shadow: none;
 }
 
 .chart-head {
@@ -598,6 +621,9 @@ textarea {
 
 .chart-caption {
   color: rgba(114, 88, 69, 0.72);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .legend-item {
@@ -694,6 +720,9 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding: 14px 14px 12px;
+  border: 1px solid rgba(69, 42, 20, 0.06);
+  border-radius: 14px;
 }
 
 .top-event-meta {
@@ -745,6 +774,7 @@ textarea {
     transform 180ms ease,
     border-color 180ms ease,
     background 180ms ease;
+  box-shadow: none;
 }
 
 .settings-meta {
@@ -761,7 +791,7 @@ textarea {
 .settings-meta div {
   border: 1px solid rgba(69, 42, 20, 0.08);
   border-radius: var(--radius-md);
-  padding: 18px;
+  padding: 16px;
   background: rgba(255, 255, 255, 0.58);
 }
 
@@ -784,7 +814,7 @@ textarea {
 }
 
 .settings-note {
-  padding: 20px;
+  padding: 18px;
   margin-top: 20px;
   background: rgba(255, 255, 255, 0.6);
 }
@@ -886,6 +916,12 @@ tbody tr {
   min-height: 68px;
 }
 
+tbody tr td:first-child,
+tbody tr td:nth-child(3),
+tbody tr td:nth-child(4) {
+  color: var(--text);
+}
+
 th {
   font-size: 0.82rem;
   text-transform: uppercase;
@@ -915,6 +951,11 @@ th {
 .entry-meta span {
   color: rgba(114, 88, 69, 0.86);
   line-height: 1.45;
+}
+
+.entry-meta dd,
+.mobile-card-meta dd {
+  color: rgba(41, 23, 12, 0.94);
 }
 
 .status-pill {
@@ -957,6 +998,7 @@ th {
   gap: 10px;
   align-items: flex-start;
   min-height: 34px;
+  justify-content: flex-start;
 }
 
 .action-btn,
@@ -1005,7 +1047,7 @@ th {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 124px;
+  min-height: 116px;
   padding: 18px 16px;
   border: 1px dashed rgba(69, 42, 20, 0.12);
   border-radius: 16px;
@@ -1062,7 +1104,7 @@ th {
 
 .view-panel[data-view="entries"] .mobile-card,
 .view-panel[data-view="audit"] .mobile-card {
-  background: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.84);
 }
 
 .mobile-card-head {
@@ -1159,6 +1201,11 @@ th {
   color: rgba(114, 88, 69, 0.8);
 }
 
+.mobile-audit-card .entry-meta span,
+.mobile-audit-card .mobile-card-meta dd {
+  color: rgba(114, 88, 69, 0.86);
+}
+
 .login-card:hover,
 .topbar:hover,
 .panel:hover,
@@ -1169,6 +1216,13 @@ th {
 .mobile-spotlight-card:hover {
   transform: translateY(-1px);
   box-shadow: var(--shadow-hover);
+}
+
+.topbar:hover,
+.chart-card:hover,
+.source-card:hover,
+.settings-note:hover {
+  box-shadow: var(--shadow);
 }
 
 .primary-btn:hover,
@@ -1266,6 +1320,11 @@ body[data-device="mobile"] .topbar-copy {
   margin-top: 4px;
   line-height: 1.35;
   font-size: 0.84rem;
+}
+
+body[data-device="mobile"] .section-head h3,
+body[data-device="mobile"] .chart-head h3 {
+  font-size: 1rem;
 }
 
 body[data-device="mobile"] .workspace-grid,

@@ -1,19 +1,19 @@
 const VIEW_META = {
   dashboard: {
     title: "Dashboard",
-    description: "Pantau lisensi dan aktivitas terbaru.",
+    description: "Ringkasan lisensi dan aktivitas.",
   },
   entries: {
     title: "Entries",
-    description: "Cari dan kelola entry lisensi.",
+    description: "Cari dan kelola entry.",
   },
   audit: {
     title: "Audit Log",
-    description: "Lihat jejak perubahan.",
+    description: "Lihat jejak aktivitas.",
   },
   settings: {
     title: "Settings",
-    description: "Kelola sesi.",
+    description: "Status sesi.",
   },
 };
 
@@ -926,7 +926,7 @@ function renderMobileSpotlight() {
     <div class="section-head mobile-spotlight-head">
       <div>
         <p class="eyebrow">Needs Attention</p>
-        <h3>Ringkasan Mobile</h3>
+        <h3>Ringkasan</h3>
       </div>
     </div>
     <div class="mobile-spotlight-grid">
