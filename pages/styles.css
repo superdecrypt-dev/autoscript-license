@@ -319,13 +319,13 @@ label span,
 .view-stage {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
 .view-panel {
   display: none;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
 .view-panel.is-active {
@@ -333,25 +333,26 @@ label span,
 }
 
 .panel {
-  padding: 22px;
+  padding: 26px;
 }
 
 .dashboard-panel {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 22px;
 }
 
 .section-head {
   align-items: flex-start;
   justify-content: space-between;
+  gap: 16px;
 }
 
 .summary-grid,
 .charts-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  gap: 18px;
 }
 
 .charts-grid {
@@ -369,7 +370,7 @@ label span,
 }
 
 .metric-card {
-  padding: 16px 18px;
+  padding: 20px 22px;
 }
 
 .metric-card strong,
@@ -396,14 +397,14 @@ label span,
 .workspace-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(340px, 0.8fr);
-  gap: 16px;
+  gap: 20px;
 }
 
 .settings-grid,
 .settings-grid-single {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
+  gap: 20px;
 }
 
 .workspace-main,
@@ -412,7 +413,7 @@ label span,
 }
 
 .workspace-side {
-  padding: 18px;
+  padding: 22px;
 }
 
 .filter-row input,
@@ -430,7 +431,7 @@ label textarea {
 label {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 textarea {
@@ -441,7 +442,7 @@ textarea {
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 18px;
 }
 
 .form-span-full {
@@ -502,15 +503,15 @@ textarea {
 }
 
 .chart-card {
-  padding: 18px;
+  padding: 22px;
 }
 
 .chart-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: 16px;
+  margin-bottom: 18px;
 }
 
 .chart-surface {
@@ -520,8 +521,8 @@ textarea {
 .chart-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: 14px;
+  margin-bottom: 18px;
 }
 
 .legend-item {
@@ -611,13 +612,13 @@ textarea {
 .source-summary {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 18px;
 }
 
 .top-event-row {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .top-event-meta {
@@ -660,11 +661,11 @@ textarea {
 .source-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 16px;
 }
 
 .source-card {
-  padding: 14px;
+  padding: 18px;
   transition:
     transform 180ms ease,
     border-color 180ms ease,
@@ -674,7 +675,7 @@ textarea {
 .settings-meta {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  gap: 18px;
   margin: 0;
 }
 
@@ -685,7 +686,7 @@ textarea {
 .settings-meta div {
   border: 1px solid rgba(69, 42, 20, 0.08);
   border-radius: var(--radius-md);
-  padding: 14px;
+  padding: 18px;
   background: rgba(255, 255, 255, 0.72);
 }
 
@@ -708,8 +709,8 @@ textarea {
 }
 
 .settings-note {
-  padding: 16px;
-  margin-top: 16px;
+  padding: 20px;
+  margin-top: 20px;
 }
 
 .settings-note strong {
@@ -741,21 +742,21 @@ textarea {
   border: 1px solid var(--line);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-hover);
-  padding: 24px;
+  padding: 28px;
 }
 
 .modal-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 18px;
+  gap: 18px;
+  margin-bottom: 22px;
 }
 
 .modal-form {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 22px;
 }
 
 .modal-actions {
@@ -788,7 +789,7 @@ table {
 th,
 td {
   text-align: left;
-  padding: 14px 10px;
+  padding: 16px 12px;
   border-bottom: 1px solid rgba(69, 42, 20, 0.08);
   vertical-align: top;
 }
@@ -808,7 +809,7 @@ th {
 .entry-meta {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .status-pill {
@@ -839,7 +840,7 @@ th {
 .action-stack {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
 
 .action-stack button {
@@ -866,8 +867,8 @@ th {
 .mobile-card {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 16px;
+  gap: 18px;
+  padding: 20px;
   border-radius: var(--radius-md);
   border: 1px solid rgba(69, 42, 20, 0.08);
   background: rgba(255, 255, 255, 0.78);
@@ -881,13 +882,13 @@ th {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
 }
 
 .mobile-card-meta {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px 12px;
+  gap: 14px 16px;
   margin: 0;
 }
 
@@ -914,7 +915,7 @@ th {
 .mobile-action-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
 
 .mobile-action-row button {
@@ -934,11 +935,11 @@ th {
 .mobile-spotlight-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  gap: 14px;
 }
 
 .mobile-spotlight-card {
-  padding: 14px;
+  padding: 18px;
   border-radius: var(--radius-md);
   border: 1px solid rgba(69, 42, 20, 0.08);
   background: rgba(255, 255, 255, 0.76);
@@ -1023,7 +1024,7 @@ body[data-device="tablet"] .settings-meta-single {
 body[data-device="mobile"] .login-card,
 body[data-device="mobile"] .topbar,
 body[data-device="mobile"] .panel {
-  padding: 18px;
+  padding: 20px;
   border-radius: 20px;
 }
 
@@ -1058,7 +1059,7 @@ body[data-device="mobile"] .session-badge {
 body[data-device="mobile"] .mobile-spotlight,
 body[data-device="mobile"] .mobile-list {
   display: grid;
-  gap: 12px;
+  gap: 16px;
 }
 
 body[data-device="mobile"] .dashboard-panel > .charts-grid:first-of-type {
@@ -1087,7 +1088,7 @@ body[data-device="mobile"] .modal-dialog {
   width: 100%;
   max-height: 100vh;
   border-radius: 0;
-  padding: 20px 18px 24px;
+  padding: 24px 20px 28px;
 }
 
 @media (max-width: 1180px) {
