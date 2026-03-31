@@ -13,256 +13,363 @@
     <link rel="stylesheet" href="../styles.css" />
   </head>
   <body>
-    <div class="page-shell">
-      <header class="hero">
-        <section class="hero-copy">
-          <p class="eyebrow">Admin Console</p>
-          <h1>Manage License IP Faster</h1>
-          <p class="hero-text">
-            Panel ini dipakai untuk cari entry lisensi, edit masa aktif, revoke/reactivate IP, dan melihat
-            audit log terbaru tanpa perlu query D1 manual.
-          </p>
-        </section>
-        <aside class="hero-card">
-          <p class="hero-card-label">Worker Connection</p>
-          <div class="api-base-row">
-            <input id="api-base-input" type="url" placeholder="https://autoscript-license.minidecrypt.workers.dev" />
-          </div>
-          <div class="api-base-row">
-            <input id="admin-email-input" type="email" placeholder="admin@example.com" />
-          </div>
-          <div class="api-base-row">
-            <input id="admin-password-input" type="password" placeholder="Admin password" />
-          </div>
-          <div class="form-actions">
-            <button id="connect-btn" class="primary-btn" type="button">Connect Admin</button>
-            <button id="clear-auth-btn" class="ghost-btn" type="button">Clear</button>
-          </div>
-          <div id="session-badge" class="session-badge muted">Not Connected</div>
-          <div id="status-banner" class="status-banner muted">
-            Isi Worker API Base URL serta kredensial admin, lalu klik Connect Admin.
-          </div>
-        </aside>
-      </header>
-
-      <section class="summary-grid">
-        <article class="metric-card">
-          <span class="metric-label">Active</span>
-          <strong id="metric-active">0</strong>
-        </article>
-        <article class="metric-card">
-          <span class="metric-label">Expired</span>
-          <strong id="metric-expired">0</strong>
-        </article>
-        <article class="metric-card">
-          <span class="metric-label">Revoked</span>
-          <strong id="metric-revoked">0</strong>
-        </article>
-        <article class="metric-card">
-          <span class="metric-label">Audit Rows</span>
-          <strong id="metric-audit">0</strong>
-        </article>
-      </section>
-
-      <section class="panel panel-wide">
-        <div class="panel-head">
-          <div>
-            <p class="eyebrow">Historical Metrics</p>
-            <h2>Dashboard Trend</h2>
-          </div>
-          <div class="filter-row metrics-controls">
-            <select id="metrics-window">
-              <option value="7">Last 7 Days</option>
-              <option value="14" selected>Last 14 Days</option>
-              <option value="30">Last 30 Days</option>
-              <option value="60">Last 60 Days</option>
-            </select>
-            <button id="refresh-metrics-btn" class="ghost-btn" type="button">Refresh Metrics</button>
-          </div>
+    <div id="admin-app" class="admin-app">
+      <aside class="admin-sidebar">
+        <div class="sidebar-brand">
+          <p class="eyebrow">Ops Console</p>
+          <h1>Autoscript License</h1>
+          <p class="sidebar-copy">Console operator untuk lisensi IP, audit, dan monitoring historis.</p>
         </div>
 
-        <div class="summary-grid metrics-summary-grid">
-          <article class="metric-card">
-            <span class="metric-label">Checks Allowed</span>
-            <strong id="metric-checks-allowed">0</strong>
-          </article>
-          <article class="metric-card">
-            <span class="metric-label">Checks Denied</span>
-            <strong id="metric-checks-denied">0</strong>
-          </article>
-          <article class="metric-card">
-            <span class="metric-label">Public Activations</span>
-            <strong id="metric-public-activations">0</strong>
-          </article>
-          <article class="metric-card">
-            <span class="metric-label">Public Renewals</span>
-            <strong id="metric-public-renewals">0</strong>
-          </article>
+        <nav class="sidebar-nav" aria-label="Admin sections">
+          <button class="nav-link is-active" type="button" data-view-target="dashboard">
+            <span>Dashboard</span>
+            <small>Metrics & trend</small>
+          </button>
+          <button class="nav-link" type="button" data-view-target="entries">
+            <span>Entries</span>
+            <small>Create, edit, revoke</small>
+          </button>
+          <button class="nav-link" type="button" data-view-target="audit">
+            <span>Audit Log</span>
+            <small>Track mutations</small>
+          </button>
+          <button class="nav-link" type="button" data-view-target="settings">
+            <span>Settings</span>
+            <small>Worker connection</small>
+          </button>
+        </nav>
+
+        <div class="sidebar-foot">
+          <div class="side-status">
+            <span class="side-status-label">Worker Session</span>
+            <div id="sidebar-session-badge" class="session-badge muted">Not Connected</div>
+          </div>
         </div>
+      </aside>
 
-        <div class="charts-grid">
-          <article class="chart-card">
-            <div class="chart-head">
-              <div>
-                <p class="eyebrow">Traffic</p>
-                <h3>License Check Trend</h3>
-              </div>
-              <span id="checks-chart-caption" class="chart-caption">Last 14 days</span>
-            </div>
-            <div id="checks-chart" class="chart-surface"></div>
-          </article>
-
-          <article class="chart-card">
-            <div class="chart-head">
-              <div>
-                <p class="eyebrow">Mutations</p>
-                <h3>Activation & Admin Trend</h3>
-              </div>
-              <span id="mutations-chart-caption" class="chart-caption">Last 14 days</span>
-            </div>
-            <div id="mutations-chart" class="chart-surface"></div>
-          </article>
-        </div>
-
-        <div class="charts-grid">
-          <article class="chart-card">
-            <div class="chart-head">
-              <div>
-                <p class="eyebrow">Mix</p>
-                <h3>Top Events</h3>
-              </div>
-            </div>
-            <div id="top-events" class="top-events-list"></div>
-          </article>
-
-          <article class="chart-card">
-            <div class="chart-head">
-              <div>
-                <p class="eyebrow">Source Split</p>
-                <h3>Entry Source</h3>
-              </div>
-            </div>
-            <div id="entry-source-summary" class="source-summary"></div>
-          </article>
-        </div>
-      </section>
-
-      <main class="content-grid">
-        <section class="panel">
-          <div class="panel-head">
+      <div class="admin-main">
+        <header class="topbar">
+          <div class="topbar-main">
+            <button id="sidebar-toggle" class="ghost-btn mobile-nav-btn" type="button" aria-label="Toggle navigation">
+              Menu
+            </button>
             <div>
-              <p class="eyebrow">Mutate Entry</p>
-              <h2 id="form-title">Create IP Entry</h2>
+              <p class="eyebrow">Professional Ops</p>
+              <h2 id="view-title">Dashboard</h2>
+              <p id="view-description" class="topbar-copy">
+                Pantau kesehatan lisensi, activity trend, dan sinyal operasional terbaru.
+              </p>
             </div>
           </div>
 
-          <form id="entry-form">
-            <input id="entry-id" type="hidden" />
-            <div class="form-grid">
-              <label>
-                <span>IPv4 VPS</span>
-                <input id="field-ip" type="text" placeholder="123.45.67.89" required />
-              </label>
-              <label>
-                <span>Label</span>
-                <input id="field-label" type="text" placeholder="Server SG-01" />
-              </label>
-              <label>
-                <span>Owner</span>
-                <input id="field-owner" type="text" placeholder="Client / reseller" />
-              </label>
-              <label>
-                <span>Expires At</span>
-                <input id="field-expires-at" type="datetime-local" />
-              </label>
-              <label class="form-span-full">
-                <span>Notes</span>
-                <textarea id="field-notes" placeholder="Catatan internal operator"></textarea>
-              </label>
+          <div class="topbar-actions">
+            <div id="session-badge" class="session-badge muted">Not Connected</div>
+            <button id="refresh-current-btn" class="ghost-btn" type="button">Refresh View</button>
+            <button id="jump-settings-btn" class="ghost-btn" type="button">Settings</button>
+          </div>
+        </header>
+
+        <div id="status-banner" class="status-banner muted">
+          Isi Worker API Base URL serta kredensial admin di Settings, lalu klik Connect Admin.
+        </div>
+
+        <main class="view-stage">
+          <section class="view-panel is-active" data-view="dashboard">
+            <section class="summary-grid">
+              <article class="metric-card">
+                <span class="metric-label">Active</span>
+                <strong id="metric-active">0</strong>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Expired</span>
+                <strong id="metric-expired">0</strong>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Revoked</span>
+                <strong id="metric-revoked">0</strong>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Audit Rows</span>
+                <strong id="metric-audit">0</strong>
+              </article>
+            </section>
+
+            <section class="panel dashboard-panel">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Historical Metrics</p>
+                  <h3>Dashboard Trend</h3>
+                </div>
+                <div class="filter-row metrics-controls">
+                  <select id="metrics-window">
+                    <option value="7">Last 7 Days</option>
+                    <option value="14" selected>Last 14 Days</option>
+                    <option value="30">Last 30 Days</option>
+                    <option value="60">Last 60 Days</option>
+                  </select>
+                  <button id="refresh-metrics-btn" class="ghost-btn" type="button">Refresh Metrics</button>
+                </div>
+              </div>
+
+              <div class="summary-grid metrics-summary-grid">
+                <article class="metric-card">
+                  <span class="metric-label">Checks Allowed</span>
+                  <strong id="metric-checks-allowed">0</strong>
+                </article>
+                <article class="metric-card">
+                  <span class="metric-label">Checks Denied</span>
+                  <strong id="metric-checks-denied">0</strong>
+                </article>
+                <article class="metric-card">
+                  <span class="metric-label">Public Activations</span>
+                  <strong id="metric-public-activations">0</strong>
+                </article>
+                <article class="metric-card">
+                  <span class="metric-label">Public Renewals</span>
+                  <strong id="metric-public-renewals">0</strong>
+                </article>
+              </div>
+
+              <div class="charts-grid">
+                <article class="chart-card">
+                  <div class="chart-head">
+                    <div>
+                      <p class="eyebrow">Traffic</p>
+                      <h3>License Check Trend</h3>
+                    </div>
+                    <span id="checks-chart-caption" class="chart-caption">Last 14 days</span>
+                  </div>
+                  <div id="checks-chart" class="chart-surface"></div>
+                </article>
+
+                <article class="chart-card">
+                  <div class="chart-head">
+                    <div>
+                      <p class="eyebrow">Mutations</p>
+                      <h3>Activation & Admin Trend</h3>
+                    </div>
+                    <span id="mutations-chart-caption" class="chart-caption">Last 14 days</span>
+                  </div>
+                  <div id="mutations-chart" class="chart-surface"></div>
+                </article>
+              </div>
+
+              <div class="charts-grid">
+                <article class="chart-card">
+                  <div class="chart-head">
+                    <div>
+                      <p class="eyebrow">Mix</p>
+                      <h3>Top Events</h3>
+                    </div>
+                  </div>
+                  <div id="top-events" class="top-events-list"></div>
+                </article>
+
+                <article class="chart-card">
+                  <div class="chart-head">
+                    <div>
+                      <p class="eyebrow">Source Split</p>
+                      <h3>Entry Source</h3>
+                    </div>
+                  </div>
+                  <div id="entry-source-summary" class="source-summary"></div>
+                </article>
+              </div>
+            </section>
+          </section>
+
+          <section class="view-panel" data-view="entries">
+            <div class="workspace-grid">
+              <section class="panel workspace-main">
+                <div class="section-head">
+                  <div>
+                    <p class="eyebrow">Lookup</p>
+                    <h3>License Entries</h3>
+                  </div>
+                  <button id="refresh-dashboard-btn" class="ghost-btn" type="button">Refresh Entries</button>
+                </div>
+
+                <div class="filter-row panel-filters">
+                  <input id="search-input" type="search" placeholder="Cari IP, label, owner, notes" />
+                  <select id="status-filter">
+                    <option value="all">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="expired">Expired</option>
+                    <option value="revoked">Revoked</option>
+                  </select>
+                </div>
+
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>IP / Label</th>
+                        <th>Owner / Notes</th>
+                        <th>Status</th>
+                        <th>Expires</th>
+                        <th>Updated</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="entries-body">
+                      <tr>
+                        <td colspan="6" class="empty-row">Belum ada data.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section class="panel workspace-side">
+                <div class="section-head">
+                  <div>
+                    <p class="eyebrow">Mutate Entry</p>
+                    <h3 id="form-title">Create IP Entry</h3>
+                  </div>
+                </div>
+
+                <form id="entry-form">
+                  <input id="entry-id" type="hidden" />
+                  <div class="form-grid">
+                    <label>
+                      <span>IPv4 VPS</span>
+                      <input id="field-ip" type="text" placeholder="123.45.67.89" required />
+                    </label>
+                    <label>
+                      <span>Label</span>
+                      <input id="field-label" type="text" placeholder="Server SG-01" />
+                    </label>
+                    <label>
+                      <span>Owner</span>
+                      <input id="field-owner" type="text" placeholder="Client / reseller" />
+                    </label>
+                    <label>
+                      <span>Expires At</span>
+                      <input id="field-expires-at" type="datetime-local" />
+                    </label>
+                    <label class="form-span-full">
+                      <span>Notes</span>
+                      <textarea id="field-notes" placeholder="Catatan internal operator"></textarea>
+                    </label>
+                  </div>
+                  <div class="form-actions">
+                    <button id="submit-entry-btn" class="primary-btn" type="submit">Save Entry</button>
+                    <button id="reset-form-btn" class="ghost-btn" type="button">Reset</button>
+                    <button id="cancel-edit-btn" class="ghost-btn" type="button">Cancel Edit</button>
+                  </div>
+                </form>
+              </section>
             </div>
-            <div class="form-actions">
-              <button id="submit-entry-btn" class="primary-btn" type="submit">Save Entry</button>
-              <button id="reset-form-btn" class="ghost-btn" type="button">Reset</button>
-              <button id="cancel-edit-btn" class="ghost-btn" type="button">Cancel Edit</button>
+          </section>
+
+          <section class="view-panel" data-view="audit">
+            <section class="panel">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Recent Activity</p>
+                  <h3>Audit Log</h3>
+                </div>
+                <button id="refresh-audit-btn" class="ghost-btn" type="button">Refresh Audit</button>
+              </div>
+
+              <div class="filter-row panel-filters">
+                <input id="audit-ip-input" type="search" inputmode="numeric" placeholder="Filter IP audit, contoh: 1.2.3.4" />
+                <input id="audit-event-input" type="search" placeholder="Filter event, contoh: admin_update" />
+              </div>
+
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Created At</th>
+                      <th>Event</th>
+                      <th>IP</th>
+                      <th>Stage</th>
+                      <th>Decision</th>
+                      <th>Actor</th>
+                    </tr>
+                  </thead>
+                  <tbody id="audit-body">
+                    <tr>
+                      <td colspan="6" class="empty-row">Belum ada audit log.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+
+          <section class="view-panel" data-view="settings">
+            <div class="settings-grid">
+              <section class="panel">
+                <div class="section-head">
+                  <div>
+                    <p class="eyebrow">Connection</p>
+                    <h3>Worker Credentials</h3>
+                  </div>
+                </div>
+
+                <div class="settings-stack">
+                  <label>
+                    <span>Worker API Base URL</span>
+                    <input id="api-base-input" type="url" placeholder="https://autoscript-license.minidecrypt.workers.dev" />
+                  </label>
+                  <label>
+                    <span>Admin Email</span>
+                    <input id="admin-email-input" type="email" placeholder="admin@example.com" />
+                  </label>
+                  <label>
+                    <span>Admin Password</span>
+                    <input id="admin-password-input" type="password" placeholder="Admin password" />
+                  </label>
+                </div>
+
+                <div class="form-actions">
+                  <button id="connect-btn" class="primary-btn" type="button">Connect Admin</button>
+                  <button id="clear-auth-btn" class="ghost-btn" type="button">Clear</button>
+                </div>
+              </section>
+
+              <section class="panel">
+                <div class="section-head">
+                  <div>
+                    <p class="eyebrow">Current Profile</p>
+                    <h3>Stored Session</h3>
+                  </div>
+                </div>
+
+                <dl class="settings-meta">
+                  <div>
+                    <dt>Worker API</dt>
+                    <dd id="settings-api-preview">-</dd>
+                  </div>
+                  <div>
+                    <dt>Admin Email</dt>
+                    <dd id="settings-admin-preview">-</dd>
+                  </div>
+                  <div>
+                    <dt>Metrics Window</dt>
+                    <dd id="settings-metrics-preview">14 days</dd>
+                  </div>
+                  <div>
+                    <dt>Session State</dt>
+                    <dd id="settings-session-preview">Not Connected</dd>
+                  </div>
+                </dl>
+
+                <div class="settings-note">
+                  <strong>Catatan Operasional</strong>
+                  <p>
+                    Simpan koneksi admin di browser ini untuk akses cepat. Password tetap hanya disimpan pada
+                    `sessionStorage`, jadi akan hilang saat sesi browser dibersihkan.
+                  </p>
+                </div>
+              </section>
             </div>
-          </form>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow">Lookup</p>
-              <h2>License Entries</h2>
-            </div>
-            <button id="refresh-dashboard-btn" class="ghost-btn" type="button">Refresh</button>
-          </div>
-
-          <div class="filter-row">
-            <input id="search-input" type="search" placeholder="Cari IP, label, owner, notes" />
-            <select id="status-filter">
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="expired">Expired</option>
-              <option value="revoked">Revoked</option>
-            </select>
-          </div>
-
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>IP / Label</th>
-                  <th>Owner / Notes</th>
-                  <th>Status</th>
-                  <th>Expires</th>
-                  <th>Updated</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="entries-body">
-                <tr>
-                  <td colspan="6" class="empty-row">Belum ada data.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section class="panel panel-wide">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow">Recent Activity</p>
-              <h2>Audit Log</h2>
-            </div>
-            <button id="refresh-audit-btn" class="ghost-btn" type="button">Refresh Audit</button>
-          </div>
-
-          <div class="filter-row panel-filters">
-            <input id="audit-ip-input" type="search" inputmode="numeric" placeholder="Filter IP audit, contoh: 1.2.3.4" />
-            <input id="audit-event-input" type="search" placeholder="Filter event, contoh: admin_update" />
-          </div>
-
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Created At</th>
-                  <th>Event</th>
-                  <th>IP</th>
-                  <th>Stage</th>
-                  <th>Decision</th>
-                  <th>Actor</th>
-                </tr>
-              </thead>
-              <tbody id="audit-body">
-                <tr>
-                  <td colspan="6" class="empty-row">Belum ada audit log.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </main>
+          </section>
+        </main>
+      </div>
     </div>
 
     <script src="../config.js"></script>

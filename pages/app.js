@@ -1,9 +1,29 @@
+const VIEW_META = {
+  dashboard: {
+    title: "Dashboard",
+    description: "Pantau kesehatan lisensi, activity trend, dan sinyal operasional terbaru.",
+  },
+  entries: {
+    title: "Entries",
+    description: "Cari, edit, blokir, buka blokir, dan hapus entry lisensi IP dari satu workspace.",
+  },
+  audit: {
+    title: "Audit Log",
+    description: "Lihat jejak perubahan dan filter event operasional berdasarkan IP atau event type.",
+  },
+  settings: {
+    title: "Settings",
+    description: "Kelola koneksi Worker dan kredensial admin untuk browser ini.",
+  },
+};
+
 const state = {
   apiBaseUrl:
     localStorage.getItem("autoscriptLicenseApiBaseUrl") ||
     (window.AUTOSCRIPT_PORTAL_CONFIG?.apiBaseUrl || "").replace(/\/+$/, ""),
   adminEmail: localStorage.getItem("autoscriptLicenseAdminEmail") || "",
   adminPassword: sessionStorage.getItem("autoscriptLicenseAdminPassword") || "",
+  activeView: localStorage.getItem("autoscriptLicenseAdminActiveView") || "dashboard",
   entries: [],
   auditLogs: [],
   metrics: null,
@@ -12,6 +32,14 @@ const state = {
 };
 
 const dom = {
+  app: document.getElementById("admin-app"),
+  sidebarToggle: document.getElementById("sidebar-toggle"),
+  navLinks: Array.from(document.querySelectorAll("[data-view-target]")),
+  viewPanels: Array.from(document.querySelectorAll("[data-view]")),
+  viewTitle: document.getElementById("view-title"),
+  viewDescription: document.getElementById("view-description"),
+  jumpSettingsBtn: document.getElementById("jump-settings-btn"),
+  refreshCurrentBtn: document.getElementById("refresh-current-btn"),
   apiBaseInput: document.getElementById("api-base-input"),
   adminEmailInput: document.getElementById("admin-email-input"),
   adminPasswordInput: document.getElementById("admin-password-input"),
@@ -27,6 +55,7 @@ const dom = {
   auditEventInput: document.getElementById("audit-event-input"),
   statusBanner: document.getElementById("status-banner"),
   sessionBadge: document.getElementById("session-badge"),
+  sidebarSessionBadge: document.getElementById("sidebar-session-badge"),
   metricActive: document.getElementById("metric-active"),
   metricExpired: document.getElementById("metric-expired"),
   metricRevoked: document.getElementById("metric-revoked"),
@@ -45,6 +74,10 @@ const dom = {
   mutationsChartCaption: document.getElementById("mutations-chart-caption"),
   topEvents: document.getElementById("top-events"),
   entrySourceSummary: document.getElementById("entry-source-summary"),
+  settingsApiPreview: document.getElementById("settings-api-preview"),
+  settingsAdminPreview: document.getElementById("settings-admin-preview"),
+  settingsMetricsPreview: document.getElementById("settings-metrics-preview"),
+  settingsSessionPreview: document.getElementById("settings-session-preview"),
   form: document.getElementById("entry-form"),
   formTitle: document.getElementById("form-title"),
   entryId: document.getElementById("entry-id"),
@@ -64,6 +97,7 @@ function bootstrap() {
   dom.adminPasswordInput.value = state.adminPassword;
   dom.metricsWindow.value = state.metricsWindowDays;
   bindEvents();
+  setActiveView(state.activeView, { skipPersist: true });
   refreshVisuals();
   if (state.apiBaseUrl && state.adminEmail && state.adminPassword) {
     refreshDashboard();
@@ -71,9 +105,15 @@ function bootstrap() {
 }
 
 function bindEvents() {
+  dom.sidebarToggle.addEventListener("click", toggleSidebar);
+  dom.jumpSettingsBtn.addEventListener("click", () => setActiveView("settings"));
+  dom.refreshCurrentBtn.addEventListener("click", refreshCurrentView);
+  dom.navLinks.forEach((button) => {
+    button.addEventListener("click", () => setActiveView(button.dataset.viewTarget));
+  });
   dom.connectBtn.addEventListener("click", handleConnect);
   dom.clearAuthBtn.addEventListener("click", handleClearAuth);
-  dom.refreshDashboardBtn.addEventListener("click", refreshDashboard);
+  dom.refreshDashboardBtn.addEventListener("click", refreshEntries);
   dom.refreshAuditBtn.addEventListener("click", refreshAuditLogs);
   dom.refreshMetricsBtn.addEventListener("click", refreshMetrics);
   dom.resetFormBtn.addEventListener("click", resetForm);
@@ -84,6 +124,40 @@ function bindEvents() {
   dom.metricsWindow.addEventListener("change", handleMetricsWindowChange);
   dom.auditIpInput.addEventListener("input", refreshAuditLogs);
   dom.auditEventInput.addEventListener("input", refreshAuditLogs);
+}
+
+function setActiveView(viewName, options = {}) {
+  const view = VIEW_META[viewName] ? viewName : "dashboard";
+  state.activeView = view;
+  if (!options.skipPersist) {
+    localStorage.setItem("autoscriptLicenseAdminActiveView", view);
+  }
+
+  dom.navLinks.forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.viewTarget === view);
+  });
+  dom.viewPanels.forEach((panel) => {
+    panel.classList.toggle("is-active", panel.dataset.view === view);
+  });
+  dom.viewTitle.textContent = VIEW_META[view].title;
+  dom.viewDescription.textContent = VIEW_META[view].description;
+  dom.app.classList.remove("sidebar-open");
+}
+
+function toggleSidebar() {
+  dom.app.classList.toggle("sidebar-open");
+}
+
+async function refreshCurrentView() {
+  if (state.activeView === "dashboard") {
+    await refreshDashboard();
+  } else if (state.activeView === "entries") {
+    await refreshEntries();
+  } else if (state.activeView === "audit") {
+    await refreshAuditLogs();
+  } else if (state.activeView === "settings") {
+    await refreshSessionState();
+  }
 }
 
 async function handleConnect() {
@@ -114,14 +188,15 @@ function handleClearAuth() {
   state.session = null;
   state.entries = [];
   state.auditLogs = [];
+  state.metrics = null;
   localStorage.removeItem("autoscriptLicenseAdminEmail");
   sessionStorage.removeItem("autoscriptLicenseAdminPassword");
   dom.adminEmailInput.value = "";
   dom.adminPasswordInput.value = "";
-  dom.sessionBadge.textContent = "Signed Out";
-  dom.sessionBadge.className = "session-badge muted";
+  setSessionState(null);
   setBanner("Kredensial admin dihapus dari browser ini.", "muted");
   refreshVisuals();
+  setActiveView("settings");
 }
 
 async function refreshDashboard() {
@@ -139,18 +214,34 @@ async function refreshDashboard() {
     state.entries = entriesPayload.items || [];
     state.auditLogs = auditPayload.items || [];
     state.metrics = metricsPayload;
+    setSessionState(session);
     setBanner(`Connected as ${session.admin_email || "admin"}`, "ok");
-    dom.sessionBadge.textContent = session.admin_email || "Access Verified";
-    dom.sessionBadge.className = "session-badge ok";
     refreshVisuals();
   } catch (error) {
     state.session = null;
     state.entries = [];
     state.auditLogs = [];
     state.metrics = null;
-    dom.sessionBadge.textContent = "Connection Failed";
-    dom.sessionBadge.className = "session-badge error";
+    setSessionState(null, true);
     setBanner(error.message || "Gagal mengambil data dari Worker API.", "error");
+    refreshVisuals();
+  }
+}
+
+async function refreshSessionState() {
+  if (!ensureConnectionSettings()) {
+    return;
+  }
+  try {
+    const session = await apiFetch("/api/admin/session");
+    state.session = session;
+    setSessionState(session);
+    setBanner(`Connected as ${session.admin_email || "admin"}`, "ok");
+    refreshVisuals();
+  } catch (error) {
+    state.session = null;
+    setSessionState(null, true);
+    setBanner(error.message || "Gagal memverifikasi sesi admin.", "error");
     refreshVisuals();
   }
 }
@@ -274,6 +365,7 @@ function beginEditEntry(id) {
   dom.fieldExpiresAt.value = formatForDateTimeLocal(entry.expires_at || "");
   dom.formTitle.textContent = `Edit ${entry.ip}`;
   dom.submitEntryBtn.textContent = "Update Entry";
+  setActiveView("entries");
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -330,6 +422,16 @@ function refreshVisuals() {
   renderHistoricalMetrics();
   renderEntries();
   renderAuditLogs();
+  renderSettingsSummary();
+}
+
+function setSessionState(session, failed = false) {
+  const label = session?.admin_email || (failed ? "Connection Failed" : "Not Connected");
+  const tone = session ? "ok" : failed ? "error" : "muted";
+  dom.sessionBadge.textContent = label;
+  dom.sessionBadge.className = `session-badge ${tone}`;
+  dom.sidebarSessionBadge.textContent = label;
+  dom.sidebarSessionBadge.className = `session-badge ${tone}`;
 }
 
 function renderSummary() {
@@ -369,7 +471,7 @@ function renderEntries() {
   if (!state.entries.length) {
     dom.entriesBody.innerHTML = `
       <tr>
-        <td colspan="6" class="empty-row">Belum ada entry IP. Tambahkan dari form di samping.</td>
+        <td colspan="6" class="empty-row">Belum ada entry IP. Tambahkan dari workspace di kanan.</td>
       </tr>
     `;
     return;
@@ -508,6 +610,13 @@ function renderEntrySourceSummary() {
       </div>
     </div>
   `;
+}
+
+function renderSettingsSummary() {
+  dom.settingsApiPreview.textContent = state.apiBaseUrl || "-";
+  dom.settingsAdminPreview.textContent = state.adminEmail || "-";
+  dom.settingsMetricsPreview.textContent = `${state.metricsWindowDays || "14"} days`;
+  dom.settingsSessionPreview.textContent = state.session?.admin_email || "Not Connected";
 }
 
 function renderTrendChart(container, points, series) {
