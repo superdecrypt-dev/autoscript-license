@@ -104,6 +104,16 @@ label span,
   color: var(--muted);
 }
 
+.sidebar-copy,
+.settings-note p,
+.chart-caption,
+.trend-label,
+.top-event-meta span,
+.source-card span,
+.login-session-note {
+  color: rgba(114, 88, 69, 0.76);
+}
+
 .login-shell {
   min-height: calc(100vh - 36px);
   display: grid;
@@ -272,9 +282,10 @@ label span,
 .topbar {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  padding: 22px 22px 18px;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px 16px;
+  background: rgba(255, 252, 248, 0.88);
 }
 
 .topbar-main,
@@ -287,26 +298,27 @@ label span,
 }
 
 .topbar-main {
-  align-items: flex-start;
+  align-items: center;
 }
 
 .topbar-copy {
-  margin: 8px 0 0;
-  max-width: 38ch;
-  line-height: 1.5;
-  font-size: 0.92rem;
-  color: rgba(114, 88, 69, 0.82);
+  margin: 6px 0 0;
+  max-width: 34ch;
+  line-height: 1.45;
+  font-size: 0.88rem;
+  color: rgba(114, 88, 69, 0.76);
 }
 
 .topbar .eyebrow {
-  margin-bottom: 8px;
-  color: rgba(212, 90, 31, 0.88);
+  margin-bottom: 6px;
+  color: rgba(212, 90, 31, 0.78);
 }
 
 .topbar-actions {
   align-items: center;
   justify-content: flex-end;
   flex-wrap: wrap;
+  gap: 10px;
 }
 
 .mobile-nav-btn {
@@ -360,10 +372,39 @@ label span,
   gap: 22px;
 }
 
+.view-panel[data-view="dashboard"] .chart-card,
+.view-panel[data-view="dashboard"] .source-card,
+.view-panel[data-view="dashboard"] .settings-note {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(69, 42, 20, 0.07);
+}
+
+.view-panel[data-view="dashboard"] .metric-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 245, 233, 0.86));
+}
+
+.view-panel[data-view="entries"] .workspace-main,
+.view-panel[data-view="entries"] .workspace-side {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(69, 42, 20, 0.1);
+}
+
 .section-head {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+}
+
+.section-head .eyebrow,
+.chart-head .eyebrow {
+  margin-bottom: 6px;
+  color: rgba(212, 90, 31, 0.74);
+}
+
+.section-head h3,
+.chart-head h3,
+#view-title {
+  letter-spacing: -0.02em;
 }
 
 .summary-grid,
@@ -541,6 +582,7 @@ textarea {
 .chart-head h3,
 .section-head h3 {
   line-height: 1.1;
+  font-weight: 700;
 }
 
 .chart-surface {
@@ -814,7 +856,7 @@ body.modal-open {
   overflow-x: auto;
   border: 1px solid rgba(69, 42, 20, 0.07);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.56);
 }
 
 table {
@@ -838,6 +880,10 @@ td {
   border-bottom: 1px solid rgba(69, 42, 20, 0.08);
   vertical-align: top;
   line-height: 1.5;
+}
+
+tbody tr {
+  min-height: 68px;
 }
 
 th {
@@ -874,6 +920,7 @@ th {
 .status-pill {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   width: fit-content;
   padding: 6px 10px;
   border-radius: 999px;
@@ -882,6 +929,8 @@ th {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   border: 1px solid transparent;
+  min-height: 28px;
+  white-space: nowrap;
 }
 
 .status-pill.active {
@@ -907,6 +956,7 @@ th {
   flex-wrap: wrap;
   gap: 10px;
   align-items: flex-start;
+  min-height: 34px;
 }
 
 .action-btn,
@@ -918,6 +968,7 @@ th {
   padding: 7px 11px;
   cursor: pointer;
   font-weight: 700;
+  min-height: 34px;
   transition:
     transform 160ms ease,
     border-color 160ms ease,
@@ -1005,11 +1056,21 @@ th {
     border-color 180ms ease;
 }
 
+.view-panel[data-view="dashboard"] .mobile-spotlight-card {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.view-panel[data-view="entries"] .mobile-card,
+.view-panel[data-view="audit"] .mobile-card {
+  background: rgba(255, 255, 255, 0.82);
+}
+
 .mobile-card-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
+  min-height: 34px;
 }
 
 .mobile-card-meta {
@@ -1053,6 +1114,7 @@ th {
   border-radius: 999px;
   padding: 10px 12px;
   cursor: pointer;
+  min-height: 40px;
 }
 
 .mobile-spotlight-head {
@@ -1090,10 +1152,11 @@ th {
 .audit-event {
   display: inline-block;
   line-height: 1.3;
+  font-weight: 700;
 }
 
 .audit-meta {
-  color: rgba(114, 88, 69, 0.86);
+  color: rgba(114, 88, 69, 0.8);
 }
 
 .login-card:hover,
@@ -1196,13 +1259,13 @@ body[data-device="mobile"] .form-actions {
 
 body[data-device="mobile"] .topbar,
 body[data-device="mobile"] .topbar-actions {
-  gap: 10px;
+  gap: 8px;
 }
 
 body[data-device="mobile"] .topbar-copy {
-  margin-top: 6px;
-  line-height: 1.4;
-  font-size: 0.88rem;
+  margin-top: 4px;
+  line-height: 1.35;
+  font-size: 0.84rem;
 }
 
 body[data-device="mobile"] .workspace-grid,
