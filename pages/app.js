@@ -42,6 +42,7 @@ const state = {
   sessionExpiresAt: Number(localStorage.getItem(STORAGE_KEYS.expiresAt) || 0),
   sessionTimer: null,
   sessionTicker: null,
+  editModalReturnFocus: null,
 };
 
 const dom = {
@@ -65,6 +66,17 @@ const dom = {
   refreshMetricsBtn: document.getElementById("refresh-metrics-btn"),
   resetFormBtn: document.getElementById("reset-form-btn"),
   cancelEditBtn: document.getElementById("cancel-edit-btn"),
+  editModal: document.getElementById("edit-modal"),
+  editModalCloseBtn: document.getElementById("edit-modal-close-btn"),
+  editModalCancelBtn: document.getElementById("edit-modal-cancel-btn"),
+  editForm: document.getElementById("edit-entry-form"),
+  editEntryId: document.getElementById("edit-entry-id"),
+  editFieldIp: document.getElementById("edit-field-ip"),
+  editFieldLabel: document.getElementById("edit-field-label"),
+  editFieldOwner: document.getElementById("edit-field-owner"),
+  editFieldExpiresAt: document.getElementById("edit-field-expires-at"),
+  editFieldNotes: document.getElementById("edit-field-notes"),
+  editSubmitBtn: document.getElementById("edit-submit-btn"),
   metricsWindow: document.getElementById("metrics-window"),
   auditIpInput: document.getElementById("audit-ip-input"),
   auditEventInput: document.getElementById("audit-event-input"),
@@ -155,11 +167,20 @@ function bindEvents() {
   dom.resetFormBtn.addEventListener("click", resetForm);
   dom.cancelEditBtn.addEventListener("click", resetForm);
   dom.form.addEventListener("submit", handleSubmitEntry);
+  dom.editForm.addEventListener("submit", handleSubmitEditEntry);
+  dom.editModalCloseBtn.addEventListener("click", () => closeEditModal());
+  dom.editModalCancelBtn.addEventListener("click", () => closeEditModal());
+  dom.editModal.addEventListener("click", (event) => {
+    if (event.target === dom.editModal) {
+      closeEditModal();
+    }
+  });
   dom.searchInput.addEventListener("input", refreshEntries);
   dom.statusFilter.addEventListener("change", refreshEntries);
   dom.metricsWindow.addEventListener("change", handleMetricsWindowChange);
   dom.auditIpInput.addEventListener("input", refreshAuditLogs);
   dom.auditEventInput.addEventListener("input", refreshAuditLogs);
+  document.addEventListener("keydown", handleGlobalKeydown);
 }
 
 function initAdminDeviceContext() {
@@ -311,6 +332,7 @@ async function authenticateAdmin(adminEmail, adminPassword) {
 }
 
 function handleLogout(options = {}) {
+  closeEditModal({ restoreFocus: false });
   clearStoredCredentials();
   state.session = null;
   state.entries = [];
@@ -484,21 +506,20 @@ async function handleSubmitEntry(event) {
   }
 }
 
-function beginEditEntry(id) {
+function beginEditEntry(id, trigger = null) {
   const entry = state.entries.find((item) => item.id === id);
   if (!entry) {
     return;
   }
-  dom.entryId.value = entry.id;
-  dom.fieldIp.value = entry.ip || "";
-  dom.fieldLabel.value = entry.label || "";
-  dom.fieldOwner.value = entry.owner || "";
-  dom.fieldNotes.value = entry.notes || "";
-  dom.fieldExpiresAt.value = formatForDateTimeLocal(entry.expires_at || "");
-  dom.formTitle.textContent = `Edit ${entry.ip}`;
-  dom.submitEntryBtn.textContent = "Update Entry";
-  setActiveView("entries");
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  dom.editEntryId.value = entry.id;
+  dom.editFieldIp.value = entry.ip || "";
+  dom.editFieldLabel.value = entry.label || "";
+  dom.editFieldOwner.value = entry.owner || "";
+  dom.editFieldNotes.value = entry.notes || "";
+  dom.editFieldExpiresAt.value = formatForDateTimeLocal(entry.expires_at || "");
+  dom.editSubmitBtn.textContent = "Update Entry";
+  state.editModalReturnFocus = trigger || document.activeElement;
+  openEditModal();
 }
 
 async function toggleEntry(id, action) {
@@ -547,6 +568,71 @@ function resetForm() {
   dom.form.reset();
   dom.formTitle.textContent = "Create IP Entry";
   dom.submitEntryBtn.textContent = "Save Entry";
+}
+
+async function handleSubmitEditEntry(event) {
+  event.preventDefault();
+  if (!ensureAuthenticated()) {
+    return;
+  }
+
+  const id = dom.editEntryId.value.trim();
+  if (!id) {
+    return;
+  }
+
+  const payload = {
+    ip: dom.editFieldIp.value.trim(),
+    label: dom.editFieldLabel.value.trim(),
+    owner: dom.editFieldOwner.value.trim(),
+    notes: dom.editFieldNotes.value.trim(),
+    expires_at: normalizeDateTimeLocal(dom.editFieldExpiresAt.value),
+  };
+
+  try {
+    await apiFetch(`/api/admin/license-entries/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+    setBanner(`Entry ${payload.ip} berhasil diperbarui.`, "ok");
+    closeEditModal({ restoreFocus: false });
+    await refreshDashboard();
+  } catch (error) {
+    handleAuthFailure(error, "Gagal memperbarui entry.");
+  }
+}
+
+function openEditModal() {
+  dom.editModal.classList.add("is-open");
+  dom.editModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  window.setTimeout(() => {
+    dom.editFieldIp.focus();
+    dom.editFieldIp.select();
+  }, 0);
+}
+
+function closeEditModal(options = {}) {
+  dom.editModal.classList.remove("is-open");
+  dom.editModal.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("modal-open");
+  resetEditForm();
+  if (options.restoreFocus !== false && state.editModalReturnFocus && typeof state.editModalReturnFocus.focus === "function") {
+    state.editModalReturnFocus.focus();
+  }
+  state.editModalReturnFocus = null;
+}
+
+function resetEditForm() {
+  dom.editEntryId.value = "";
+  dom.editForm.reset();
+  dom.editSubmitBtn.textContent = "Update Entry";
+}
+
+function handleGlobalKeydown(event) {
+  if (event.key === "Escape" && dom.editModal.classList.contains("is-open")) {
+    closeEditModal();
+  }
 }
 
 function refreshVisuals() {
@@ -717,7 +803,7 @@ function bindActionButtons(container) {
     button.addEventListener("click", async () => {
       const { action, entryId } = button.dataset;
       if (action === "edit") {
-        beginEditEntry(entryId);
+        beginEditEntry(entryId, button);
       } else if (action === "revoke") {
         await toggleEntry(entryId, "revoke");
       } else if (action === "reactivate") {
