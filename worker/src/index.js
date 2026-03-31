@@ -1054,6 +1054,8 @@ function serializePublicLookupStatusEntry(row, nowIso = nowIsoString()) {
       status: "not_found",
       allowed: false,
       renewable: false,
+      expires_at: "",
+      days_remaining: 0,
     };
   }
   const effectiveStatus = effectiveStatusForRow(row, nowIso);
@@ -1061,6 +1063,8 @@ function serializePublicLookupStatusEntry(row, nowIso = nowIsoString()) {
     status: effectiveStatus,
     allowed: effectiveStatus === "active",
     renewable: effectiveStatus !== "revoked" && effectiveStatus !== "not_found",
+    expires_at: row.expires_at || "",
+    days_remaining: calculateDaysRemaining(row.expires_at || "", nowIso),
   };
 }
 

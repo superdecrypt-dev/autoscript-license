@@ -217,6 +217,7 @@ function renderCreateResult(payload) {
 function renderStatusResult(payload, ip) {
   const tone = statusToTone(payload.status);
   const summary = describeStatus(payload);
+  const daysRemaining = formatDaysRemaining(payload.days_remaining);
   return `
     <div class="result-topline">
       <div>
@@ -241,6 +242,14 @@ function renderStatusResult(payload, ip) {
       <article>
         <strong>Bisa Renew</strong>
         <span>${payload.renewable ? "Ya" : "Tidak"}</span>
+      </article>
+      <article>
+        <strong>Aktif Sampai</strong>
+        <span>${escapeHtml(formatDate(payload.expires_at) || "-")}</span>
+      </article>
+      <article>
+        <strong>Sisa Waktu</strong>
+        <span>${escapeHtml(daysRemaining)}</span>
       </article>
     </div>
     <p class="result-caption">${escapeHtml(nextActionForStatus(payload))}</p>

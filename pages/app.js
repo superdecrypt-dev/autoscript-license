@@ -79,9 +79,12 @@ const dom = {
   metricChecksDenied: document.getElementById("metric-checks-denied"),
   metricPublicActivations: document.getElementById("metric-public-activations"),
   metricPublicRenewals: document.getElementById("metric-public-renewals"),
+  mobileSpotlight: document.getElementById("mobile-spotlight"),
   searchInput: document.getElementById("search-input"),
   statusFilter: document.getElementById("status-filter"),
+  entriesMobileList: document.getElementById("entries-mobile-list"),
   entriesBody: document.getElementById("entries-body"),
+  auditMobileList: document.getElementById("audit-mobile-list"),
   auditBody: document.getElementById("audit-body"),
   checksChart: document.getElementById("checks-chart"),
   mutationsChart: document.getElementById("mutations-chart"),
@@ -548,6 +551,7 @@ function resetForm() {
 
 function refreshVisuals() {
   renderSummary();
+  renderMobileSpotlight();
   renderHistoricalMetrics();
   renderEntries();
   renderAuditLogs();
@@ -619,6 +623,7 @@ function renderHistoricalMetrics() {
 
 function renderEntries() {
   if (!state.entries.length) {
+    dom.entriesMobileList.innerHTML = `<div class="empty-row mobile-empty">Belum ada entry IP.</div>`;
     dom.entriesBody.innerHTML = `
       <tr>
         <td colspan="6" class="empty-row">Belum ada entry IP. Tambahkan dari workspace di kanan.</td>
@@ -661,7 +666,54 @@ function renderEntries() {
     })
     .join("");
 
-  dom.entriesBody.querySelectorAll("button[data-action]").forEach((button) => {
+  dom.entriesMobileList.innerHTML = state.entries
+    .map((entry) => {
+      const canRevoke = entry.effective_status !== "revoked";
+      const canReactivate = entry.status === "revoked";
+      return `
+        <article class="mobile-card">
+          <div class="mobile-card-head">
+            <div class="entry-meta">
+              <strong class="mono">${escapeHtml(entry.ip)}</strong>
+              <span>${escapeHtml(entry.label || "-")}</span>
+            </div>
+            <span class="status-pill ${entry.effective_status}">${escapeHtml(entry.effective_status)}</span>
+          </div>
+          <dl class="mobile-card-meta">
+            <div>
+              <dt>Owner</dt>
+              <dd>${escapeHtml(entry.owner || "-")}</dd>
+            </div>
+            <div>
+              <dt>Expires</dt>
+              <dd>${escapeHtml(formatDate(entry.expires_at) || "Never")}</dd>
+            </div>
+            <div>
+              <dt>Updated</dt>
+              <dd>${escapeHtml(formatDate(entry.updated_at) || "-")}</dd>
+            </div>
+            <div>
+              <dt>Notes</dt>
+              <dd>${escapeHtml(entry.notes || "-")}</dd>
+            </div>
+          </dl>
+          <div class="mobile-action-row">
+            <button type="button" data-action="edit" data-entry-id="${entry.id}">Edit</button>
+            ${canRevoke ? `<button type="button" data-action="revoke" data-entry-id="${entry.id}">Revoke</button>` : ""}
+            ${canReactivate ? `<button type="button" data-action="reactivate" data-entry-id="${entry.id}">Reactivate</button>` : ""}
+            <button type="button" data-action="delete" data-entry-id="${entry.id}">Delete</button>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+
+  bindActionButtons(dom.entriesBody);
+  bindActionButtons(dom.entriesMobileList);
+}
+
+function bindActionButtons(container) {
+  container.querySelectorAll("button[data-action]").forEach((button) => {
     button.addEventListener("click", async () => {
       const { action, entryId } = button.dataset;
       if (action === "edit") {
@@ -679,6 +731,7 @@ function renderEntries() {
 
 function renderAuditLogs() {
   if (!state.auditLogs.length) {
+    dom.auditMobileList.innerHTML = `<div class="empty-row mobile-empty">Belum ada audit log.</div>`;
     dom.auditBody.innerHTML = `
       <tr>
         <td colspan="6" class="empty-row">Belum ada audit log.</td>
@@ -701,6 +754,72 @@ function renderAuditLogs() {
       `
     )
     .join("");
+
+  dom.auditMobileList.innerHTML = state.auditLogs
+    .map(
+      (log) => `
+        <article class="mobile-card mobile-audit-card">
+          <div class="mobile-card-head">
+            <div class="entry-meta">
+              <strong>${escapeHtml(log.event_type || "-")}</strong>
+              <span>${escapeHtml(formatDate(log.created_at) || "-")}</span>
+            </div>
+            <span class="status-pill ${decisionTone(log.decision)}">${escapeHtml(log.decision || "-")}</span>
+          </div>
+          <dl class="mobile-card-meta">
+            <div>
+              <dt>IP</dt>
+              <dd class="mono">${escapeHtml(log.ip || "-")}</dd>
+            </div>
+            <div>
+              <dt>Stage</dt>
+              <dd>${escapeHtml(log.stage || "-")}</dd>
+            </div>
+            <div>
+              <dt>Actor</dt>
+              <dd>${escapeHtml(log.actor_email || "worker")}</dd>
+            </div>
+          </dl>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function renderMobileSpotlight() {
+  const summary = state.metrics?.summary || {};
+  const expiringSoon = state.entries.filter((entry) => {
+    if (entry.effective_status !== "active" || !entry.expires_at) {
+      return false;
+    }
+    const diffMs = new Date(entry.expires_at).getTime() - Date.now();
+    return Number.isFinite(diffMs) && diffMs > 0 && diffMs <= 3 * 86400000;
+  }).length;
+  const revoked = state.entries.filter((entry) => entry.effective_status === "revoked").length;
+  const denied = Number(summary.checks_denied || 0);
+
+  dom.mobileSpotlight.innerHTML = `
+    <div class="section-head mobile-spotlight-head">
+      <div>
+        <p class="eyebrow">Needs Attention</p>
+        <h3>Ringkasan Mobile</h3>
+      </div>
+    </div>
+    <div class="mobile-spotlight-grid">
+      <article class="mobile-spotlight-card">
+        <strong>${expiringSoon}</strong>
+        <span>Expiring Soon</span>
+      </article>
+      <article class="mobile-spotlight-card">
+        <strong>${revoked}</strong>
+        <span>Revoked</span>
+      </article>
+      <article class="mobile-spotlight-card">
+        <strong>${denied}</strong>
+        <span>Deny ${state.metrics?.window_days || state.metricsWindowDays}d</span>
+      </article>
+    </div>
+  `;
 }
 
 function renderTopEvents() {
@@ -768,6 +887,17 @@ function renderSettingsSummary() {
   dom.settingsSessionPreview.textContent = state.session?.admin_email || "Not Connected";
   dom.settingsSessionExpiry.textContent = formatSessionExpiry(state.sessionExpiresAt);
   dom.settingsSessionRemaining.textContent = formatSessionRemaining(state.sessionExpiresAt);
+}
+
+function decisionTone(value) {
+  const raw = String(value || "").toLowerCase();
+  if (raw === "allow" || raw === "mutate") {
+    return "active";
+  }
+  if (raw === "deny" || raw === "rate_limited") {
+    return "expired";
+  }
+  return "revoked";
 }
 
 function renderTrendChart(container, points, series) {
