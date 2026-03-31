@@ -10,6 +10,7 @@ preview_urls = false
 CACHE_TTL_SEC_DEFAULT = "3600"
 PUBLIC_LICENSE_DURATION_DAYS = "14"
 PUBLIC_UI_ORIGIN = "https://autoscript-license.pages.dev"
+ADMIN_UI_ORIGIN = "https://autoscript-license.pages.dev"
 PUBLIC_CREATE_LIMIT_MAX = "5"
 PUBLIC_CREATE_WINDOW_SEC = "900"
 PUBLIC_STATUS_LIMIT_MAX = "30"

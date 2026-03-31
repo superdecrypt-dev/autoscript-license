@@ -27,6 +27,10 @@ async function routeRequest(request, env) {
     return buildPublicCorsResponse(request, env);
   }
 
+  if (request.method === "OPTIONS" && pathname.startsWith("/api/admin/")) {
+    return buildAdminCorsResponse(request, env);
+  }
+
   if (request.method === "GET" && pathname === "/healthz") {
     return jsonResponse({ ok: true, service: "autoscript-license-api" });
   }
@@ -86,7 +90,7 @@ async function routeRequest(request, env) {
   }
 
   if (pathname.startsWith("/api/admin/")) {
-    return jsonResponse({ error: "not_found", message: "Admin endpoint dinonaktifkan." }, 404);
+    return withAdminCors(request, env, await routeAdminRequest(request, env, pathname));
   }
 
   return jsonResponse({ error: "not_found", message: "Endpoint tidak ditemukan" }, 404);
@@ -403,6 +407,53 @@ async function handlePublicStatus(request, env) {
   return jsonResponse(statusPayload);
 }
 
+async function routeAdminRequest(request, env, pathname) {
+  const auth = authenticateAdminRequest(request, env);
+  if (!auth.ok) {
+    return auth.response;
+  }
+  const actorEmail = auth.actorEmail;
+
+  if (request.method === "GET" && pathname === "/api/admin/session") {
+    return jsonResponse({
+      admin_email: actorEmail,
+      ok: true,
+    });
+  }
+
+  if (request.method === "GET" && pathname === "/api/admin/license-entries") {
+    return handleAdminListEntries(request, env);
+  }
+
+  if (request.method === "GET" && pathname === "/api/admin/metrics") {
+    return handleAdminMetrics(request, env);
+  }
+
+  if (request.method === "POST" && pathname === "/api/admin/license-entries") {
+    return handleAdminCreateEntry(request, env, actorEmail);
+  }
+
+  if (request.method === "GET" && pathname === "/api/admin/audit-logs") {
+    return handleAdminListAuditLogs(request, env);
+  }
+
+  const patchMatch = pathname.match(/^\/api\/admin\/license-entries\/([^/]+)$/);
+  if (request.method === "PATCH" && patchMatch) {
+    return handleAdminPatchEntry(request, env, actorEmail, decodeURIComponent(patchMatch[1]));
+  }
+  if (request.method === "DELETE" && patchMatch) {
+    return handleAdminDeleteEntry(request, env, actorEmail, decodeURIComponent(patchMatch[1]));
+  }
+
+  const toggleMatch = pathname.match(/^\/api\/admin\/license-entries\/([^/]+)\/(revoke|reactivate)$/);
+  if (request.method === "POST" && toggleMatch) {
+    const targetStatus = toggleMatch[2] === "revoke" ? "revoked" : "active";
+    return handleAdminToggleEntry(request, env, actorEmail, decodeURIComponent(toggleMatch[1]), targetStatus);
+  }
+
+  return jsonResponse({ error: "not_found", message: "Admin endpoint tidak ditemukan." }, 404);
+}
+
 async function handleAdminListEntries(request, env) {
   const url = new URL(request.url);
   const search = normalizeShortText(url.searchParams.get("search"), 255);
@@ -462,6 +513,185 @@ async function handleAdminListEntries(request, env) {
   return jsonResponse({
     items: rows.map((row) => serializeLicenseEntry(row, nowIso)),
   });
+}
+
+async function handleAdminMetrics(request, env) {
+  const url = new URL(request.url);
+  const days = Math.min(60, Math.max(7, parseIntSafe(url.searchParams.get("days"), 14)));
+  const nowIso = nowIsoString();
+  const rangeStartIso = startOfUtcDayIso(days - 1);
+  const rangeStartDay = rangeStartIso.slice(0, 10);
+
+  const entrySummary =
+    (await firstRow(
+      env,
+      `
+        SELECT
+          COUNT(*) AS total_entries,
+          SUM(CASE WHEN status = 'active' AND (expires_at IS NULL OR expires_at = '' OR expires_at > ?) THEN 1 ELSE 0 END) AS active_entries,
+          SUM(CASE WHEN status = 'active' AND expires_at IS NOT NULL AND expires_at != '' AND expires_at <= ? THEN 1 ELSE 0 END) AS expired_entries,
+          SUM(CASE WHEN status = 'revoked' THEN 1 ELSE 0 END) AS revoked_entries,
+          SUM(CASE WHEN entry_source = 'public' THEN 1 ELSE 0 END) AS public_entries,
+          SUM(CASE WHEN entry_source = 'admin' THEN 1 ELSE 0 END) AS admin_entries
+        FROM license_entries
+      `,
+      [nowIso, nowIso]
+    )) || {};
+
+  const activitySummary =
+    (await firstRow(
+      env,
+      `
+        SELECT
+          COUNT(*) AS audit_rows_window,
+          SUM(CASE WHEN event_type = 'license_check' AND decision = 'allow' THEN 1 ELSE 0 END) AS checks_allowed,
+          SUM(CASE WHEN event_type = 'license_check' AND decision = 'deny' THEN 1 ELSE 0 END) AS checks_denied,
+          SUM(CASE WHEN event_type = 'public_activate' AND decision = 'allow' THEN 1 ELSE 0 END) AS public_activations,
+          SUM(CASE WHEN event_type = 'public_renew' AND decision = 'allow' THEN 1 ELSE 0 END) AS public_renewals,
+          SUM(CASE WHEN event_type LIKE 'admin_%' THEN 1 ELSE 0 END) AS admin_mutations
+        FROM audit_logs
+        WHERE created_at >= ?
+      `,
+      [rangeStartIso]
+    )) || {};
+
+  const dailyRows = await allRows(
+    env,
+    `
+      SELECT
+        substr(created_at, 1, 10) AS day,
+        SUM(CASE WHEN event_type = 'license_check' AND decision = 'allow' THEN 1 ELSE 0 END) AS checks_allowed,
+        SUM(CASE WHEN event_type = 'license_check' AND decision = 'deny' THEN 1 ELSE 0 END) AS checks_denied,
+        SUM(CASE WHEN event_type = 'public_activate' AND decision = 'allow' THEN 1 ELSE 0 END) AS public_activations,
+        SUM(CASE WHEN event_type = 'public_renew' AND decision = 'allow' THEN 1 ELSE 0 END) AS public_renewals,
+        SUM(CASE WHEN event_type LIKE 'admin_%' THEN 1 ELSE 0 END) AS admin_mutations
+      FROM audit_logs
+      WHERE created_at >= ?
+      GROUP BY substr(created_at, 1, 10)
+      ORDER BY day ASC
+    `,
+    [rangeStartIso]
+  );
+
+  const dailyMap = new Map(
+    dailyRows.map((row) => [
+      row.day,
+      {
+        day: row.day,
+        checks_allowed: Number(row.checks_allowed || 0),
+        checks_denied: Number(row.checks_denied || 0),
+        public_activations: Number(row.public_activations || 0),
+        public_renewals: Number(row.public_renewals || 0),
+        admin_mutations: Number(row.admin_mutations || 0),
+      },
+    ])
+  );
+
+  const daily = [];
+  for (let offset = days - 1; offset >= 0; offset -= 1) {
+    const day = startOfUtcDayIso(offset).slice(0, 10);
+    daily.push(
+      dailyMap.get(day) || {
+        day,
+        checks_allowed: 0,
+        checks_denied: 0,
+        public_activations: 0,
+        public_renewals: 0,
+        admin_mutations: 0,
+      }
+    );
+  }
+
+  const topEventsRows = await allRows(
+    env,
+    `
+      SELECT event_type, COUNT(*) AS count
+      FROM audit_logs
+      WHERE created_at >= ?
+      GROUP BY event_type
+      ORDER BY count DESC, event_type ASC
+      LIMIT 8
+    `,
+    [rangeStartIso]
+  );
+
+  return jsonResponse({
+    window_days: days,
+    range_start: rangeStartDay,
+    generated_at: nowIso,
+    summary: {
+      total_entries: Number(entrySummary.total_entries || 0),
+      active_entries: Number(entrySummary.active_entries || 0),
+      expired_entries: Number(entrySummary.expired_entries || 0),
+      revoked_entries: Number(entrySummary.revoked_entries || 0),
+      public_entries: Number(entrySummary.public_entries || 0),
+      admin_entries: Number(entrySummary.admin_entries || 0),
+      audit_rows_window: Number(activitySummary.audit_rows_window || 0),
+      checks_allowed: Number(activitySummary.checks_allowed || 0),
+      checks_denied: Number(activitySummary.checks_denied || 0),
+      public_activations: Number(activitySummary.public_activations || 0),
+      public_renewals: Number(activitySummary.public_renewals || 0),
+      admin_mutations: Number(activitySummary.admin_mutations || 0),
+    },
+    daily,
+    top_events: topEventsRows.map((row) => ({
+      event_type: row.event_type,
+      count: Number(row.count || 0),
+    })),
+  });
+}
+
+function authenticateAdminRequest(request, env) {
+  const expectedEmail = String(env.ADMIN_EMAIL || "").trim();
+  const expectedPassword = String(env.ADMIN_PASSWORD || "").trim();
+
+  if (!expectedEmail || !expectedPassword) {
+    return {
+      ok: false,
+      response: jsonResponse(
+        {
+          error: "admin_not_configured",
+          message: "Admin panel belum dikonfigurasi di Worker.",
+        },
+        503
+      ),
+    };
+  }
+
+  const authHeader = String(request.headers.get("Authorization") || "").trim();
+  if (!authHeader.startsWith("Basic ")) {
+    return {
+      ok: false,
+      response: jsonResponse(
+        {
+          error: "unauthorized",
+          message: "Authorization header dibutuhkan.",
+        },
+        401,
+        { "WWW-Authenticate": 'Basic realm="Autoscript License Admin"' }
+      ),
+    };
+  }
+
+  const decoded = decodeBasicAuth(authHeader.slice(6));
+  if (!decoded) {
+    return {
+      ok: false,
+      response: jsonResponse({ error: "unauthorized", message: "Authorization header tidak valid." }, 401),
+    };
+  }
+
+  if (decoded.username !== expectedEmail || decoded.password !== expectedPassword) {
+    return {
+      ok: false,
+      response: jsonResponse({ error: "unauthorized", message: "Email atau password admin salah." }, 401),
+    };
+  }
+
+  return {
+    ok: true,
+    actorEmail: expectedEmail,
+  };
 }
 
 async function handleAdminCreateEntry(request, env, actorEmail) {
@@ -616,10 +846,51 @@ async function handleAdminToggleEntry(request, env, actorEmail, entryId, targetS
   return jsonResponse({ item: serializeLicenseEntry(updated, nowIso) });
 }
 
+async function handleAdminDeleteEntry(request, env, actorEmail, entryId) {
+  const existing = await getLicenseEntryById(env, entryId);
+  if (!existing) {
+    return jsonResponse({ error: "not_found", message: "Entry tidak ditemukan" }, 404);
+  }
+
+  await runStatement(env, `DELETE FROM license_entries WHERE id = ?`, [entryId]);
+
+  await insertAuditLog(env, {
+    eventType: "admin_delete",
+    ip: existing.ip,
+    entryId,
+    stage: "admin",
+    decision: "mutate",
+    actorEmail,
+    requestIp: getVisitorIp(request),
+    userAgent: request.headers.get("User-Agent") || "",
+    payload: {
+      deleted_entry: {
+        id: existing.id,
+        ip: existing.ip,
+        label: existing.label,
+        owner: existing.owner,
+        notes: existing.notes,
+        status: existing.status,
+        expires_at: existing.expires_at,
+      },
+    },
+  });
+
+  return jsonResponse({
+    ok: true,
+    deleted_id: entryId,
+  });
+}
+
 async function handleAdminListAuditLogs(request, env) {
   const url = new URL(request.url);
   const limit = Math.min(250, Math.max(1, parseIntSafe(url.searchParams.get("limit"), 100)));
-  const ip = normalizeIpv4(url.searchParams.get("ip") || "");
+  const rawIp = String(url.searchParams.get("ip") || "").trim();
+  const ip = rawIp ? normalizeIpv4(rawIp) : "";
+  if (rawIp && !ip) {
+    return jsonResponse({ error: "invalid_request", message: "Filter IP audit tidak valid" }, 400);
+  }
+  const eventType = normalizeShortText(url.searchParams.get("event"), 80);
   const binds = [];
   let sql = `
     SELECT id, event_type, ip, entry_id, stage, decision, actor_email, request_ip, user_agent, payload_json, created_at
@@ -630,10 +901,19 @@ async function handleAdminListAuditLogs(request, env) {
     sql += ` AND ip = ?`;
     binds.push(ip);
   }
+  if (eventType) {
+    sql += ` AND event_type LIKE ?`;
+    binds.push(`%${eventType}%`);
+  }
   sql += ` ORDER BY created_at DESC LIMIT ?`;
   binds.push(limit);
   const rows = await allRows(env, sql, binds);
   return jsonResponse({
+    filters: {
+      ip,
+      event: eventType,
+      limit,
+    },
     items: rows.map((row) => ({
       ...row,
       payload_json: parseJsonSafe(row.payload_json, {}),
@@ -812,6 +1092,13 @@ function normalizeOptionalIsoDate(value) {
     return null;
   }
   return parsed.toISOString();
+}
+
+function startOfUtcDayIso(daysAgo = 0) {
+  const base = new Date();
+  base.setUTCHours(0, 0, 0, 0);
+  base.setUTCDate(base.getUTCDate() - Math.max(0, Number(daysAgo) || 0));
+  return base.toISOString();
 }
 
 async function enforcePublicRateLimit(env, endpoint, clientIp, maxRequests, windowSec) {
@@ -1016,6 +1303,27 @@ function withPublicCors(request, env, response) {
   );
 }
 
+function buildAdminCorsResponse(request, env) {
+  return new Response(null, {
+    status: 204,
+    headers: buildCorsHeaders(request, env, {
+      origin: getAdminUiOrigin(env),
+      allowHeaders: "Authorization, Content-Type",
+      allowMethods: "GET, POST, PATCH, OPTIONS",
+      allowCredentials: false,
+    }),
+  });
+}
+
+function withAdminCors(request, env, response) {
+  return withCors(request, env, response, {
+    origin: getAdminUiOrigin(env),
+    allowHeaders: "Authorization, Content-Type",
+    allowMethods: "GET, POST, PATCH, OPTIONS",
+    allowCredentials: false,
+  });
+}
+
 function withCors(request, env, response, options) {
   const headers = new Headers(response.headers);
   const cors = buildCorsHeaders(request, env, options);
@@ -1040,6 +1348,10 @@ function buildCorsHeaders(request, _env, options) {
     headers.set("Access-Control-Allow-Credentials", "true");
   }
   return headers;
+}
+
+function getAdminUiOrigin(env) {
+  return String(env.ADMIN_UI_ORIGIN || env.PUBLIC_UI_ORIGIN || "").trim();
 }
 
 function jsonResponse(payload, status = 200, extraHeaders = {}) {
@@ -1080,6 +1392,22 @@ function parseJsonSafe(value, fallback) {
     return JSON.parse(value);
   } catch (_error) {
     return fallback;
+  }
+}
+
+function decodeBasicAuth(encoded) {
+  try {
+    const decoded = atob(encoded);
+    const separatorIndex = decoded.indexOf(":");
+    if (separatorIndex < 0) {
+      return null;
+    }
+    return {
+      username: decoded.slice(0, separatorIndex),
+      password: decoded.slice(separatorIndex + 1),
+    };
+  } catch (_error) {
+    return null;
   }
 }
 
