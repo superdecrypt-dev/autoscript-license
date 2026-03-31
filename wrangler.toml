@@ -4,8 +4,6 @@ compatibility_date = "2026-03-31"
 workers_dev = true
 
 [vars]
-# Built-in autoscript client now points to:
-# https://autoscript.temp10sgt.workers.dev/api/v1/license/check
 CACHE_TTL_SEC_DEFAULT = "3600"
 PUBLIC_LICENSE_DURATION_DAYS = "14"
 PUBLIC_UI_ORIGIN = "https://autoscript-2ed.pages.dev"
