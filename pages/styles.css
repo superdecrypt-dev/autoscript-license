@@ -1,12 +1,11 @@
 :root {
-  --bg: #f3ede4;
+  --bg: #f2ece2;
   --sidebar: #18120f;
   --sidebar-line: rgba(255, 255, 255, 0.08);
   --sidebar-text: #f5ece3;
   --sidebar-muted: rgba(245, 236, 227, 0.68);
-  --surface: rgba(255, 252, 248, 0.92);
+  --surface: rgba(255, 252, 248, 0.94);
   --surface-2: #fffdf9;
-  --panel-soft: rgba(255, 246, 237, 0.9);
   --line: rgba(69, 42, 20, 0.12);
   --text: #29170c;
   --muted: #725845;
@@ -56,15 +55,75 @@ h3 {
 }
 
 h1 {
-  font-size: 1.5rem;
+  font-size: clamp(2rem, 4vw, 3rem);
 }
 
 h2 {
-  font-size: clamp(1.5rem, 2vw, 2.3rem);
+  font-size: clamp(1.35rem, 2vw, 2rem);
 }
 
 h3 {
-  font-size: 1.25rem;
+  font-size: 1.2rem;
+}
+
+.is-hidden {
+  display: none !important;
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.sidebar-copy,
+.topbar-copy,
+.status-banner,
+.empty-row,
+.chart-caption,
+.metric-label,
+label span,
+.settings-note p,
+.top-event-meta span,
+.trend-label,
+.source-card span,
+.login-copy {
+  color: var(--muted);
+}
+
+.login-shell {
+  min-height: calc(100vh - 36px);
+  display: grid;
+  place-items: center;
+}
+
+.login-card {
+  width: min(100%, 460px);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow);
+  padding: 34px 28px;
+}
+
+.login-copy {
+  margin: 14px 0 0;
+  line-height: 1.65;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 24px;
+  margin-bottom: 18px;
+}
+
+.login-submit-btn {
+  margin-top: 8px;
 }
 
 .admin-app {
@@ -88,29 +147,6 @@ h3 {
 
 .sidebar-brand {
   padding: 10px 10px 0;
-}
-
-.eyebrow {
-  margin: 0 0 10px;
-  color: var(--accent);
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-size: 0.74rem;
-  font-weight: 700;
-}
-
-.sidebar-copy,
-.topbar-copy,
-.status-banner,
-.empty-row,
-.chart-caption,
-.metric-label,
-label span,
-.settings-note p,
-.top-event-meta span,
-.trend-label,
-.source-card span {
-  color: var(--muted);
 }
 
 .sidebar-copy {
@@ -318,10 +354,16 @@ label span,
   align-items: center;
 }
 
-.workspace-grid,
-.settings-grid {
+.workspace-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(340px, 0.8fr);
+  gap: 16px;
+}
+
+.settings-grid,
+.settings-grid-single {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 
@@ -334,18 +376,6 @@ label span,
   padding: 18px;
 }
 
-.settings-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-label {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
 .filter-row input,
 .filter-row select,
 label input,
@@ -356,6 +386,12 @@ label textarea {
   background: var(--surface-2);
   color: var(--text);
   padding: 13px 15px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 textarea {
@@ -586,9 +622,13 @@ textarea {
 
 .settings-meta {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   margin: 0;
+}
+
+.settings-meta-single {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .settings-meta div {
@@ -610,6 +650,10 @@ textarea {
   margin: 0;
   font-weight: 700;
   word-break: break-word;
+}
+
+.settings-actions {
+  margin-top: 16px;
 }
 
 .settings-note {
@@ -729,9 +773,10 @@ th {
   }
 
   .workspace-grid,
-  .settings-grid,
   .summary-grid,
-  .charts-grid {
+  .charts-grid,
+  .settings-meta,
+  .settings-meta-single {
     grid-template-columns: 1fr 1fr;
   }
 }
@@ -741,6 +786,7 @@ th {
     padding: 12px;
   }
 
+  .login-card,
   .topbar,
   .panel {
     padding: 18px;
@@ -757,11 +803,11 @@ th {
   }
 
   .workspace-grid,
-  .settings-grid,
   .summary-grid,
   .charts-grid,
   .source-grid,
   .settings-meta,
+  .settings-meta-single,
   .form-grid {
     grid-template-columns: 1fr;
   }

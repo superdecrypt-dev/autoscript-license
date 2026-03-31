@@ -13,11 +13,37 @@
     <link rel="stylesheet" href="../styles.css" />
   </head>
   <body>
-    <div id="admin-app" class="admin-app">
+    <div id="login-shell" class="login-shell">
+      <section class="login-card">
+        <p class="eyebrow">Admin Access</p>
+        <h1>Masuk ke Panel Admin</h1>
+        <p class="login-copy">
+          Panel admin disembunyikan penuh sampai kredensial valid diverifikasi ke Worker.
+        </p>
+
+        <form id="login-form" class="login-form">
+          <label>
+            <span>User / Email Admin</span>
+            <input id="login-email-input" type="text" placeholder="admin@example.com" autocomplete="username" />
+          </label>
+          <label>
+            <span>Password</span>
+            <input id="login-password-input" type="password" placeholder="Admin password" autocomplete="current-password" />
+          </label>
+          <button id="login-submit-btn" class="primary-btn login-submit-btn" type="submit">Masuk Panel</button>
+        </form>
+
+        <div id="login-banner" class="status-banner muted">
+          Masukkan user dan password admin untuk membuka panel.
+        </div>
+      </section>
+    </div>
+
+    <div id="admin-app" class="admin-app is-hidden" aria-hidden="true">
       <aside class="admin-sidebar">
         <div class="sidebar-brand">
           <p class="eyebrow">Ops Console</p>
-          <h1>Autoscript License</h1>
+          <h2>Autoscript License</h2>
           <p class="sidebar-copy">Console operator untuk lisensi IP, audit, dan monitoring historis.</p>
         </div>
 
@@ -36,7 +62,7 @@
           </button>
           <button class="nav-link" type="button" data-view-target="settings">
             <span>Settings</span>
-            <small>Worker connection</small>
+            <small>Session & access</small>
           </button>
         </nav>
 
@@ -66,12 +92,12 @@
           <div class="topbar-actions">
             <div id="session-badge" class="session-badge muted">Not Connected</div>
             <button id="refresh-current-btn" class="ghost-btn" type="button">Refresh View</button>
-            <button id="jump-settings-btn" class="ghost-btn" type="button">Settings</button>
+            <button id="logout-btn" class="ghost-btn" type="button">Logout</button>
           </div>
         </header>
 
         <div id="status-banner" class="status-banner muted">
-          Isi Worker API Base URL serta kredensial admin di Settings, lalu klik Connect Admin.
+          Sesi admin aktif. Pilih workspace di sidebar untuk mulai bekerja.
         </div>
 
         <main class="view-stage">
@@ -301,51 +327,18 @@
           </section>
 
           <section class="view-panel" data-view="settings">
-            <div class="settings-grid">
+            <div class="settings-grid settings-grid-single">
               <section class="panel">
                 <div class="section-head">
                   <div>
-                    <p class="eyebrow">Connection</p>
-                    <h3>Worker Credentials</h3>
+                    <p class="eyebrow">Session</p>
+                    <h3>Admin Access</h3>
                   </div>
                 </div>
 
-                <div class="settings-stack">
-                  <label>
-                    <span>Worker API Base URL</span>
-                    <input id="api-base-input" type="url" placeholder="https://autoscript-license.minidecrypt.workers.dev" />
-                  </label>
-                  <label>
-                    <span>Admin Email</span>
-                    <input id="admin-email-input" type="email" placeholder="admin@example.com" />
-                  </label>
-                  <label>
-                    <span>Admin Password</span>
-                    <input id="admin-password-input" type="password" placeholder="Admin password" />
-                  </label>
-                </div>
-
-                <div class="form-actions">
-                  <button id="connect-btn" class="primary-btn" type="button">Connect Admin</button>
-                  <button id="clear-auth-btn" class="ghost-btn" type="button">Clear</button>
-                </div>
-              </section>
-
-              <section class="panel">
-                <div class="section-head">
+                <dl class="settings-meta settings-meta-single">
                   <div>
-                    <p class="eyebrow">Current Profile</p>
-                    <h3>Stored Session</h3>
-                  </div>
-                </div>
-
-                <dl class="settings-meta">
-                  <div>
-                    <dt>Worker API</dt>
-                    <dd id="settings-api-preview">-</dd>
-                  </div>
-                  <div>
-                    <dt>Admin Email</dt>
+                    <dt>Admin Identity</dt>
                     <dd id="settings-admin-preview">-</dd>
                   </div>
                   <div>
@@ -358,11 +351,15 @@
                   </div>
                 </dl>
 
+                <div class="form-actions settings-actions">
+                  <button id="clear-auth-btn" class="ghost-btn" type="button">Logout & Clear Session</button>
+                </div>
+
                 <div class="settings-note">
                   <strong>Catatan Operasional</strong>
                   <p>
-                    Simpan koneksi admin di browser ini untuk akses cepat. Password tetap hanya disimpan pada
-                    `sessionStorage`, jadi akan hilang saat sesi browser dibersihkan.
+                    URL API Worker disembunyikan dari panel admin dan dibaca tetap dari konfigurasi deploy.
+                    Panel hanya bisa dibuka setelah kredensial admin berhasil diverifikasi ke Worker.
                   </p>
                 </div>
               </section>

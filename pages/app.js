@@ -13,17 +13,16 @@ const VIEW_META = {
   },
   settings: {
     title: "Settings",
-    description: "Kelola koneksi Worker dan kredensial admin untuk browser ini.",
+    description: "Kelola sesi admin dan akses panel tanpa menampilkan endpoint Worker di UI.",
   },
 };
 
 const state = {
-  apiBaseUrl:
-    localStorage.getItem("autoscriptLicenseApiBaseUrl") ||
-    (window.AUTOSCRIPT_PORTAL_CONFIG?.apiBaseUrl || "").replace(/\/+$/, ""),
+  apiBaseUrl: normalizeApiBase(window.AUTOSCRIPT_PORTAL_CONFIG?.apiBaseUrl || ""),
   adminEmail: localStorage.getItem("autoscriptLicenseAdminEmail") || "",
   adminPassword: sessionStorage.getItem("autoscriptLicenseAdminPassword") || "",
   activeView: localStorage.getItem("autoscriptLicenseAdminActiveView") || "dashboard",
+  authStatus: "locked",
   entries: [],
   auditLogs: [],
   metrics: null,
@@ -32,18 +31,20 @@ const state = {
 };
 
 const dom = {
+  loginShell: document.getElementById("login-shell"),
+  loginForm: document.getElementById("login-form"),
+  loginEmailInput: document.getElementById("login-email-input"),
+  loginPasswordInput: document.getElementById("login-password-input"),
+  loginSubmitBtn: document.getElementById("login-submit-btn"),
+  loginBanner: document.getElementById("login-banner"),
   app: document.getElementById("admin-app"),
   sidebarToggle: document.getElementById("sidebar-toggle"),
   navLinks: Array.from(document.querySelectorAll("[data-view-target]")),
   viewPanels: Array.from(document.querySelectorAll("[data-view]")),
   viewTitle: document.getElementById("view-title"),
   viewDescription: document.getElementById("view-description"),
-  jumpSettingsBtn: document.getElementById("jump-settings-btn"),
   refreshCurrentBtn: document.getElementById("refresh-current-btn"),
-  apiBaseInput: document.getElementById("api-base-input"),
-  adminEmailInput: document.getElementById("admin-email-input"),
-  adminPasswordInput: document.getElementById("admin-password-input"),
-  connectBtn: document.getElementById("connect-btn"),
+  logoutBtn: document.getElementById("logout-btn"),
   clearAuthBtn: document.getElementById("clear-auth-btn"),
   refreshDashboardBtn: document.getElementById("refresh-dashboard-btn"),
   refreshAuditBtn: document.getElementById("refresh-audit-btn"),
@@ -74,7 +75,6 @@ const dom = {
   mutationsChartCaption: document.getElementById("mutations-chart-caption"),
   topEvents: document.getElementById("top-events"),
   entrySourceSummary: document.getElementById("entry-source-summary"),
-  settingsApiPreview: document.getElementById("settings-api-preview"),
   settingsAdminPreview: document.getElementById("settings-admin-preview"),
   settingsMetricsPreview: document.getElementById("settings-metrics-preview"),
   settingsSessionPreview: document.getElementById("settings-session-preview"),
@@ -92,27 +92,38 @@ const dom = {
 bootstrap();
 
 function bootstrap() {
-  dom.apiBaseInput.value = state.apiBaseUrl;
-  dom.adminEmailInput.value = state.adminEmail;
-  dom.adminPasswordInput.value = state.adminPassword;
+  localStorage.removeItem("autoscriptLicenseApiBaseUrl");
+  dom.loginEmailInput.value = state.adminEmail;
+  dom.loginPasswordInput.value = state.adminPassword;
   dom.metricsWindow.value = state.metricsWindowDays;
   bindEvents();
   setActiveView(state.activeView, { skipPersist: true });
   refreshVisuals();
-  if (state.apiBaseUrl && state.adminEmail && state.adminPassword) {
-    refreshDashboard();
+
+  if (!state.apiBaseUrl) {
+    setAuthState("locked");
+    setLoginBanner("Config API admin belum tersedia di deploy ini. Isi PAGES_API_BASE_URL lalu redeploy Pages.", "error");
+    dom.loginSubmitBtn.disabled = true;
+    return;
   }
+
+  if (state.adminEmail && state.adminPassword) {
+    authenticateWithStoredCredentials();
+    return;
+  }
+
+  setAuthState("locked");
 }
 
 function bindEvents() {
+  dom.loginForm.addEventListener("submit", handleLoginSubmit);
   dom.sidebarToggle.addEventListener("click", toggleSidebar);
-  dom.jumpSettingsBtn.addEventListener("click", () => setActiveView("settings"));
   dom.refreshCurrentBtn.addEventListener("click", refreshCurrentView);
+  dom.logoutBtn.addEventListener("click", handleLogout);
+  dom.clearAuthBtn.addEventListener("click", handleLogout);
   dom.navLinks.forEach((button) => {
     button.addEventListener("click", () => setActiveView(button.dataset.viewTarget));
   });
-  dom.connectBtn.addEventListener("click", handleConnect);
-  dom.clearAuthBtn.addEventListener("click", handleClearAuth);
   dom.refreshDashboardBtn.addEventListener("click", refreshEntries);
   dom.refreshAuditBtn.addEventListener("click", refreshAuditLogs);
   dom.refreshMetricsBtn.addEventListener("click", refreshMetrics);
@@ -144,11 +155,99 @@ function setActiveView(viewName, options = {}) {
   dom.app.classList.remove("sidebar-open");
 }
 
+function setAuthState(status) {
+  state.authStatus = status;
+  const authenticated = status === "authenticated";
+  dom.loginShell.classList.toggle("is-hidden", authenticated);
+  dom.app.classList.toggle("is-hidden", !authenticated);
+  dom.app.setAttribute("aria-hidden", String(!authenticated));
+  dom.loginSubmitBtn.disabled = status === "authenticating" || !state.apiBaseUrl;
+}
+
 function toggleSidebar() {
   dom.app.classList.toggle("sidebar-open");
 }
 
+async function handleLoginSubmit(event) {
+  event.preventDefault();
+  if (!state.apiBaseUrl) {
+    setLoginBanner("Config API admin belum tersedia di deploy ini.", "error");
+    return;
+  }
+
+  const adminEmail = dom.loginEmailInput.value.trim();
+  const adminPassword = dom.loginPasswordInput.value;
+  if (!adminEmail || !adminPassword) {
+    setLoginBanner("Masukkan user/email dan password admin terlebih dahulu.", "error");
+    return;
+  }
+
+  setAuthState("authenticating");
+  setLoginBanner("Memverifikasi kredensial admin...", "muted");
+
+  try {
+    await authenticateAdmin(adminEmail, adminPassword);
+  } catch (error) {
+    setAuthState("locked");
+    setLoginBanner(error.message || "Login admin gagal.", "error");
+  }
+}
+
+async function authenticateWithStoredCredentials() {
+  setAuthState("authenticating");
+  setLoginBanner("Memulihkan sesi admin sebelumnya...", "muted");
+
+  try {
+    await authenticateAdmin(state.adminEmail, state.adminPassword);
+  } catch (_error) {
+    clearStoredCredentials();
+    setAuthState("locked");
+    setLoginBanner("Sesi sebelumnya tidak valid. Silakan login ulang.", "error");
+  }
+}
+
+async function authenticateAdmin(adminEmail, adminPassword) {
+  const session = await apiFetch("/api/admin/session", {
+    auth: { email: adminEmail, password: adminPassword },
+  });
+
+  state.adminEmail = adminEmail;
+  state.adminPassword = adminPassword;
+  state.session = session;
+  localStorage.setItem("autoscriptLicenseAdminEmail", adminEmail);
+  sessionStorage.setItem("autoscriptLicenseAdminPassword", adminPassword);
+  setSessionState(session);
+  setAuthState("authenticated");
+  setLoginBanner("Akses admin berhasil diverifikasi.", "ok");
+  setBanner(`Connected as ${session.admin_email || "admin"}`, "ok");
+  await refreshDashboard();
+}
+
+function handleLogout() {
+  clearStoredCredentials();
+  state.session = null;
+  state.entries = [];
+  state.auditLogs = [];
+  state.metrics = null;
+  setSessionState(null);
+  refreshVisuals();
+  setAuthState("locked");
+  setLoginBanner("Sesi admin dibersihkan. Masukkan kredensial untuk membuka panel lagi.", "muted");
+}
+
+function clearStoredCredentials() {
+  state.adminEmail = "";
+  state.adminPassword = "";
+  localStorage.removeItem("autoscriptLicenseAdminEmail");
+  sessionStorage.removeItem("autoscriptLicenseAdminPassword");
+  dom.loginEmailInput.value = "";
+  dom.loginPasswordInput.value = "";
+}
+
 async function refreshCurrentView() {
+  if (state.authStatus !== "authenticated") {
+    return;
+  }
   if (state.activeView === "dashboard") {
     await refreshDashboard();
   } else if (state.activeView === "entries") {
@@ -156,51 +255,12 @@ async function refreshCurrentView() {
   } else if (state.activeView === "audit") {
     await refreshAuditLogs();
   } else if (state.activeView === "settings") {
-    await refreshSessionState();
+    refreshVisuals();
   }
-}
-
-async function handleConnect() {
-  const candidate = normalizeApiBase(dom.apiBaseInput.value);
-  const adminEmail = dom.adminEmailInput.value.trim();
-  const adminPassword = dom.adminPasswordInput.value;
-  if (!candidate) {
-    setBanner("Masukkan Worker API Base URL yang valid.", "error");
-    return;
-  }
-  if (!adminEmail || !adminPassword) {
-    setBanner("Masukkan email dan password admin terlebih dahulu.", "error");
-    return;
-  }
-  state.apiBaseUrl = candidate;
-  state.adminEmail = adminEmail;
-  state.adminPassword = adminPassword;
-  localStorage.setItem("autoscriptLicenseApiBaseUrl", candidate);
-  localStorage.setItem("autoscriptLicenseAdminEmail", adminEmail);
-  sessionStorage.setItem("autoscriptLicenseAdminPassword", adminPassword);
-  setBanner("Konfigurasi admin disimpan. Mencoba koneksi...", "muted");
-  await refreshDashboard();
-}
-
-function handleClearAuth() {
-  state.adminEmail = "";
-  state.adminPassword = "";
-  state.session = null;
-  state.entries = [];
-  state.auditLogs = [];
-  state.metrics = null;
-  localStorage.removeItem("autoscriptLicenseAdminEmail");
-  sessionStorage.removeItem("autoscriptLicenseAdminPassword");
-  dom.adminEmailInput.value = "";
-  dom.adminPasswordInput.value = "";
-  setSessionState(null);
-  setBanner("Kredensial admin dihapus dari browser ini.", "muted");
-  refreshVisuals();
-  setActiveView("settings");
 }
 
 async function refreshDashboard() {
-  if (!ensureConnectionSettings()) {
+  if (!ensureAuthenticated()) {
     return;
   }
   try {
@@ -218,36 +278,12 @@ async function refreshDashboard() {
     setBanner(`Connected as ${session.admin_email || "admin"}`, "ok");
     refreshVisuals();
   } catch (error) {
-    state.session = null;
-    state.entries = [];
-    state.auditLogs = [];
-    state.metrics = null;
-    setSessionState(null, true);
-    setBanner(error.message || "Gagal mengambil data dari Worker API.", "error");
-    refreshVisuals();
-  }
-}
-
-async function refreshSessionState() {
-  if (!ensureConnectionSettings()) {
-    return;
-  }
-  try {
-    const session = await apiFetch("/api/admin/session");
-    state.session = session;
-    setSessionState(session);
-    setBanner(`Connected as ${session.admin_email || "admin"}`, "ok");
-    refreshVisuals();
-  } catch (error) {
-    state.session = null;
-    setSessionState(null, true);
-    setBanner(error.message || "Gagal memverifikasi sesi admin.", "error");
-    refreshVisuals();
+    handleAuthFailure(error);
   }
 }
 
 async function refreshEntries() {
-  if (!ensureConnectionSettings()) {
+  if (!ensureAuthenticated()) {
     return;
   }
   try {
@@ -255,12 +291,12 @@ async function refreshEntries() {
     state.entries = payload.items || [];
     refreshVisuals();
   } catch (error) {
-    setBanner(error.message || "Gagal refresh daftar IP.", "error");
+    handleAuthFailure(error, "Gagal refresh daftar IP.");
   }
 }
 
 async function refreshAuditLogs() {
-  if (!ensureConnectionSettings()) {
+  if (!ensureAuthenticated()) {
     return;
   }
   try {
@@ -268,12 +304,12 @@ async function refreshAuditLogs() {
     state.auditLogs = payload.items || [];
     refreshVisuals();
   } catch (error) {
-    setBanner(error.message || "Gagal refresh audit log.", "error");
+    handleAuthFailure(error, "Gagal refresh audit log.");
   }
 }
 
 async function refreshMetrics() {
-  if (!ensureConnectionSettings()) {
+  if (!ensureAuthenticated()) {
     return;
   }
   try {
@@ -281,7 +317,7 @@ async function refreshMetrics() {
     state.metrics = payload;
     refreshVisuals();
   } catch (error) {
-    setBanner(error.message || "Gagal refresh historical metrics.", "error");
+    handleAuthFailure(error, "Gagal refresh historical metrics.");
   }
 }
 
@@ -319,7 +355,7 @@ async function fetchMetrics() {
 
 async function handleSubmitEntry(event) {
   event.preventDefault();
-  if (!ensureConnectionSettings()) {
+  if (!ensureAuthenticated()) {
     return;
   }
   const id = dom.entryId.value.trim();
@@ -348,7 +384,7 @@ async function handleSubmitEntry(event) {
     resetForm();
     await refreshDashboard();
   } catch (error) {
-    setBanner(error.message || "Gagal menyimpan entry.", "error");
+    handleAuthFailure(error, "Gagal menyimpan entry.");
   }
 }
 
@@ -383,7 +419,7 @@ async function toggleEntry(id, action) {
     setBanner(`Entry ${entry.ip} berhasil di-${label}.`, "ok");
     await refreshDashboard();
   } catch (error) {
-    setBanner(error.message || `Gagal ${label} entry.`, "error");
+    handleAuthFailure(error, `Gagal ${label} entry.`);
   }
 }
 
@@ -406,7 +442,7 @@ async function deleteEntry(id) {
     }
     await refreshDashboard();
   } catch (error) {
-    setBanner(error.message || "Gagal menghapus entry.", "error");
+    handleAuthFailure(error, "Gagal menghapus entry.");
   }
 }
 
@@ -425,9 +461,26 @@ function refreshVisuals() {
   renderSettingsSummary();
 }
 
-function setSessionState(session, failed = false) {
-  const label = session?.admin_email || (failed ? "Connection Failed" : "Not Connected");
-  const tone = session ? "ok" : failed ? "error" : "muted";
+function ensureAuthenticated() {
+  if (state.authStatus === "authenticated" && state.adminEmail && state.adminPassword && state.apiBaseUrl) {
+    return true;
+  }
+  setAuthState("locked");
+  return false;
+}
+
+function handleAuthFailure(error, fallbackMessage = "Akses admin gagal.") {
+  if (error?.status === 401 || String(error?.message || "").includes("401")) {
+    handleLogout();
+    setLoginBanner("Sesi admin tidak valid. Silakan login ulang.", "error");
+    return;
+  }
+  setBanner(error.message || fallbackMessage, "error");
+}
+
+function setSessionState(session) {
+  const label = session?.admin_email || "Not Connected";
+  const tone = session ? "ok" : "muted";
   dom.sessionBadge.textContent = label;
   dom.sessionBadge.className = `session-badge ${tone}`;
   dom.sidebarSessionBadge.textContent = label;
@@ -613,7 +666,6 @@ function renderEntrySourceSummary() {
 }
 
 function renderSettingsSummary() {
-  dom.settingsApiPreview.textContent = state.apiBaseUrl || "-";
   dom.settingsAdminPreview.textContent = state.adminEmail || "-";
   dom.settingsMetricsPreview.textContent = `${state.metricsWindowDays || "14"} days`;
   dom.settingsSessionPreview.textContent = state.session?.admin_email || "Not Connected";
@@ -669,7 +721,11 @@ function renderTrendChart(container, points, series) {
 function handleMetricsWindowChange() {
   state.metricsWindowDays = dom.metricsWindow.value || "14";
   localStorage.setItem("autoscriptLicenseMetricsWindowDays", state.metricsWindowDays);
-  refreshMetrics();
+  if (state.authStatus === "authenticated") {
+    refreshMetrics();
+  } else {
+    refreshVisuals();
+  }
 }
 
 async function apiFetch(path, options = {}) {
@@ -677,8 +733,10 @@ async function apiFetch(path, options = {}) {
     "Content-Type": "application/json",
     ...(options.headers || {}),
   };
-  if (state.adminEmail && state.adminPassword) {
-    headers.Authorization = `Basic ${btoa(`${state.adminEmail}:${state.adminPassword}`)}`;
+  const authEmail = options.auth?.email ?? state.adminEmail;
+  const authPassword = options.auth?.password ?? state.adminPassword;
+  if (authEmail && authPassword) {
+    headers.Authorization = `Basic ${btoa(`${authEmail}:${authPassword}`)}`;
   }
   const response = await fetch(`${state.apiBaseUrl}${path}`, {
     method: options.method || "GET",
@@ -694,22 +752,21 @@ async function apiFetch(path, options = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(payload.message || `HTTP ${response.status}`);
+    const error = new Error(payload.message || `HTTP ${response.status}`);
+    error.status = response.status;
+    throw error;
   }
   return payload;
-}
-
-function ensureConnectionSettings() {
-  if (state.apiBaseUrl && state.adminEmail && state.adminPassword) {
-    return true;
-  }
-  setBanner("Isi Worker API Base URL, email admin, dan password admin terlebih dahulu.", "error");
-  return false;
 }
 
 function setBanner(message, tone = "muted") {
   dom.statusBanner.textContent = message;
   dom.statusBanner.className = `status-banner ${tone}`;
+}
+
+function setLoginBanner(message, tone = "muted") {
+  dom.loginBanner.textContent = message;
+  dom.loginBanner.className = `status-banner ${tone}`;
 }
 
 function normalizeApiBase(value) {
@@ -718,8 +775,7 @@ function normalizeApiBase(value) {
     return "";
   }
   try {
-    const url = new URL(raw);
-    return url.origin;
+    return new URL(raw).origin;
   } catch (_error) {
     return "";
   }
