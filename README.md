@@ -51,6 +51,10 @@ Repo ini adalah project standalone. Semua file Worker, Pages, dan migrasi ada la
 - `PUBLIC_STATUS_WINDOW_SEC`
 - `PUBLIC_RENEW_LIMIT_MAX`
 - `PUBLIC_RENEW_WINDOW_SEC`
+- `AUDIT_LOG_RETENTION_DAYS`
+- `PUBLIC_RATE_LIMIT_RETENTION_DAYS`
+
+`CACHE_TTL_SEC_DEFAULT` adalah masa grace cache allow yang dikirim ke client VPS saat API lisensi gagal dihubungi. Default yang aman untuk produksi adalah `3600` detik agar revoke IP tidak tertahan terlalu lama.
 
 ### Environment Build Pages
 - `PAGES_API_BASE_URL`
@@ -72,6 +76,8 @@ Repo ini adalah project standalone. Semua file Worker, Pages, dan migrasi ada la
    - `PAGES_API_BASE_URL=https://<worker-host>`
 6. Buat atau connect project `Worker` ke repo GitHub yang sama dan pastikan name-nya `autoscript`.
 7. Isi vars Worker di dashboard Cloudflare agar sesuai dengan `wrangler.toml`.
+8. Pastikan cron trigger Worker ikut terpasang saat deploy, karena cleanup `audit_logs` dan `public_rate_limits`
+   sekarang dijalankan terjadwal dari Worker.
 
 ## Deploy Manual Lokal
 - Build Pages:
@@ -87,6 +93,12 @@ Repo ini adalah project standalone. Semua file Worker, Pages, dan migrasi ada la
 3. Worker membuat entry aktif `14 hari` jika IP belum ada.
 4. Jika IP sudah ada dan tidak direvoke, Worker memperpanjang masa aktif `14 hari`.
 5. Jika pengguna ingin memastikan hasilnya, gunakan form `Check Status`.
+
+## Maintenance
+- Worker menjalankan cleanup terjadwal untuk:
+  - `audit_logs` lebih lama dari `AUDIT_LOG_RETENTION_DAYS`
+  - `public_rate_limits` lebih lama dari `PUBLIC_RATE_LIMIT_RETENTION_DAYS`
+- Default cron di `wrangler.toml` berjalan tiap jam.
 
 ## Integrasi Autoscript
 Autoscript sekarang bisa memakai URL built-in ini tanpa env manual di VPS:

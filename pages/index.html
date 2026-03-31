@@ -20,18 +20,43 @@
           <p class="eyebrow">Public Self-Service</p>
           <h1>Autoscript IP License</h1>
           <p class="hero-text">
-            Website publik untuk mengaktifkan atau memperpanjang izin IP VPS autoscript.
-            Setiap aktivasi akan menambah masa aktif <strong><span id="license-duration-days">14</span> hari</strong>.
+            Portal ini dipakai untuk mengaktifkan atau memperpanjang izin IP VPS autoscript.
+            Setiap aktivasi sukses akan menambah masa aktif
+            <strong><span id="license-duration-days">14</span> hari</strong> untuk IP yang sama.
           </p>
+          <div class="hero-actions">
+            <a class="hero-link primary-link" href="#activate-panel">Aktifkan IP</a>
+            <a class="hero-link secondary-link" href="#status-panel">Cek Status</a>
+          </div>
+          <div class="hero-strip">
+            <article>
+              <strong>1 IP</strong>
+              <span>Satu input per VPS public IPv4</span>
+            </article>
+            <article>
+              <strong>Self-service</strong>
+              <span>Aktivasi dan renew tanpa token manual</span>
+            </article>
+            <article>
+              <strong>Status cepat</strong>
+              <span>Cek apakah IP masih active, expired, atau revoked</span>
+            </article>
+          </div>
         </div>
         <div class="hero-sidecard">
-          <p class="sidecard-label">Portal Rules</p>
-          <ul class="rule-list">
-            <li>Input IP VPS untuk aktifkan akses 14 hari.</li>
-            <li>Input IP yang sama lagi untuk memperpanjang masa aktif.</li>
-            <li>Jika IP sudah expired, aktivasi ulang dari halaman ini.</li>
-            <li>Tidak ada token renew dan tidak ada panel admin.</li>
-          </ul>
+          <p class="sidecard-label">Alur Singkat</p>
+          <ol class="flow-list">
+            <li>Masukkan public IPv4 VPS Anda pada form aktivasi.</li>
+            <li>Portal akan membuat atau memperpanjang izin IP tersebut.</li>
+            <li>Gunakan form status untuk memastikan masa aktif terbaru.</li>
+          </ol>
+          <div class="info-note">
+            <strong>Catatan</strong>
+            <p>
+              Jika IP VPS berubah, lakukan aktivasi ulang dengan IP baru. Jika status menunjukkan
+              <code>revoked</code>, IP harus dibuka lagi oleh operator.
+            </p>
+          </div>
           <div id="public-status-badge" class="status-pill muted">Waiting for Worker config</div>
         </div>
       </header>
@@ -40,41 +65,82 @@
         Mengambil konfigurasi portal...
       </section>
 
+      <section class="public-overview" aria-label="Portal overview">
+        <article class="overview-card">
+          <span class="overview-label">Durasi default</span>
+          <strong><span id="overview-duration-days">14</span> hari</strong>
+          <p>Satu aktivasi sukses akan memperpanjang IP aktif dengan durasi yang sama.</p>
+        </article>
+        <article class="overview-card">
+          <span class="overview-label">Kapan renew?</span>
+          <strong>Sebelum expired</strong>
+          <p>Anda bisa submit IP yang sama lagi kapan pun untuk menambah masa aktif.</p>
+        </article>
+        <article class="overview-card">
+          <span class="overview-label">Jika tetap ditolak</span>
+          <strong>Cek status dulu</strong>
+          <p>Pastikan IP yang dimasukkan sama dengan public IPv4 VPS yang sedang dipakai.</p>
+        </article>
+      </section>
+
       <main class="public-grid">
-        <section class="public-panel">
+        <section id="activate-panel" class="public-panel">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Activate</p>
               <h2>Aktifkan / Perpanjang IP</h2>
+              <p class="panel-copy">
+                Gunakan form ini untuk pendaftaran awal atau menambah masa aktif IP yang sudah ada.
+              </p>
             </div>
           </div>
           <form id="create-form" class="public-form">
             <label>
               <span>IPv4 VPS</span>
               <input id="create-ip" type="text" placeholder="123.45.67.89" required />
+              <small>Masukkan public IPv4 dari VPS, bukan IP lokal atau IP perangkat Anda.</small>
             </label>
-            <button class="primary-btn" type="submit">Aktifkan 14 Hari</button>
+            <button id="create-submit-btn" class="primary-btn" type="submit">
+              <span id="create-submit-label">Aktifkan 14 Hari</span>
+            </button>
           </form>
           <div id="create-result" class="result-card hidden"></div>
         </section>
 
-        <section class="public-panel">
+        <section id="status-panel" class="public-panel">
           <div class="panel-head">
             <div>
               <p class="eyebrow">Status</p>
               <h2>Cek Status License</h2>
+              <p class="panel-copy">
+                Gunakan form ini untuk memastikan IP masih aktif dan melihat kapan perlu renew lagi.
+              </p>
             </div>
           </div>
           <form id="status-form" class="public-form">
             <label>
               <span>IPv4 VPS</span>
               <input id="status-ip" type="text" placeholder="123.45.67.89" required />
+              <small>Jika baru saja aktivasi, gunakan IP yang sama untuk verifikasi hasil terbaru.</small>
             </label>
-            <button class="primary-btn" type="submit">Check Status</button>
+            <button id="status-submit-btn" class="primary-btn secondary-btn" type="submit">
+              <span id="status-submit-label">Check Status</span>
+            </button>
           </form>
           <div id="status-result" class="result-card hidden"></div>
         </section>
       </main>
+
+      <section class="public-footnote">
+        <article>
+          <h3>Yang Perlu Diperhatikan</h3>
+          <ul class="rule-list compact">
+            <li>IP yang sama bisa di-submit lagi untuk renew tanpa kode tambahan.</li>
+            <li>Jika VPS berpindah IP, aktivasi ulang dengan IP baru diperlukan.</li>
+            <li>Jika status tetap gagal padahal IP benar, simpan hasil status lalu hubungi operator.</li>
+          </ul>
+        </article>
+      </section>
     </div>
 
     <script src="./public.js" defer></script>

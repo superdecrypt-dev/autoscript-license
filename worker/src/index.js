@@ -14,6 +14,9 @@ export default {
       );
     }
   },
+  async scheduled(controller, env, ctx) {
+    ctx.waitUntil(runScheduledMaintenance(env, controller.scheduledTime || Date.now()));
+  },
 };
 
 async function routeRequest(request, env) {
@@ -33,11 +36,31 @@ async function routeRequest(request, env) {
   }
 
   if (request.method === "POST" && pathname === "/api/public/license/activate") {
-    return withPublicCors(request, env, await handlePublicActivate(request, env));
+    return withPublicCors(
+      request,
+      env,
+      await handlePublicActivate(request, env, {
+        eventBase: "public_activate",
+        rateLimitKey: "public_activate",
+        rateLimitMax: parseIntSafe(env.PUBLIC_CREATE_LIMIT_MAX, 5),
+        rateLimitWindowSec: parseIntSafe(env.PUBLIC_CREATE_WINDOW_SEC, 900),
+        rateLimitMessage: "Terlalu banyak request aktivasi IP. Coba lagi nanti.",
+      })
+    );
   }
 
   if (request.method === "POST" && pathname === "/api/public/license/create") {
-    return withPublicCors(request, env, await handlePublicActivate(request, env));
+    return withPublicCors(
+      request,
+      env,
+      await handlePublicActivate(request, env, {
+        eventBase: "public_activate",
+        rateLimitKey: "public_activate",
+        rateLimitMax: parseIntSafe(env.PUBLIC_CREATE_LIMIT_MAX, 5),
+        rateLimitWindowSec: parseIntSafe(env.PUBLIC_CREATE_WINDOW_SEC, 900),
+        rateLimitMessage: "Terlalu banyak request aktivasi IP. Coba lagi nanti.",
+      })
+    );
   }
 
   if (request.method === "POST" && pathname === "/api/public/license/status") {
@@ -45,7 +68,17 @@ async function routeRequest(request, env) {
   }
 
   if (request.method === "POST" && pathname === "/api/public/license/renew") {
-    return withPublicCors(request, env, await handlePublicActivate(request, env));
+    return withPublicCors(
+      request,
+      env,
+      await handlePublicActivate(request, env, {
+        eventBase: "public_renew",
+        rateLimitKey: "public_renew",
+        rateLimitMax: parseIntSafe(env.PUBLIC_RENEW_LIMIT_MAX, 10),
+        rateLimitWindowSec: parseIntSafe(env.PUBLIC_RENEW_WINDOW_SEC, 900),
+        rateLimitMessage: "Terlalu banyak request renew IP. Coba lagi nanti.",
+      })
+    );
   }
 
   if (request.method === "POST" && pathname === "/api/v1/license/check") {
@@ -120,27 +153,28 @@ async function handleWorkerLicenseCheck(request, env) {
   return jsonResponse({
     allowed: decision.allowed,
     reason: decision.reason,
-    cache_ttl_sec: parseIntSafe(env.CACHE_TTL_SEC_DEFAULT, 86400),
+    cache_ttl_sec: parseIntSafe(env.CACHE_TTL_SEC_DEFAULT, 3600),
   });
 }
 
-async function handlePublicActivate(request, env) {
+async function handlePublicActivate(request, env, options = {}) {
   const body = await parseJsonBody(request);
   if (body.error) {
     return body.error;
   }
 
   const visitorIp = getVisitorIp(request);
+  const eventBase = normalizeShortText(options.eventBase, 64) || "public_activate";
   const limit = await enforcePublicRateLimit(
     env,
-    "public_activate",
+    normalizeShortText(options.rateLimitKey, 64) || "public_activate",
     visitorIp,
-    parseIntSafe(env.PUBLIC_CREATE_LIMIT_MAX, 5),
-    parseIntSafe(env.PUBLIC_CREATE_WINDOW_SEC, 900)
+    parseIntSafe(options.rateLimitMax, parseIntSafe(env.PUBLIC_CREATE_LIMIT_MAX, 5)),
+    parseIntSafe(options.rateLimitWindowSec, parseIntSafe(env.PUBLIC_CREATE_WINDOW_SEC, 900))
   );
   if (!limit.allowed) {
     await insertAuditLog(env, {
-      eventType: "public_activate_rate_limited",
+      eventType: `${eventBase}_rate_limited`,
       ip: "",
       entryId: "",
       stage: "public",
@@ -153,7 +187,7 @@ async function handlePublicActivate(request, env) {
     return jsonResponse(
       {
         error: "rate_limited",
-        message: "Terlalu banyak request aktivasi IP. Coba lagi nanti.",
+        message: options.rateLimitMessage || "Terlalu banyak request aktivasi IP. Coba lagi nanti.",
         retry_after_sec: limit.retryAfterSec,
       },
       429
@@ -180,19 +214,12 @@ async function handlePublicActivate(request, env) {
       );
     }
 
-    const newExpiresAt = extendExpiryIso(existing.expires_at || "", nowIso, durationDays);
-    await runStatement(
-      env,
-      `
-        UPDATE license_entries
-        SET expires_at = ?, updated_at = ?, updated_by = 'public-activate', last_renewed_at = ?
-        WHERE id = ?
-      `,
-      [newExpiresAt, nowIso, nowIso, existing.id]
-    );
+    await extendPublicLicenseEntry(env, existing.id, nowIso, durationDays, eventBase);
+    const updated = await getLicenseEntryById(env, existing.id);
+    const newExpiresAt = updated?.expires_at || "";
 
     await insertAuditLog(env, {
-      eventType: "public_activate",
+      eventType: eventBase,
       ip: publicIp,
       entryId: existing.id,
       stage: "public",
@@ -207,7 +234,6 @@ async function handlePublicActivate(request, env) {
       },
     });
 
-    const updated = await getLicenseEntryById(env, existing.id);
     return jsonResponse({
       item: serializePublicStatusEntry(updated, nowIso),
       message: `IP diperpanjang ${durationDays} hari.`,
@@ -217,10 +243,10 @@ async function handlePublicActivate(request, env) {
   const expiresAt = addDaysIso(nowIso, durationDays);
   const id = crypto.randomUUID();
 
-  await runStatement(
+  const insertResult = await runStatement(
     env,
     `
-      INSERT INTO license_entries (
+      INSERT OR IGNORE INTO license_entries (
         id, ip, label, owner, notes, status, expires_at,
         created_at, updated_at, created_by, updated_by, revoked_at,
         entry_source, renewal_token_hash, last_renewed_at, created_request_ip
@@ -229,9 +255,44 @@ async function handlePublicActivate(request, env) {
     `,
     [id, publicIp, expiresAt, nowIso, nowIso, visitorIp]
   );
+  if (statementChanges(insertResult) === 0) {
+    const raced = await getLicenseEntryByIp(env, publicIp);
+    if (!raced) {
+      throw new Error(`Gagal membaca entry IP sesudah insert ignore: ${publicIp}`);
+    }
+    if (raced.status === "revoked") {
+      return jsonResponse(
+        {
+          error: "revoked",
+          message: "IP ini sedang diblokir dan tidak bisa diaktifkan dari website publik.",
+        },
+        403
+      );
+    }
+
+    await insertAuditLog(env, {
+      eventType: `${eventBase}_race_recovered`,
+      ip: publicIp,
+      entryId: raced.id,
+      stage: "public",
+      decision: "allow",
+      actorEmail: "",
+      requestIp: visitorIp,
+      userAgent: request.headers.get("User-Agent") || "",
+      payload: {
+        expires_at: raced.expires_at || "",
+        source: "public-race-recovered",
+      },
+    });
+
+    return jsonResponse({
+      item: serializePublicStatusEntry(raced, nowIso),
+      message: "IP sudah aktif dari request paralel sebelumnya. Gunakan status terbaru berikut.",
+    });
+  }
 
   await insertAuditLog(env, {
-    eventType: "public_activate",
+    eventType: eventBase,
     ip: publicIp,
     entryId: id,
     stage: "public",
@@ -569,7 +630,7 @@ function buildLicenseDecision(entry, env) {
   return {
     allowed: true,
     reason: `matched active entry${entry.label ? ` (${entry.label})` : ""}`,
-    cacheTtlSec: parseIntSafe(env.CACHE_TTL_SEC_DEFAULT, 86400),
+    cacheTtlSec: parseIntSafe(env.CACHE_TTL_SEC_DEFAULT, 3600),
     licenseDurationDays: durationDays,
   };
 }
@@ -712,8 +773,21 @@ function normalizeOptionalIsoDate(value) {
 }
 
 async function enforcePublicRateLimit(env, endpoint, clientIp, maxRequests, windowSec) {
+  const normalizedClientIp = String(clientIp || "").trim() || "unknown";
   const slot = Math.floor(Date.now() / 1000 / windowSec);
-  const existing = await firstRow(
+  await runStatement(
+    env,
+    `
+      INSERT INTO public_rate_limits (endpoint, client_ip, window_slot, request_count, updated_at)
+      VALUES (?, ?, ?, 1, ?)
+      ON CONFLICT(endpoint, client_ip, window_slot)
+      DO UPDATE SET
+        request_count = public_rate_limits.request_count + 1,
+        updated_at = excluded.updated_at
+    `,
+    [endpoint, normalizedClientIp, slot, nowIsoString()]
+  );
+  const current = await firstRow(
     env,
     `
       SELECT request_count
@@ -721,31 +795,9 @@ async function enforcePublicRateLimit(env, endpoint, clientIp, maxRequests, wind
       WHERE endpoint = ? AND client_ip = ? AND window_slot = ?
       LIMIT 1
     `,
-    [endpoint, clientIp, slot]
+    [endpoint, normalizedClientIp, slot]
   );
-
-  let requestCount = 1;
-  if (!existing) {
-    await runStatement(
-      env,
-      `
-        INSERT INTO public_rate_limits (endpoint, client_ip, window_slot, request_count, updated_at)
-        VALUES (?, ?, ?, 1, ?)
-      `,
-      [endpoint, clientIp, slot, nowIsoString()]
-    );
-  } else {
-    requestCount = Number(existing.request_count || 0) + 1;
-    await runStatement(
-      env,
-      `
-        UPDATE public_rate_limits
-        SET request_count = ?, updated_at = ?
-        WHERE endpoint = ? AND client_ip = ? AND window_slot = ?
-      `,
-      [requestCount, nowIsoString(), endpoint, clientIp, slot]
-    );
-  }
+  const requestCount = Number(current?.request_count || 0);
 
   const nowSec = Math.floor(Date.now() / 1000);
   const retryAfterSec = Math.max(1, slot * windowSec + windowSec - nowSec);
@@ -754,6 +806,26 @@ async function enforcePublicRateLimit(env, endpoint, clientIp, maxRequests, wind
     requestCount,
     retryAfterSec,
   };
+}
+
+async function extendPublicLicenseEntry(env, entryId, nowIso, durationDays, updatedBy) {
+  await runStatement(
+    env,
+    `
+      UPDATE license_entries
+      SET
+        expires_at = CASE
+          WHEN expires_at IS NOT NULL AND expires_at != '' AND expires_at > ?
+            THEN strftime('%Y-%m-%dT%H:%M:%fZ', datetime(expires_at, '+' || ? || ' days'))
+          ELSE strftime('%Y-%m-%dT%H:%M:%fZ', datetime(?, '+' || ? || ' days'))
+        END,
+        updated_at = ?,
+        updated_by = ?,
+        last_renewed_at = ?
+      WHERE id = ? AND status != 'revoked'
+    `,
+    [nowIso, durationDays, nowIso, durationDays, nowIso, updatedBy, nowIso, entryId]
+  );
 }
 
 async function getLicenseEntryByIp(env, ip) {
@@ -840,6 +912,42 @@ async function runStatement(env, sql, binds = []) {
   return stmt.run();
 }
 
+async function runScheduledMaintenance(env, scheduledTimeMs) {
+  const nowIso = new Date(scheduledTimeMs || Date.now()).toISOString();
+  const auditRetentionDays = parseIntSafe(env.AUDIT_LOG_RETENTION_DAYS, 30);
+  const rateLimitRetentionDays = parseIntSafe(env.PUBLIC_RATE_LIMIT_RETENTION_DAYS, 7);
+  const auditCutoffIso = addDaysIso(nowIso, -auditRetentionDays);
+  const rateLimitCutoffIso = addDaysIso(nowIso, -rateLimitRetentionDays);
+
+  const auditResult = await runStatement(
+    env,
+    `
+      DELETE FROM audit_logs
+      WHERE created_at != '' AND created_at < ?
+    `,
+    [auditCutoffIso]
+  );
+  const rateLimitResult = await runStatement(
+    env,
+    `
+      DELETE FROM public_rate_limits
+      WHERE updated_at != '' AND updated_at < ?
+    `,
+    [rateLimitCutoffIso]
+  );
+
+  console.log(
+    JSON.stringify({
+      audit_cutoff_iso: auditCutoffIso,
+      audit_deleted: statementChanges(auditResult),
+      event: "scheduled_maintenance",
+      now_iso: nowIso,
+      rate_limit_cutoff_iso: rateLimitCutoffIso,
+      rate_limit_deleted: statementChanges(rateLimitResult),
+    })
+  );
+}
+
 function buildPublicCorsResponse(request, env) {
   return new Response(null, {
     status: 204,
@@ -907,6 +1015,14 @@ function parseIntSafe(value, fallback) {
     return parsed;
   }
   return fallback;
+}
+
+function statementChanges(result) {
+  const changes = Number(result?.meta?.changes ?? result?.changes ?? 0);
+  if (Number.isFinite(changes) && changes >= 0) {
+    return changes;
+  }
+  return 0;
 }
 
 function getLicenseDurationDays(env) {
