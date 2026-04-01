@@ -9,6 +9,7 @@ const publicState = {
   createTurnstileWidgetId: null,
   createTurnstileToken: "",
 };
+const PUBLIC_SUPPORT_EMAIL = "autoscript@atomicmail.io";
 
 const publicDom = {
   banner: document.getElementById("public-banner"),
@@ -576,7 +577,7 @@ function describeStatus(payload) {
     return "IP ini pernah aktif, tetapi masa berlakunya sudah habis dan perlu diaktifkan ulang.";
   }
   if (status === "revoked") {
-    return "IP ini sedang diblokir dan tidak bisa diaktifkan kembali dari halaman ini.";
+    return `IP ini sedang diblokir dan tidak bisa diaktifkan kembali dari halaman ini. Hubungi ${PUBLIC_SUPPORT_EMAIL}.`;
   }
   if (status === "not_found") {
     return "IP ini belum terdaftar.";
@@ -596,7 +597,7 @@ function nextActionForStatus(payload) {
     return "Lakukan aktivasi ulang dengan IP yang sama untuk menambah masa aktif baru.";
   }
   if (status === "revoked") {
-    return "Hubungi operator karena status revoked tidak bisa dipulihkan dari halaman publik.";
+    return `Hubungi ${PUBLIC_SUPPORT_EMAIL} karena status revoked tidak bisa dipulihkan dari halaman publik.`;
   }
   if (status === "not_found") {
     return "Gunakan form aktivasi untuk mendaftarkan IP ini pertama kali.";

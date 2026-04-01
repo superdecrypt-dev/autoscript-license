@@ -2,6 +2,7 @@ const IPV4_RE = /^(?:\d{1,3}\.){3}\d{1,3}$/;
 const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 const PUBLIC_RENEW_OPEN_BEFORE_DAYS = 3;
 const DEFAULT_ADMIN_PROXY_SHARED_SECRET = "autoscript-license";
+const PUBLIC_LICENSE_SUPPORT_EMAIL = "autoscript@atomicmail.io";
 
 export default {
   async fetch(request, env) {
@@ -295,7 +296,7 @@ async function handlePublicActivate(request, env, options = {}) {
         return jsonResponse(
           {
             error: "revoked",
-            message: "IP ini sedang diblokir dan tidak bisa diperpanjang dari website publik.",
+            message: `IP ini sedang diblokir dan tidak bisa diperpanjang dari website publik. Hubungi ${PUBLIC_LICENSE_SUPPORT_EMAIL}.`,
           },
           403
         );
@@ -367,7 +368,7 @@ async function handlePublicActivate(request, env, options = {}) {
           return jsonResponse(
             {
               error: "revoked",
-              message: "IP ini sedang diblokir dan tidak bisa diperpanjang dari website publik.",
+              message: `IP ini sedang diblokir dan tidak bisa diperpanjang dari website publik. Hubungi ${PUBLIC_LICENSE_SUPPORT_EMAIL}.`,
             },
             403
           );
@@ -404,7 +405,7 @@ async function handlePublicActivate(request, env, options = {}) {
       return jsonResponse(
         {
           error: "revoked",
-          message: "IP ini sedang diblokir dan tidak bisa diaktifkan dari website publik.",
+          message: `IP ini sedang diblokir dan tidak bisa diaktifkan dari website publik. Hubungi ${PUBLIC_LICENSE_SUPPORT_EMAIL}.`,
         },
         403
       );
@@ -441,7 +442,7 @@ async function handlePublicActivate(request, env, options = {}) {
         return jsonResponse(
           {
             error: "revoked",
-            message: "IP ini sedang diblokir dan tidak bisa diaktifkan dari website publik.",
+            message: `IP ini sedang diblokir dan tidak bisa diaktifkan dari website publik. Hubungi ${PUBLIC_LICENSE_SUPPORT_EMAIL}.`,
           },
           403
         );
@@ -520,7 +521,7 @@ async function handlePublicActivate(request, env, options = {}) {
       return jsonResponse(
         {
           error: "revoked",
-          message: "IP ini sedang diblokir dan tidak bisa diaktifkan dari website publik.",
+          message: `IP ini sedang diblokir dan tidak bisa diaktifkan dari website publik. Hubungi ${PUBLIC_LICENSE_SUPPORT_EMAIL}.`,
         },
         403
       );
