@@ -296,6 +296,39 @@ Setelah Worker dan Pages selesai:
 - halaman publik: `https://<pages-domain>/`
 - halaman operator: `https://<pages-domain>/admin/`
 
+## Quick Path Dashboard
+
+Urutan menu tercepat di Cloudflare Dashboard:
+
+1. `Workers & Pages` -> `D1` -> buat database `autoscript-license`
+2. jalankan 3 file migrasi D1
+3. `Workers & Pages` -> buat `Worker` bernama `autoscript-license`
+4. paste source Worker, lalu tambahkan binding `LICENSE_DB`
+5. isi vars dan secret Worker
+6. `Turnstile` -> buat widget -> salin `Site Key` dan `Secret Key`
+7. `Workers & Pages` -> buat `Pages` -> hubungkan repo GitHub
+8. isi env Pages dan deploy
+9. `Zero Trust` -> `Access` -> `Applications` -> lindungi:
+   - `/admin*`
+   - `/api/admin*`
+10. tes `/`, `/admin/`, dan `healthz`
+
+## Access Setup Cepat
+
+Untuk jalur operator, buat aplikasi Access dengan:
+
+- `Application type`: `Self-hosted`
+- `Domain`: `autoscript-license.pages.dev` atau domain Pages Anda
+- `Paths`:
+  - `/admin*`
+  - `/api/admin*`
+- `Policy`: `Allow`
+- `Rule`: email Anda atau `Email ending in`
+
+Catatan:
+- kalau UI Access hanya menerima satu path per app, buat 2 app terpisah
+- `/api/admin*` wajib ikut dilindungi, bukan hanya `/admin*`
+
 ## Cara Deploy
 
 ### Opsi A: Cloudflare Dashboard + GitHub
@@ -399,6 +432,38 @@ Tes:
 2. pastikan Cloudflare Access meminta login lebih dulu
 3. setelah lolos Access, dashboard harus langsung terbuka tanpa login internal
 4. coba lihat entries, audit log, dan metrics
+
+## Troubleshooting Operator
+
+Kalau `/admin/` gagal, cek urutan ini:
+
+1. **Muncul login Access**
+- kalau tidak muncul, path Access belum benar
+- pastikan `/admin*` dan `/api/admin*` keduanya dilindungi
+
+2. **Muncul `Cloudflare Access identity tidak tersedia.`**
+- `/admin/` sudah dilindungi, tapi `/api/admin*` belum
+- perbaiki policy Access untuk `/api/admin*`
+
+3. **Muncul `Proxy admin belum dikonfigurasi.`**
+- deployment Pages live belum membawa:
+  - `PAGES_API_BASE_URL`
+  - `ADMIN_PROXY_SHARED_SECRET`
+- save env Pages lalu redeploy
+
+4. **Muncul `Admin API hanya menerima request internal dari Pages.`**
+- `ADMIN_PROXY_SHARED_SECRET` di Pages dan Worker tidak sama
+- samakan nilainya lalu redeploy
+
+5. **Halaman kosong atau data tidak tampil**
+- cek deployment Pages terbaru sukses
+- cek Worker terbaru sudah deploy
+- cek `/api/admin/session` di domain Pages setelah lolos Access
+
+6. **Masih error setelah config benar**
+- uji lewat incognito
+- login ulang Access
+- hard refresh browser
 
 ## Alur Operasi
 
