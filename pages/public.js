@@ -2,6 +2,11 @@ const publicState = {
   apiBaseUrl: (window.AUTOSCRIPT_PORTAL_CONFIG?.apiBaseUrl || "").replace(/\/+$/, ""),
   licenseDurationDays: 14,
   workerConfigLoaded: false,
+  turnstileSiteKey: "",
+  turnstileScriptPromise: null,
+  turnstileScriptReady: false,
+  createTurnstileWidgetId: null,
+  createTurnstileToken: "",
 };
 
 const publicDom = {
@@ -13,6 +18,8 @@ const publicDom = {
   statusIp: document.getElementById("status-ip"),
   createResult: document.getElementById("create-result"),
   statusResult: document.getElementById("status-result"),
+  createTurnstile: document.getElementById("create-turnstile"),
+  createChallengeNote: document.getElementById("create-challenge-note"),
   durationDays: document.getElementById("license-duration-days"),
   overviewDurationDays: document.getElementById("overview-duration-days"),
   createSubmitBtn: document.getElementById("create-submit-btn"),
@@ -27,9 +34,11 @@ async function bootstrapPublicPortal() {
   initPublicDeviceContext();
   bindPublicEvents();
   renderDurationDays();
+  setCreateChallengeState(false, "Memuat verifikasi keamanan...");
   if (!publicState.apiBaseUrl) {
     setPublicBanner("Belum siap.", "error");
     setStatusBadge("Not ready", "error");
+    setCreateChallengeState(false, "Verifikasi keamanan belum tersedia.");
     return;
   }
   await loadWorkerPublicConfig();
@@ -72,12 +81,20 @@ async function loadWorkerPublicConfig() {
     const payload = await publicApiFetch("/api/public/config", { method: "GET" });
     publicState.workerConfigLoaded = true;
     publicState.licenseDurationDays = Number(payload.license_duration_days || 14);
+    publicState.turnstileSiteKey = String(payload.turnstile_site_key || "").trim();
     renderDurationDays();
-    setPublicBanner("Siap digunakan.", "ok");
-    setStatusBadge("Ready", "ok");
+    const challengeReady = await initializePublicChallenge();
+    if (challengeReady) {
+      setPublicBanner("Siap digunakan.", "ok");
+      setStatusBadge("Ready", "ok");
+    } else {
+      setPublicBanner("Cek status siap. Aktivasi sementara belum tersedia.", "warn");
+      setStatusBadge("Status only", "warn");
+    }
   } catch (error) {
     setPublicBanner(error.message || "Gagal memuat konfigurasi.", "error");
     setStatusBadge("Config failed", "error");
+    setCreateChallengeState(false, "Verifikasi keamanan belum tersedia.");
   }
 }
 
@@ -90,6 +107,14 @@ function renderDurationDays() {
 
 async function handleCreateSubmit(event) {
   event.preventDefault();
+  if (!publicState.turnstileSiteKey) {
+    showPublicResult(
+      publicDom.createResult,
+      "Aktivasi belum tersedia. Coba lagi nanti.",
+      "warn"
+    );
+    return;
+  }
   const ip = normalizeIpInput(publicDom.createIp.value);
   if (!ip) {
     showPublicResult(
@@ -102,6 +127,14 @@ async function handleCreateSubmit(event) {
   }
   publicDom.createIp.value = ip;
   publicDom.statusIp.value = ip;
+  if (!publicState.createTurnstileToken) {
+    showPublicResult(
+      publicDom.createResult,
+      "Selesaikan verifikasi keamanan sebelum mengirim IP.",
+      "warn"
+    );
+    return;
+  }
   setSubmitState(publicDom.createSubmitBtn, publicDom.createSubmitLabel, true, "Memproses...");
 
   try {
@@ -109,6 +142,7 @@ async function handleCreateSubmit(event) {
       method: "POST",
       body: JSON.stringify({
         ip,
+        turnstile_token: publicState.createTurnstileToken,
       }),
     });
     publicDom.createForm.reset();
@@ -123,6 +157,7 @@ async function handleCreateSubmit(event) {
   } catch (error) {
     showPublicResult(publicDom.createResult, error.message || "Create gagal.", "error");
   } finally {
+    resetCreateTurnstileWidget();
     setSubmitState(
       publicDom.createSubmitBtn,
       publicDom.createSubmitLabel,
@@ -130,6 +165,7 @@ async function handleCreateSubmit(event) {
       "Memproses...",
       `Aktifkan ${publicState.licenseDurationDays} Hari`
     );
+    syncCreateSubmitAvailability();
   }
 }
 
@@ -296,6 +332,99 @@ function setPublicBanner(message, tone = "muted") {
 function setStatusBadge(message, tone = "muted") {
   publicDom.statusBadge.textContent = message;
   publicDom.statusBadge.className = `status-pill ${tone}`;
+}
+
+async function initializePublicChallenge() {
+  if (!publicState.turnstileSiteKey) {
+    setCreateChallengeState(false, "Verifikasi keamanan belum tersedia.");
+    return false;
+  }
+  try {
+    await loadTurnstileScript();
+    renderCreateTurnstileWidget();
+    setCreateChallengeState(false, "Selesaikan verifikasi keamanan sebelum aktivasi.");
+    return true;
+  } catch (_error) {
+    setCreateChallengeState(false, "Verifikasi keamanan gagal dimuat.");
+    return false;
+  }
+}
+
+function setCreateChallengeState(enabled, note) {
+  if (publicDom.createChallengeNote) {
+    publicDom.createChallengeNote.textContent = note;
+  }
+  publicDom.createSubmitBtn.disabled = !enabled;
+}
+
+function syncCreateSubmitAvailability() {
+  const canSubmit = Boolean(publicState.turnstileSiteKey && publicState.createTurnstileToken);
+  setCreateChallengeState(
+    canSubmit,
+    canSubmit ? "Verifikasi selesai. Anda bisa mengaktifkan IP." : "Selesaikan verifikasi keamanan sebelum aktivasi."
+  );
+}
+
+function resetCreateTurnstileWidget() {
+  publicState.createTurnstileToken = "";
+  if (publicState.createTurnstileWidgetId !== null && window.turnstile?.reset) {
+    window.turnstile.reset(publicState.createTurnstileWidgetId);
+  }
+}
+
+function renderCreateTurnstileWidget() {
+  if (!publicDom.createTurnstile || !publicState.turnstileSiteKey || !window.turnstile?.render) {
+    return;
+  }
+  if (publicState.createTurnstileWidgetId !== null) {
+    resetCreateTurnstileWidget();
+    return;
+  }
+  publicState.createTurnstileWidgetId = window.turnstile.render(publicDom.createTurnstile, {
+    sitekey: publicState.turnstileSiteKey,
+    theme: "light",
+    callback(token) {
+      publicState.createTurnstileToken = String(token || "").trim();
+      syncCreateSubmitAvailability();
+    },
+    "expired-callback"() {
+      publicState.createTurnstileToken = "";
+      syncCreateSubmitAvailability();
+    },
+    "error-callback"() {
+      publicState.createTurnstileToken = "";
+      setCreateChallengeState(false, "Verifikasi keamanan gagal. Muat ulang lalu coba lagi.");
+    },
+  });
+}
+
+async function loadTurnstileScript() {
+  if (publicState.turnstileScriptReady && window.turnstile?.render) {
+    return window.turnstile;
+  }
+  if (publicState.turnstileScriptPromise) {
+    return publicState.turnstileScriptPromise;
+  }
+  publicState.turnstileScriptPromise = new Promise((resolve, reject) => {
+    if (window.turnstile?.render) {
+      publicState.turnstileScriptReady = true;
+      resolve(window.turnstile);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      publicState.turnstileScriptReady = true;
+      resolve(window.turnstile);
+    };
+    script.onerror = () => {
+      reject(new Error("Gagal memuat verifikasi keamanan."));
+    };
+    document.head.appendChild(script);
+  });
+  return publicState.turnstileScriptPromise;
 }
 
 function formatDate(value) {

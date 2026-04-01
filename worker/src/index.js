@@ -4,6 +4,7 @@ const DEFAULT_ADMIN_PASSWORD = "superdecrypt-dev";
 const ADMIN_SESSION_TTL_SEC = 24 * 60 * 60;
 const ADMIN_LOGIN_LIMIT_MAX = 10;
 const ADMIN_LOGIN_WINDOW_SEC = 15 * 60;
+const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
 export default {
   async fetch(request, env) {
@@ -54,6 +55,10 @@ async function routeRequest(request, env) {
         rateLimitMax: parseIntSafe(env.PUBLIC_CREATE_LIMIT_MAX, 5),
         rateLimitWindowSec: parseIntSafe(env.PUBLIC_CREATE_WINDOW_SEC, 900),
         rateLimitMessage: "Terlalu banyak request aktivasi IP. Coba lagi nanti.",
+        targetRateLimitKey: "public_activate",
+        targetRateLimitMax: parseIntSafe(env.PUBLIC_CREATE_TARGET_LIMIT_MAX, 3),
+        targetRateLimitWindowSec: parseIntSafe(env.PUBLIC_CREATE_TARGET_WINDOW_SEC, 900),
+        targetRateLimitMessage: "IP ini terlalu sering diaktivasi. Coba lagi nanti.",
       })
     );
   }
@@ -68,6 +73,10 @@ async function routeRequest(request, env) {
         rateLimitMax: parseIntSafe(env.PUBLIC_CREATE_LIMIT_MAX, 5),
         rateLimitWindowSec: parseIntSafe(env.PUBLIC_CREATE_WINDOW_SEC, 900),
         rateLimitMessage: "Terlalu banyak request aktivasi IP. Coba lagi nanti.",
+        targetRateLimitKey: "public_activate",
+        targetRateLimitMax: parseIntSafe(env.PUBLIC_CREATE_TARGET_LIMIT_MAX, 3),
+        targetRateLimitWindowSec: parseIntSafe(env.PUBLIC_CREATE_TARGET_WINDOW_SEC, 900),
+        targetRateLimitMessage: "IP ini terlalu sering diaktivasi. Coba lagi nanti.",
       })
     );
   }
@@ -86,6 +95,10 @@ async function routeRequest(request, env) {
         rateLimitMax: parseIntSafe(env.PUBLIC_RENEW_LIMIT_MAX, 10),
         rateLimitWindowSec: parseIntSafe(env.PUBLIC_RENEW_WINDOW_SEC, 900),
         rateLimitMessage: "Terlalu banyak request renew IP. Coba lagi nanti.",
+        targetRateLimitKey: "public_renew",
+        targetRateLimitMax: parseIntSafe(env.PUBLIC_RENEW_TARGET_LIMIT_MAX, 5),
+        targetRateLimitWindowSec: parseIntSafe(env.PUBLIC_RENEW_TARGET_WINDOW_SEC, 900),
+        targetRateLimitMessage: "IP ini terlalu sering di-renew. Coba lagi nanti.",
       })
     );
   }
@@ -105,6 +118,7 @@ function buildPublicConfig(env, workerOrigin) {
   return {
     license_duration_days: getLicenseDurationDays(env),
     public_ui_origin: String(env.PUBLIC_UI_ORIGIN || "").trim(),
+    turnstile_site_key: getPublicTurnstileSiteKey(env),
     worker_api_base_url: workerOrigin,
   };
 }
@@ -206,6 +220,50 @@ async function handlePublicActivate(request, env, options = {}) {
   const publicIp = normalizeIpv4(body.data.ip);
   if (!publicIp) {
     return jsonResponse({ error: "invalid_request", message: "IP harus IPv4 literal yang valid" }, 400);
+  }
+
+  const targetLimit = await enforcePublicTargetRateLimit(
+    env,
+    normalizeShortText(options.targetRateLimitKey, 64) || eventBase,
+    publicIp,
+    parseIntSafe(options.targetRateLimitMax, 3),
+    parseIntSafe(options.targetRateLimitWindowSec, 900)
+  );
+  if (!targetLimit.allowed) {
+    await insertAuditLog(env, {
+      eventType: `${eventBase}_target_rate_limited`,
+      ip: publicIp,
+      entryId: "",
+      stage: "public",
+      decision: "rate_limited",
+      actorEmail: "",
+      requestIp: visitorIp,
+      userAgent: request.headers.get("User-Agent") || "",
+      payload: {
+        request_count: targetLimit.requestCount,
+        retry_after_sec: targetLimit.retryAfterSec,
+        target_ip: publicIp,
+      },
+    });
+    return jsonResponse(
+      {
+        error: "rate_limited",
+        message: options.targetRateLimitMessage || "IP ini terlalu sering diminta. Coba lagi nanti.",
+        retry_after_sec: targetLimit.retryAfterSec,
+      },
+      429
+    );
+  }
+
+  const challenge = await verifyPublicTurnstileChallenge(
+    env,
+    request,
+    normalizeShortText(body.data.turnstile_token, 4096),
+    publicIp,
+    eventBase
+  );
+  if (!challenge.ok) {
+    return challenge.response;
   }
 
   const existing = await getLicenseEntryByIp(env, publicIp);
@@ -1200,6 +1258,170 @@ async function enforcePublicRateLimit(env, endpoint, clientIp, maxRequests, wind
   };
 }
 
+async function enforcePublicTargetRateLimit(env, endpoint, targetIp, maxRequests, windowSec) {
+  const normalizedTargetIp = String(targetIp || "").trim() || "unknown";
+  const slot = Math.floor(Date.now() / 1000 / windowSec);
+  await runStatement(
+    env,
+    `
+      INSERT INTO public_target_rate_limits (endpoint, target_ip, window_slot, request_count, updated_at)
+      VALUES (?, ?, ?, 1, ?)
+      ON CONFLICT(endpoint, target_ip, window_slot)
+      DO UPDATE SET
+        request_count = public_target_rate_limits.request_count + 1,
+        updated_at = excluded.updated_at
+    `,
+    [endpoint, normalizedTargetIp, slot, nowIsoString()]
+  );
+  const current = await firstRow(
+    env,
+    `
+      SELECT request_count
+      FROM public_target_rate_limits
+      WHERE endpoint = ? AND target_ip = ? AND window_slot = ?
+      LIMIT 1
+    `,
+    [endpoint, normalizedTargetIp, slot]
+  );
+  const requestCount = Number(current?.request_count || 0);
+  const nowSec = Math.floor(Date.now() / 1000);
+  const retryAfterSec = Math.max(1, slot * windowSec + windowSec - nowSec);
+  return {
+    allowed: requestCount <= maxRequests,
+    requestCount,
+    retryAfterSec,
+  };
+}
+
+async function verifyPublicTurnstileChallenge(env, request, token, publicIp, eventBase) {
+  const siteKey = getPublicTurnstileSiteKey(env);
+  const secretKey = String(env.PUBLIC_TURNSTILE_SECRET_KEY || "").trim();
+  const visitorIp = getVisitorIp(request);
+
+  if (!siteKey || !secretKey) {
+    await insertAuditLog(env, {
+      eventType: `${eventBase}_challenge_unavailable`,
+      ip: publicIp,
+      entryId: "",
+      stage: "public",
+      decision: "deny",
+      actorEmail: "",
+      requestIp: visitorIp,
+      userAgent: request.headers.get("User-Agent") || "",
+      payload: {
+        reason: "turnstile_not_configured",
+      },
+    });
+    return {
+      ok: false,
+      response: jsonResponse(
+        {
+          error: "service_unavailable",
+          message: "Verifikasi keamanan belum siap. Coba lagi nanti.",
+        },
+        503
+      ),
+    };
+  }
+
+  if (!token) {
+    await insertAuditLog(env, {
+      eventType: `${eventBase}_challenge_failed`,
+      ip: publicIp,
+      entryId: "",
+      stage: "public",
+      decision: "deny",
+      actorEmail: "",
+      requestIp: visitorIp,
+      userAgent: request.headers.get("User-Agent") || "",
+      payload: {
+        reason: "turnstile_missing",
+      },
+    });
+    return {
+      ok: false,
+      response: jsonResponse(
+        {
+          error: "challenge_required",
+          message: "Selesaikan verifikasi keamanan sebelum mengirim IP.",
+        },
+        400
+      ),
+    };
+  }
+
+  let verifyPayload = null;
+  try {
+    const body = new URLSearchParams();
+    body.set("secret", secretKey);
+    body.set("response", token);
+    if (visitorIp) {
+      body.set("remoteip", String(visitorIp));
+    }
+    const response = await fetch(TURNSTILE_VERIFY_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body,
+    });
+    verifyPayload = await response.json();
+  } catch (_error) {
+    await insertAuditLog(env, {
+      eventType: `${eventBase}_challenge_failed`,
+      ip: publicIp,
+      entryId: "",
+      stage: "public",
+      decision: "deny",
+      actorEmail: "",
+      requestIp: visitorIp,
+      userAgent: request.headers.get("User-Agent") || "",
+      payload: {
+        reason: "turnstile_fetch_failed",
+      },
+    });
+    return {
+      ok: false,
+      response: jsonResponse(
+        {
+          error: "challenge_unavailable",
+          message: "Verifikasi keamanan sedang bermasalah. Coba lagi nanti.",
+        },
+        502
+      ),
+    };
+  }
+
+  if (!verifyPayload?.success) {
+    await insertAuditLog(env, {
+      eventType: `${eventBase}_challenge_failed`,
+      ip: publicIp,
+      entryId: "",
+      stage: "public",
+      decision: "deny",
+      actorEmail: "",
+      requestIp: visitorIp,
+      userAgent: request.headers.get("User-Agent") || "",
+      payload: {
+        error_codes: Array.isArray(verifyPayload?.["error-codes"]) ? verifyPayload["error-codes"] : [],
+        reason: "turnstile_invalid",
+      },
+    });
+    return {
+      ok: false,
+      response: jsonResponse(
+        {
+          error: "challenge_failed",
+          message: "Verifikasi keamanan gagal atau sudah kedaluwarsa. Coba lagi.",
+        },
+        403
+      ),
+    };
+  }
+
+  return { ok: true };
+}
+
 async function extendPublicLicenseEntry(env, entryId, nowIso, durationDays, updatedBy) {
   return runStatement(
     env,
@@ -1327,6 +1549,14 @@ async function runScheduledMaintenance(env, scheduledTimeMs) {
     `,
     [rateLimitCutoffIso]
   );
+  const targetRateLimitResult = await runStatement(
+    env,
+    `
+      DELETE FROM public_target_rate_limits
+      WHERE updated_at != '' AND updated_at < ?
+    `,
+    [rateLimitCutoffIso]
+  );
 
   console.log(
     JSON.stringify({
@@ -1336,6 +1566,7 @@ async function runScheduledMaintenance(env, scheduledTimeMs) {
       now_iso: nowIso,
       rate_limit_cutoff_iso: rateLimitCutoffIso,
       rate_limit_deleted: statementChanges(rateLimitResult),
+      target_rate_limit_deleted: statementChanges(targetRateLimitResult),
     })
   );
 }
@@ -1444,6 +1675,15 @@ function statementChanges(result) {
 
 function getLicenseDurationDays(env) {
   return parseIntSafe(env.PUBLIC_LICENSE_DURATION_DAYS, 14);
+}
+
+function getPublicTurnstileSiteKey(env) {
+  const siteKey = String(env.PUBLIC_TURNSTILE_SITE_KEY || "").trim();
+  const secretKey = String(env.PUBLIC_TURNSTILE_SECRET_KEY || "").trim();
+  if (!siteKey || !secretKey) {
+    return "";
+  }
+  return siteKey;
 }
 
 function nowIsoString() {

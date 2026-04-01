@@ -405,6 +405,25 @@ label {
   gap: 10px;
 }
 
+.challenge-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px dashed rgba(83, 54, 28, 0.14);
+  border-radius: var(--radius-md);
+  background: rgba(255, 250, 244, 0.76);
+}
+
+.turnstile-slot {
+  min-height: 66px;
+}
+
+.challenge-wrap small {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 input,
 button {
   transition:

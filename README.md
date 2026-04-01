@@ -10,8 +10,8 @@ Repo ini adalah project standalone. Semua file Worker, Pages, dan migrasi ada la
 ## Mode Operasi
 - halaman root Pages `/` bersifat publik untuk `aktifkan/perpanjang IP` dan `check status`
 - request dari autoscript VPS ke `POST /api/v1/license/check` diputuskan berdasarkan source IP request (`CF-Connecting-IP`), bukan token client
-- route `/admin/` dipakai untuk panel operator: cari IP, create/update entry, revoke/reactivate, dan lihat audit log
-- endpoint admin memakai Basic Auth sederhana dengan `ADMIN_EMAIL` dan `ADMIN_PASSWORD`
+- route `/admin/` dipakai untuk operator: cari IP, create/update entry, revoke/reactivate, dan lihat audit log
+- endpoint admin login lewat `POST /api/admin/session/login`, lalu Worker menerbitkan session token 24 jam
 
 ## Aturan v1
 - masa aktif default izin IP adalah `14 hari`
@@ -36,6 +36,8 @@ Repo ini adalah project standalone. Semua file Worker, Pages, dan migrasi ada la
 ### Public
 - `GET /api/public/config`
 - `POST /api/public/license/activate`
+- `POST /api/public/license/create`
+- `POST /api/public/license/renew`
 - `POST /api/public/license/status`
 
 ### Autoscript Client
@@ -65,6 +67,11 @@ Repo ini adalah project standalone. Semua file Worker, Pages, dan migrasi ada la
 - `PUBLIC_STATUS_WINDOW_SEC`
 - `PUBLIC_RENEW_LIMIT_MAX`
 - `PUBLIC_RENEW_WINDOW_SEC`
+- `PUBLIC_TURNSTILE_SITE_KEY`
+- `PUBLIC_CREATE_TARGET_LIMIT_MAX`
+- `PUBLIC_CREATE_TARGET_WINDOW_SEC`
+- `PUBLIC_RENEW_TARGET_LIMIT_MAX`
+- `PUBLIC_RENEW_TARGET_WINDOW_SEC`
 - `AUDIT_LOG_RETENTION_DAYS`
 - `PUBLIC_RATE_LIMIT_RETENTION_DAYS`
 
@@ -72,6 +79,7 @@ Repo ini adalah project standalone. Semua file Worker, Pages, dan migrasi ada la
 - `ADMIN_EMAIL`
 - `ADMIN_PASSWORD`
 - `ADMIN_SESSION_SECRET` optional, disarankan untuk signing session token admin
+- `PUBLIC_TURNSTILE_SECRET_KEY`
 
 Admin panel sekarang login lewat session token 24 jam yang diterbitkan Worker.
 
@@ -86,6 +94,15 @@ Jika diisi, `ADMIN_SESSION_SECRET` akan dipakai untuk signing token itu; jika ti
 `ADMIN_PASSWORD` sebagai signing secret.
 
 `CACHE_TTL_SEC_DEFAULT` adalah masa grace cache allow yang dikirim ke client VPS saat API lisensi gagal dihubungi. Default yang aman untuk produksi adalah `3600` detik agar revoke IP tidak tertahan terlalu lama.
+
+`PUBLIC_TURNSTILE_SITE_KEY` dan `PUBLIC_TURNSTILE_SECRET_KEY` dipakai untuk verifikasi challenge di jalur publik yang mengubah state:
+- `POST /api/public/license/activate`
+- `POST /api/public/license/create`
+- `POST /api/public/license/renew`
+
+Jika Turnstile belum dikonfigurasi, endpoint publik untuk aktivasi/perpanjang akan fail-closed dengan `503`.
+
+`PUBLIC_CREATE_TARGET_*` dan `PUBLIC_RENEW_TARGET_*` adalah rate limit tambahan berbasis `target IP VPS`, bukan `visitor IP`. Ini dipakai untuk mencegah banyak visitor memukul IP target yang sama secara berulang.
 
 ### Environment Build Pages
 - `PAGES_API_BASE_URL`
@@ -118,8 +135,10 @@ https://autoscript-license.minidecrypt.workers.dev
 8. Tambahkan secret/env admin di Worker dashboard:
    - `ADMIN_EMAIL`
    - `ADMIN_PASSWORD`
-9. Pastikan cron trigger Worker ikut terpasang saat deploy, karena cleanup `audit_logs` dan `public_rate_limits`
-   sekarang dijalankan terjadwal dari Worker.
+9. Tambahkan secret Turnstile di Worker dashboard:
+   - `PUBLIC_TURNSTILE_SECRET_KEY`
+10. Pastikan cron trigger Worker ikut terpasang saat deploy, karena cleanup `audit_logs`, `public_rate_limits`,
+    dan `public_target_rate_limits` sekarang dijalankan terjadwal dari Worker.
 
 ## Deploy Manual Lokal
 - Build Pages:
@@ -131,15 +150,17 @@ https://autoscript-license.minidecrypt.workers.dev
 
 ## Alur Publik
 1. Pengguna membuka halaman `/`.
-2. Pengguna memasukkan `IPv4 VPS`.
-3. Worker membuat entry aktif `14 hari` jika IP belum ada.
-4. Jika IP sudah ada dan tidak direvoke, Worker memperpanjang masa aktif `14 hari`.
-5. Jika pengguna ingin memastikan hasilnya, gunakan form `Check Status`.
+2. Pengguna memasukkan `IPv4 VPS` lalu menyelesaikan challenge keamanan.
+3. Worker memeriksa rate limit visitor IP dan target IP VPS.
+4. Worker membuat entry aktif `14 hari` jika IP belum ada.
+5. Jika IP sudah ada dan tidak direvoke, Worker memperpanjang masa aktif `14 hari`.
+6. Jika pengguna ingin memastikan hasilnya, gunakan form `Check Status`.
 
 ## Maintenance
 - Worker menjalankan cleanup terjadwal untuk:
   - `audit_logs` lebih lama dari `AUDIT_LOG_RETENTION_DAYS`
   - `public_rate_limits` lebih lama dari `PUBLIC_RATE_LIMIT_RETENTION_DAYS`
+  - `public_target_rate_limits` lebih lama dari `PUBLIC_RATE_LIMIT_RETENTION_DAYS`
 - Default cron di `wrangler.toml` berjalan tiap jam.
 
 ## Integrasi Autoscript
