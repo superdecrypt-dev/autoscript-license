@@ -130,6 +130,7 @@ Catatan:
 Env build Pages:
 
 - `PAGES_API_BASE_URL`
+- `PAGES_TURNSTILE_SITE_KEY`
 - `ADMIN_PROXY_SHARED_SECRET`
 
 Kalau env ini tidak diisi, build akan fallback ke default di `pages/config.js`, yang sekarang diarahkan ke:
@@ -140,6 +141,7 @@ https://autoscript-license.minidecrypt.workers.dev
 
 Catatan:
 - `PAGES_API_BASE_URL` punya fallback bawaan `https://autoscript-license.minidecrypt.workers.dev`
+- `PAGES_TURNSTILE_SITE_KEY` fallback ke `pages/config.js`
 - `ADMIN_PROXY_SHARED_SECRET` punya fallback bawaan `autoscript-license`
 - dua nilai itu tetap bisa dioverride manual dari Pages project jika diperlukan
 
@@ -233,7 +235,9 @@ Di Cloudflare Dashboard:
    - `Secret Key`
 
 Pasang:
-- `Site Key` ke `PUBLIC_TURNSTILE_SITE_KEY`
+- `Site Key` ke:
+  - `PUBLIC_TURNSTILE_SITE_KEY` di Worker
+  - `PAGES_TURNSTILE_SITE_KEY` di Pages
 - `Secret Key` ke `PUBLIC_TURNSTILE_SECRET_KEY`
 
 Turnstile hanya dipakai untuk:
@@ -379,6 +383,7 @@ Set runtime variable Pages:
 
 ```text
 PAGES_API_BASE_URL=https://autoscript-license.minidecrypt.workers.dev
+PAGES_TURNSTILE_SITE_KEY=<site-key-turnstile>
 ADMIN_PROXY_SHARED_SECRET=<secret-yang-sama-dengan-worker>
 ```
 
@@ -412,9 +417,7 @@ Cek:
 https://autoscript-license.minidecrypt.workers.dev/api/public/config
 ```
 
-Harus memuat minimal:
-- `license_duration_days`
-- `turnstile_site_key`
+Endpoint ini sekarang hanya readiness endpoint generik. Frontend publik tidak lagi mengambil detail runtime sensitif dari sini.
 
 ### Halaman Publik
 

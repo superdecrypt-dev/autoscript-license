@@ -115,13 +115,10 @@ async function routeRequest(request, env) {
   return jsonResponse({ error: "not_found", message: "Endpoint tidak ditemukan" }, 404);
 }
 
-function buildPublicConfig(env, workerOrigin) {
+function buildPublicConfig(_env, _workerOrigin) {
   return {
-    license_duration_days: getLicenseDurationDays(env),
-    public_ui_origin: String(env.PUBLIC_UI_ORIGIN || "").trim(),
-    renew_open_before_days: getPublicRenewOpenBeforeDays(env),
-    turnstile_site_key: getPublicTurnstileSiteKey(env),
-    worker_api_base_url: workerOrigin,
+    ok: true,
+    service: "public",
   };
 }
 

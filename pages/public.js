@@ -2,8 +2,7 @@ const publicState = {
   apiBaseUrl: (window.AUTOSCRIPT_PORTAL_CONFIG?.apiBaseUrl || "").replace(/\/+$/, ""),
   licenseDurationDays: 14,
   renewOpenBeforeDays: 3,
-  workerConfigLoaded: false,
-  turnstileSiteKey: "",
+  turnstileSiteKey: String(window.AUTOSCRIPT_PORTAL_CONFIG?.turnstileSiteKey || "").trim(),
   turnstileScriptPromise: null,
   turnstileScriptReady: false,
   createTurnstileWidgetId: null,
@@ -42,7 +41,14 @@ async function bootstrapPublicPortal() {
     setCreateChallengeState(false, "Verifikasi keamanan belum tersedia.");
     return;
   }
-  await loadWorkerPublicConfig();
+  const challengeReady = await initializePublicChallenge();
+  if (challengeReady) {
+    setPublicBanner("Siap digunakan.", "ok");
+    setStatusBadge("Ready", "ok");
+    return;
+  }
+  setPublicBanner("Cek status siap. Aktivasi sementara belum tersedia.", "warn");
+  setStatusBadge("Status only", "warn");
 }
 
 function bindPublicEvents() {
@@ -75,29 +81,6 @@ function detectClientDevice() {
     return "mobile";
   }
   return "desktop";
-}
-
-async function loadWorkerPublicConfig() {
-  try {
-    const payload = await publicApiFetch("/api/public/config", { method: "GET" });
-    publicState.workerConfigLoaded = true;
-    publicState.licenseDurationDays = Number(payload.license_duration_days || 14);
-    publicState.renewOpenBeforeDays = Number(payload.renew_open_before_days || 3);
-    publicState.turnstileSiteKey = String(payload.turnstile_site_key || "").trim();
-    renderDurationDays();
-    const challengeReady = await initializePublicChallenge();
-    if (challengeReady) {
-      setPublicBanner("Siap digunakan.", "ok");
-      setStatusBadge("Ready", "ok");
-    } else {
-      setPublicBanner("Cek status siap. Aktivasi sementara belum tersedia.", "warn");
-      setStatusBadge("Status only", "warn");
-    }
-  } catch (error) {
-    setPublicBanner(error.message || "Gagal memuat konfigurasi.", "error");
-    setStatusBadge("Config failed", "error");
-    setCreateChallengeState(false, "Verifikasi keamanan belum tersedia.");
-  }
 }
 
 function renderDurationDays() {

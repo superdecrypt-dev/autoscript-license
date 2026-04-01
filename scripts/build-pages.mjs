@@ -11,8 +11,11 @@ const fallbackConfigPath = resolve(sourceDir, "config.js");
 const fallbackConfig = readFileSync(fallbackConfigPath, "utf8");
 const fallbackValues = extractFallbackConfig(fallbackConfig);
 const configuredApiBaseUrl = normalizeUrl(process.env.PAGES_API_BASE_URL);
+const configuredTurnstileSiteKey = normalizeText(process.env.PAGES_TURNSTILE_SITE_KEY);
 const fallbackApiBaseUrl = normalizeUrl(fallbackValues.apiBaseUrl);
+const fallbackTurnstileSiteKey = normalizeText(fallbackValues.turnstileSiteKey);
 const apiBaseUrl = configuredApiBaseUrl || fallbackApiBaseUrl;
+const turnstileSiteKey = configuredTurnstileSiteKey || fallbackTurnstileSiteKey;
 
 rmSync(outputDir, { force: true, recursive: true });
 mkdirSync(outputDir, { recursive: true });
@@ -21,6 +24,7 @@ cpSync(sourceDir, outputDir, { recursive: true });
 const generatedConfig = `window.AUTOSCRIPT_PORTAL_CONFIG = ${JSON.stringify(
   {
     apiBaseUrl,
+    turnstileSiteKey,
   },
   null,
   2
@@ -33,12 +37,18 @@ if (!configuredApiBaseUrl && fallbackApiBaseUrl) {
 } else if (!apiBaseUrl) {
   console.warn("[build:pages] PAGES_API_BASE_URL belum di-set; dist/config.js tetap kosong.");
 }
+if (!configuredTurnstileSiteKey && fallbackTurnstileSiteKey) {
+  console.log("[build:pages] using fallback turnstileSiteKey from pages/config.js");
+} else if (!turnstileSiteKey) {
+  console.warn("[build:pages] PAGES_TURNSTILE_SITE_KEY belum di-set; Turnstile publik akan nonaktif.");
+}
 
 console.log(`[build:pages] wrote ${resolve(outputDir, "config.js")}`);
 
 function extractFallbackConfig(source) {
   return {
     apiBaseUrl: matchConfigValue(source, "apiBaseUrl"),
+    turnstileSiteKey: matchConfigValue(source, "turnstileSiteKey"),
   };
 }
 
@@ -58,4 +68,8 @@ function normalizeUrl(value) {
   } catch (_error) {
     return raw;
   }
+}
+
+function normalizeText(value) {
+  return String(value || "").trim();
 }
