@@ -122,7 +122,8 @@ h2 {
 label span,
 label small,
 .rule-list,
-.hero-support p {
+.hero-support p,
+.support-note {
   color: var(--muted);
 }
 
@@ -573,6 +574,21 @@ input:focus-visible {
   margin: 0;
   padding-left: 18px;
   line-height: 1.58;
+}
+
+.support-note {
+  margin: 16px 0 0;
+  line-height: 1.55;
+}
+
+.support-note a {
+  color: var(--accent-strong);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.support-note a:hover {
+  text-decoration: underline;
 }
 
 .public-hero:hover,
