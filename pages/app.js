@@ -910,6 +910,10 @@ function renderTrendChart(container, points, series) {
     container.innerHTML = emptyStateMarkup("Belum ada data historis.", "Window ini belum memiliki cukup aktivitas.");
     return;
   }
+  if (isCompactMobileLayout()) {
+    container.innerHTML = renderMobileTrendChart(points, series);
+    return;
+  }
   const maxValue = Math.max(
     1,
     ...points.flatMap((point) => series.map((item) => Number(point[item.key] || 0)))
@@ -950,6 +954,40 @@ function renderTrendChart(container, points, series) {
     </div>
   `;
   container.innerHTML = `${legend}${bars}`;
+}
+
+function renderMobileTrendChart(points, series) {
+  const totals = series
+    .map((item) => ({
+      ...item,
+      total: points.reduce((sum, point) => sum + Number(point[item.key] || 0), 0),
+      latest: Number(points.at(-1)?.[item.key] || 0),
+      path: buildSparklinePath(points.map((point) => Number(point[item.key] || 0))),
+    }))
+    .sort((left, right) => right.total - left.total);
+
+  return `
+    <div class="mobile-trend-stack">
+      ${totals
+        .map(
+          (item) => `
+            <article class="mobile-trend-card">
+              <div class="mobile-trend-card-head">
+                <div>
+                  <strong>${escapeHtml(item.label)}</strong>
+                  <span>${item.total} total</span>
+                </div>
+                <b class="mobile-trend-badge ${item.tone}">${item.latest} latest</b>
+              </div>
+              <svg class="mobile-sparkline ${item.tone}" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
+                <path d="${item.path}" vector-effect="non-scaling-stroke"></path>
+              </svg>
+            </article>
+          `
+        )
+        .join("")}
+    </div>
+  `;
 }
 
 function handleMetricsWindowChange() {
@@ -1092,6 +1130,24 @@ function formatShortDay(value) {
     day: "2-digit",
     month: "short",
   }).format(parsed);
+}
+
+function buildSparklinePath(values) {
+  const safeValues = values.length ? values : [0];
+  const max = Math.max(...safeValues, 1);
+  const step = safeValues.length > 1 ? 100 / (safeValues.length - 1) : 100;
+  return safeValues
+    .map((value, index) => {
+      const x = safeValues.length === 1 ? 50 : index * step;
+      const y = 24 - (Number(value || 0) / max) * 20;
+      return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
+    .join(" ");
+}
+
+function isCompactMobileLayout() {
+  const device = document.body.dataset.device || document.documentElement.dataset.device || "";
+  return device === "mobile" || window.innerWidth <= 760;
 }
 
 function escapeHtml(value) {
