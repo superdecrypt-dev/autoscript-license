@@ -40,6 +40,10 @@ https://autoscript-license.minidecrypt.workers.dev/api/v1/license/check
 - `pages/public.js` dan `pages/public.css`: frontend publik
 - `pages/app.js` dan `pages/styles.css`: frontend operator
 - `pages/config.js`: fallback config lokal untuk build, tidak dipublish langsung
+- `pages/_redirects`: blok path legacy asset di Pages
+- `pages/404.html`: fallback 404 sederhana untuk Pages
+- `functions/api/admin/[[path]].js`: proxy admin internal dari Pages ke Worker
+- `functions/[[path]].js`: blokir path asset legacy agar tetap `404`
 - `scripts/build-pages.mjs`: build HTML final + aset minified hashed ke `dist/assets`
 - `dist/`: output build Pages
 - `wrangler.toml`: config Worker dan binding D1
@@ -146,6 +150,7 @@ Catatan:
 - dua nilai itu tetap bisa dioverride manual dari Pages project jika diperlukan
 - output build Pages sekarang berupa HTML final + aset hashed di `dist/assets`
 - `config.js` tidak lagi dipublish sebagai file publik terpisah; config publik di-inline saat build
+- path asset legacy diblok lewat kombinasi `pages/_redirects` dan `functions/[[path]].js`
 
 ## Setup Dari Nol
 
@@ -296,6 +301,10 @@ Tambahkan juga runtime variable di Pages:
 ADMIN_PROXY_SHARED_SECRET=<secret-yang-sama-dengan-worker>
 ```
 
+Catatan:
+- project Pages ini memakai Pages Functions dan `_redirects`
+- saat deploy, `dist/` harus ikut membawa `assets/`, `_redirects`, dan Functions bundle
+
 ### 10. Deploy
 
 Setelah Worker dan Pages selesai:
@@ -375,6 +384,8 @@ Build ini tidak lagi mempublikasikan file source Pages mentah seperti:
 - `/app.js`
 - `/styles.css`
 
+Path itu sekarang diblok lagi di layer Pages supaya tetap `404` walau pernah ada asset lama yang sempat ter-cache.
+
 Deploy Worker:
 
 ```bash
@@ -449,6 +460,7 @@ Sesudah deploy, URL source lama berikut seharusnya `404`:
 Catatan:
 - JS/CSS frontend tetap publik secara prinsip karena harus dijalankan browser
 - hardening di repo ini bertujuan menghilangkan file source mentah yang terlalu eksplisit dan menggantinya dengan aset minified hashed
+- selain itu, path lama dipaksa `404` di Pages supaya alias produksi tidak kembali menampilkan file legacy
 
 ### Halaman Publik
 
