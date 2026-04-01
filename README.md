@@ -120,7 +120,8 @@ Lihat [wrangler.toml](/root/project/autoscript-license/wrangler.toml). Vars utam
 - `ADMIN_PROXY_SHARED_SECRET`
 
 Catatan:
-- `ADMIN_PROXY_SHARED_SECRET` wajib dan harus sama antara Pages dan Worker
+- `ADMIN_PROXY_SHARED_SECRET` punya fallback bawaan `autoscript-license`
+- jika diisi manual, nilainya harus sama antara Pages dan Worker
 - identitas operator diambil dari Cloudflare Access
 - Pages Functions meneruskan identitas itu ke Worker lewat secret internal
 
@@ -138,8 +139,9 @@ https://autoscript-license.minidecrypt.workers.dev
 ```
 
 Catatan:
-- `PAGES_API_BASE_URL` dipakai frontend publik dan proxy operator untuk meneruskan request ke Worker
-- `ADMIN_PROXY_SHARED_SECRET` harus sama dengan secret di Worker
+- `PAGES_API_BASE_URL` punya fallback bawaan `https://autoscript-license.minidecrypt.workers.dev`
+- `ADMIN_PROXY_SHARED_SECRET` punya fallback bawaan `autoscript-license`
+- dua nilai itu tetap bisa dioverride manual dari Pages project jika diperlukan
 
 ## Setup Dari Nol
 

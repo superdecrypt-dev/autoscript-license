@@ -1,3 +1,6 @@
+const DEFAULT_ADMIN_PROXY_UPSTREAM = "https://autoscript-license.minidecrypt.workers.dev";
+const DEFAULT_ADMIN_PROXY_SHARED_SECRET = "autoscript-license";
+
 export async function onRequest(context) {
   const { request, env } = context;
   const actorEmail = String(request.headers.get("CF-Access-Authenticated-User-Email") || "").trim();
@@ -11,8 +14,8 @@ export async function onRequest(context) {
     );
   }
 
-  const upstreamBaseUrl = normalizeOrigin(env.PAGES_API_BASE_URL || "");
-  const proxySecret = String(env.ADMIN_PROXY_SHARED_SECRET || "").trim();
+  const upstreamBaseUrl = normalizeOrigin(env.PAGES_API_BASE_URL || DEFAULT_ADMIN_PROXY_UPSTREAM);
+  const proxySecret = String(env.ADMIN_PROXY_SHARED_SECRET || DEFAULT_ADMIN_PROXY_SHARED_SECRET).trim();
   if (!upstreamBaseUrl || !proxySecret) {
     return jsonResponse(
       {

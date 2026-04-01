@@ -1,6 +1,7 @@
 const IPV4_RE = /^(?:\d{1,3}\.){3}\d{1,3}$/;
 const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 const PUBLIC_RENEW_OPEN_BEFORE_DAYS = 3;
+const DEFAULT_ADMIN_PROXY_SHARED_SECRET = "autoscript-license";
 
 export default {
   async fetch(request, env) {
@@ -1849,7 +1850,7 @@ function decodeBasicAuth(encoded) {
 }
 
 function getAdminProxySharedSecret(env) {
-  return String(env.ADMIN_PROXY_SHARED_SECRET || "").trim();
+  return String(env.ADMIN_PROXY_SHARED_SECRET || DEFAULT_ADMIN_PROXY_SHARED_SECRET).trim();
 }
 
 function getVisitorIp(request) {
