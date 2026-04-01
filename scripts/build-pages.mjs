@@ -26,6 +26,7 @@ const apiBaseUrl = configuredApiBaseUrl || fallbackApiBaseUrl;
 const turnstileSiteKey = configuredTurnstileSiteKey || fallbackTurnstileSiteKey;
 
 const pageSourceArtifacts = new Set([
+  "_headers",
   "index.html",
   "admin/index.html",
   "public.js",
@@ -63,10 +64,15 @@ const adminHtml = renderAdminHtml({
   cssHref: toOutputHref(resolve(outputDir, "admin/index.html"), cssAssets.admin),
   jsHref: toOutputHref(resolve(outputDir, "admin/index.html"), jsAssets.admin),
 });
+const headersFile = renderHeaders({
+  publicCsp: buildPublicCsp(apiBaseUrl),
+  adminCsp: buildAdminCsp(),
+});
 
 mkdirSync(resolve(outputDir, "admin"), { recursive: true });
 writeFileSync(resolve(outputDir, "index.html"), publicHtml, "utf8");
 writeFileSync(resolve(outputDir, "admin/index.html"), adminHtml, "utf8");
+writeFileSync(resolve(outputDir, "_headers"), headersFile, "utf8");
 
 if (!configuredApiBaseUrl && fallbackApiBaseUrl) {
   console.log(`[build:pages] using fallback apiBaseUrl from pages/config.js: ${fallbackApiBaseUrl}`);
@@ -81,6 +87,7 @@ if (!configuredTurnstileSiteKey && fallbackTurnstileSiteKey) {
 
 console.log(`[build:pages] wrote ${resolve(outputDir, "index.html")}`);
 console.log(`[build:pages] wrote ${resolve(outputDir, "admin/index.html")}`);
+console.log(`[build:pages] wrote ${resolve(outputDir, "_headers")}`);
 console.log("[build:pages] emitted hashed assets under dist/assets");
 
 function copyStaticPagesFiles(currentDir) {
@@ -146,10 +153,10 @@ function deriveEntryName(entryPoint) {
 
 function renderPublicHtml({ cssHref, jsHref, apiBaseUrl, turnstileSiteKey }) {
   const template = readFileSync(resolve(sourceDir, "index.html"), "utf8");
-  const inlineConfig = `<script>window.AUTOSCRIPT_PORTAL_CONFIG=${serializeInlineConfig({
+  const inlineConfig = `<script id="portal-config" type="application/json">${serializeInlineConfig({
     apiBaseUrl,
     turnstileSiteKey,
-  })};</script>`;
+  })}</script>`;
   return template
     .replace('<link rel="stylesheet" href="./public.css" />', `<link rel="stylesheet" href="${cssHref}" />`)
     .replace('<script src="./config.js"></script>', inlineConfig)
@@ -162,6 +169,13 @@ function renderAdminHtml({ cssHref, jsHref }) {
     .replace('<link rel="stylesheet" href="../styles.css" />', `<link rel="stylesheet" href="${cssHref}" />`)
     .replace(/\s*<script src="\.\.\/config\.js"><\/script>/, "")
     .replace('<script src="../app.js"></script>', `<script src="${jsHref}"></script>`);
+}
+
+function renderHeaders({ publicCsp, adminCsp }) {
+  const template = readFileSync(resolve(sourceDir, "_headers"), "utf8");
+  return template
+    .replaceAll("__PUBLIC_CSP__", publicCsp)
+    .replaceAll("__ADMIN_CSP__", adminCsp);
 }
 
 function toOutputHref(htmlPath, assetPath) {
@@ -177,6 +191,45 @@ function serializeInlineConfig(config) {
     .replace(/</g, "\\u003c")
     .replace(/>/g, "\\u003e")
     .replace(/&/g, "\\u0026");
+}
+
+function buildPublicCsp(apiBaseUrl) {
+  const connectSources = ["'self'"];
+  if (apiBaseUrl) {
+    connectSources.push(apiBaseUrl);
+  }
+  connectSources.push("https://challenges.cloudflare.com");
+
+  return [
+    "default-src 'self'",
+    "base-uri 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "object-src 'none'",
+    "manifest-src 'self'",
+    "script-src 'self' https://challenges.cloudflare.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com data:",
+    "img-src 'self' data: https://challenges.cloudflare.com",
+    `connect-src ${connectSources.join(" ")}`,
+    "frame-src https://challenges.cloudflare.com",
+  ].join("; ");
+}
+
+function buildAdminCsp() {
+  return [
+    "default-src 'self'",
+    "base-uri 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "object-src 'none'",
+    "manifest-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com data:",
+    "img-src 'self' data:",
+    "connect-src 'self'",
+  ].join("; ");
 }
 
 function extractFallbackConfig(source) {

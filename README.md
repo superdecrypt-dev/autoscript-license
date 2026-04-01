@@ -41,7 +41,9 @@ https://autoscript-license.minidecrypt.workers.dev/api/v1/license/check
 - `pages/app.js` dan `pages/styles.css`: frontend operator
 - `pages/config.js`: fallback config lokal untuk build, tidak dipublish langsung
 - `pages/_redirects`: blok path legacy asset di Pages
+- `pages/_headers`: template security headers dan cache policy untuk Pages
 - `pages/404.html`: fallback 404 sederhana untuk Pages
+- `pages/robots.txt`: larangan indexing untuk seluruh portal
 - `functions/api/admin/[[path]].js`: proxy admin internal dari Pages ke Worker
 - `functions/[[path]].js`: blokir path asset legacy agar tetap `404`
 - `scripts/build-pages.mjs`: build HTML final + aset minified hashed ke `dist/assets`
@@ -149,8 +151,26 @@ Catatan:
 - `ADMIN_PROXY_SHARED_SECRET` punya fallback bawaan `autoscript-license`
 - dua nilai itu tetap bisa dioverride manual dari Pages project jika diperlukan
 - output build Pages sekarang berupa HTML final + aset hashed di `dist/assets`
-- `config.js` tidak lagi dipublish sebagai file publik terpisah; config publik di-inline saat build
+- `config.js` tidak lagi dipublish sebagai file publik terpisah; config publik di-inline saat build sebagai JSON pasif
 - path asset legacy diblok lewat kombinasi `pages/_redirects` dan `functions/[[path]].js`
+- security headers dan cache policy Pages dibangun dari `pages/_headers`
+
+### Ringkasan Hardening Pages
+
+Hardening browser-level yang sekarang dipakai:
+- `Content-Security-Policy` untuk halaman publik dan admin
+- `Strict-Transport-Security`
+- `X-Frame-Options: DENY`
+- `X-Content-Type-Options: nosniff`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `Permissions-Policy` untuk mematikan capability browser yang tidak dipakai
+- `X-Robots-Tag: noindex, nofollow, noarchive`
+
+Perilaku cache:
+- HTML publik dan admin: `no-store`
+- JSON/API Worker dan admin proxy: `no-store`
+- hashed assets di `/assets/*`: `immutable`
+- path asset legacy yang diblok: `no-store`
 
 ## Setup Dari Nol
 
@@ -386,6 +406,10 @@ Build ini tidak lagi mempublikasikan file source Pages mentah seperti:
 
 Path itu sekarang diblok lagi di layer Pages supaya tetap `404` walau pernah ada asset lama yang sempat ter-cache.
 
+Build juga menghasilkan:
+- `_headers` untuk CSP, noindex, dan cache policy
+- `robots.txt` dengan `Disallow: /`
+
 Deploy Worker:
 
 ```bash
@@ -461,6 +485,22 @@ Catatan:
 - JS/CSS frontend tetap publik secara prinsip karena harus dijalankan browser
 - hardening di repo ini bertujuan menghilangkan file source mentah yang terlalu eksplisit dan menggantinya dengan aset minified hashed
 - selain itu, path lama dipaksa `404` di Pages supaya alias produksi tidak kembali menampilkan file legacy
+- HTML publik dan admin sekarang memakai `Content-Security-Policy`
+- Worker JSON dan admin proxy juga menambahkan header `no-store`, `nosniff`, `strict-origin-when-cross-origin`, dan `noindex`
+
+Contoh cek cepat:
+
+```bash
+curl -I https://autoscript-license.pages.dev/
+curl -I https://autoscript-license.pages.dev/admin/
+curl -I https://autoscript-license.pages.dev/public.js
+curl -I https://autoscript-license.minidecrypt.workers.dev/api/public/config
+```
+
+Yang diharapkan:
+- `/` dan `/admin/` membawa `Content-Security-Policy`
+- `/public.js` membalas `404`
+- `/api/public/config` membawa `Cache-Control: no-store`
 
 ### Halaman Publik
 

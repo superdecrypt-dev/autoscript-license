@@ -1,0 +1,37 @@
+/*
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: accelerometer=(), autoplay=(), camera=(), display-capture=(), geolocation=(), gyroscope=(), microphone=(), payment=(), publickey-credentials-get=(), usb=()
+  X-Robots-Tag: noindex, nofollow, noarchive
+
+/
+  Cache-Control: no-store, max-age=0
+  Content-Security-Policy: __PUBLIC_CSP__
+
+/index.html
+  Cache-Control: no-store, max-age=0
+  Content-Security-Policy: __PUBLIC_CSP__
+
+/admin
+  Cache-Control: no-store, max-age=0
+  Content-Security-Policy: __ADMIN_CSP__
+
+/admin/
+  Cache-Control: no-store, max-age=0
+  Content-Security-Policy: __ADMIN_CSP__
+
+/admin/*
+  Cache-Control: no-store, max-age=0
+  Content-Security-Policy: __ADMIN_CSP__
+
+/404.html
+  Cache-Control: no-store, max-age=0
+
+/robots.txt
+  Cache-Control: no-store, max-age=0
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+  Cross-Origin-Resource-Policy: same-origin

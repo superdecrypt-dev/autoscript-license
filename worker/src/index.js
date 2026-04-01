@@ -1761,7 +1761,7 @@ function withCors(request, env, response, options) {
 function buildCorsHeaders(request, _env, options) {
   const requestOrigin = request.headers.get("Origin") || "";
   const allowedOrigin = options.origin || requestOrigin || "*";
-  const headers = new Headers({
+  const headers = buildApiSecurityHeaders({
     "Access-Control-Allow-Headers": options.allowHeaders,
     "Access-Control-Allow-Methods": options.allowMethods,
     "Access-Control-Allow-Origin": allowedOrigin,
@@ -1778,12 +1778,22 @@ function getAdminUiOrigin(env) {
 }
 
 function jsonResponse(payload, status = 200, extraHeaders = {}) {
-  const headers = new Headers(extraHeaders);
+  const headers = buildApiSecurityHeaders(extraHeaders);
   headers.set("Content-Type", "application/json; charset=utf-8");
   return new Response(JSON.stringify(payload, null, 2), {
     status,
     headers,
   });
+}
+
+function buildApiSecurityHeaders(extraHeaders = {}) {
+  const headers = new Headers(extraHeaders);
+  headers.set("Cache-Control", "no-store, max-age=0");
+  headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+  return headers;
 }
 
 function parseIntSafe(value, fallback) {

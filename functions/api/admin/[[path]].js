@@ -53,7 +53,7 @@ export async function onRequest(context) {
   }
 
   const upstreamResponse = await fetch(upstreamUrl.toString(), init);
-  return new Response(upstreamResponse.body, upstreamResponse);
+  return withAdminProxySecurityHeaders(upstreamResponse);
 }
 
 function normalizeOrigin(value) {
@@ -71,8 +71,27 @@ function normalizeOrigin(value) {
 function jsonResponse(payload, status = 200) {
   return new Response(JSON.stringify(payload, null, 2), {
     status,
-    headers: {
+    headers: buildAdminApiSecurityHeaders({
       "Content-Type": "application/json; charset=utf-8",
-    },
+    }),
   });
+}
+
+function withAdminProxySecurityHeaders(response) {
+  const headers = buildAdminApiSecurityHeaders(response.headers);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+function buildAdminApiSecurityHeaders(extraHeaders = {}) {
+  const headers = new Headers(extraHeaders);
+  headers.set("Cache-Control", "no-store, max-age=0");
+  headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+  return headers;
 }

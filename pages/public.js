@@ -1,14 +1,33 @@
+const publicRuntimeConfig = readPublicRuntimeConfig();
+
 const publicState = {
-  apiBaseUrl: (window.AUTOSCRIPT_PORTAL_CONFIG?.apiBaseUrl || "").replace(/\/+$/, ""),
+  apiBaseUrl: String(publicRuntimeConfig.apiBaseUrl || "").replace(/\/+$/, ""),
   licenseDurationDays: 14,
   renewOpenBeforeDays: 3,
-  turnstileSiteKey: String(window.AUTOSCRIPT_PORTAL_CONFIG?.turnstileSiteKey || "").trim(),
+  turnstileSiteKey: String(publicRuntimeConfig.turnstileSiteKey || "").trim(),
   turnstileScriptPromise: null,
   turnstileScriptReady: false,
   createTurnstileWidgetId: null,
   createTurnstileToken: "",
 };
 const PUBLIC_SUPPORT_EMAIL = "autoscript@atomicmail.io";
+
+function readPublicRuntimeConfig() {
+  const fallbackConfig = window.AUTOSCRIPT_PORTAL_CONFIG || {};
+  const configNode = document.getElementById("portal-config");
+  const rawConfig = String(configNode?.textContent || "").trim();
+  if (!rawConfig) {
+    return fallbackConfig;
+  }
+  try {
+    return {
+      ...fallbackConfig,
+      ...JSON.parse(rawConfig),
+    };
+  } catch (_error) {
+    return fallbackConfig;
+  }
+}
 
 const publicDom = {
   banner: document.getElementById("public-banner"),
