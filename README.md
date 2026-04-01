@@ -57,7 +57,6 @@ https://autoscript-license.minidecrypt.workers.dev/api/v1/license/check
 - `POST /api/v1/license/check`
 
 ### Admin
-- `POST /api/admin/session/login`
 - `GET /api/admin/session`
 - `GET /api/admin/license-entries`
 - `POST /api/admin/license-entries`
@@ -118,34 +117,29 @@ Lihat [wrangler.toml](/root/project/autoscript-license/wrangler.toml). Vars utam
 ### Secret Worker
 
 - `PUBLIC_TURNSTILE_SECRET_KEY`
-- `ADMIN_EMAIL`
-- `ADMIN_PASSWORD`
-- `ADMIN_SESSION_SECRET`
+- `ADMIN_PROXY_SHARED_SECRET`
 
 Catatan:
-- `ADMIN_SESSION_SECRET` optional, tapi sangat disarankan
-- jika `ADMIN_SESSION_SECRET` tidak diisi, Worker fallback ke `ADMIN_PASSWORD` untuk signing session token
-
-Repo ini punya fallback bawaan untuk login operator:
-
-```text
-ADMIN_EMAIL=super@decrypt.dev
-ADMIN_PASSWORD=superdecrypt-dev
-```
-
-Kalau Anda tidak isi dua env itu di dashboard Worker, login tetap bisa berjalan memakai nilai bawaan tersebut.
+- `ADMIN_PROXY_SHARED_SECRET` wajib dan harus sama antara Pages dan Worker
+- identitas operator diambil dari Cloudflare Access
+- Pages Functions meneruskan identitas itu ke Worker lewat secret internal
 
 ### Build Pages
 
 Env build Pages:
 
 - `PAGES_API_BASE_URL`
+- `ADMIN_PROXY_SHARED_SECRET`
 
 Kalau env ini tidak diisi, build akan fallback ke default di `pages/config.js`, yang sekarang diarahkan ke:
 
 ```text
 https://autoscript-license.minidecrypt.workers.dev
 ```
+
+Catatan:
+- `PAGES_API_BASE_URL` dipakai frontend publik dan proxy operator untuk meneruskan request ke Worker
+- `ADMIN_PROXY_SHARED_SECRET` harus sama dengan secret di Worker
 
 ## Setup Dari Nol
 
@@ -223,14 +217,7 @@ Isi:
 
 ```text
 PUBLIC_TURNSTILE_SECRET_KEY=<secret-turnstile>
-ADMIN_SESSION_SECRET=<secret-random>
-```
-
-Opsional override login:
-
-```text
-ADMIN_EMAIL=<email-baru>
-ADMIN_PASSWORD=<password-baru>
+ADMIN_PROXY_SHARED_SECRET=<secret-random>
 ```
 
 ### 7. Buat Turnstile
@@ -282,10 +269,23 @@ Build config:
 - `Build command`: `npm install && npm run build:pages`
 - `Build output directory`: `dist`
 
+Lindungi path operator dengan Cloudflare Access:
+
+```text
+/admin*
+/api/admin*
+```
+
 `PAGES_API_BASE_URL` opsional kalau endpoint produksi Anda tetap:
 
 ```text
 https://autoscript-license.minidecrypt.workers.dev
+```
+
+Tambahkan juga runtime variable di Pages:
+
+```text
+ADMIN_PROXY_SHARED_SECRET=<secret-yang-sama-dengan-worker>
 ```
 
 ### 10. Deploy
@@ -303,8 +303,9 @@ Ini cara paling mudah untuk production:
 2. connect Pages ke repo
 3. deploy Worker dari dashboard atau Git integration
 4. isi binding, vars, dan secret di Cloudflare
-5. jalankan migrasi D1
-6. redeploy jika ada perubahan
+5. aktifkan Cloudflare Access untuk `/admin*` dan `/api/admin*`
+6. jalankan migrasi D1
+7. redeploy jika ada perubahan
 
 ### Opsi B: Local CLI
 
@@ -326,10 +327,24 @@ Deploy Worker:
 npm run deploy:worker
 ```
 
+Pasang secret Worker:
+
+```bash
+wrangler secret put PUBLIC_TURNSTILE_SECRET_KEY
+wrangler secret put ADMIN_PROXY_SHARED_SECRET
+```
+
 Deploy Pages:
 
 ```bash
 npm run deploy:pages
+```
+
+Set runtime variable Pages:
+
+```text
+PAGES_API_BASE_URL=https://autoscript-license.minidecrypt.workers.dev
+ADMIN_PROXY_SHARED_SECRET=<secret-yang-sama-dengan-worker>
 ```
 
 Migrasi D1:
@@ -379,8 +394,8 @@ Tes:
 
 Tes:
 1. buka `/admin/`
-2. login
-3. pastikan session terbentuk
+2. pastikan Cloudflare Access meminta login lebih dulu
+3. setelah lolos Access, dashboard harus langsung terbuka tanpa login internal
 4. coba lihat entries, audit log, dan metrics
 
 ## Alur Operasi
@@ -396,8 +411,8 @@ Tes:
 5. Worker membuat atau memperpanjang lisensi
 
 ### Jalur Operator
-1. operator login di `/admin/`
-2. Worker menerbitkan session token 24 jam
+1. operator lolos Cloudflare Access di `/admin/`
+2. Pages Functions meneruskan request `/api/admin/*` ke Worker
 3. operator dapat:
    - create entry
    - edit entry
@@ -441,11 +456,12 @@ Sebelum dipakai production, pastikan:
 7. cron cleanup aktif
 8. Pages sudah deploy
 9. halaman `/` bisa aktivasi
-10. halaman `/admin/` bisa login
+10. halaman `/admin/` terbuka setelah lolos Cloudflare Access
 11. `healthz` Worker normal
 
 ## Catatan Keamanan
 
-- `ADMIN_SESSION_SECRET` sebaiknya dipisah dari `ADMIN_PASSWORD`
 - `PUBLIC_TURNSTILE_SECRET_KEY` hanya boleh ada di Worker, bukan frontend
-- fallback `ADMIN_EMAIL` dan `ADMIN_PASSWORD` bawaan repo nyaman untuk setup awal, tetapi untuk production sebaiknya di-override di dashboard Worker
+- `ADMIN_PROXY_SHARED_SECRET` hanya boleh ada di Pages dan Worker
+- browser operator tidak perlu lagi memanggil `workers.dev` langsung untuk `/api/admin/*`
+- Cloudflare Access harus melindungi `/admin*` dan `/api/admin*`

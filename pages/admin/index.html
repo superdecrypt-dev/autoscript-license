@@ -16,26 +16,14 @@
     <div id="login-shell" class="login-shell">
       <section class="login-card">
         <p class="eyebrow">Access</p>
-        <h1>Masuk</h1>
-        <p class="login-copy">Masuk untuk membuka halaman ini.</p>
+        <h1>Memverifikasi Akses</h1>
+        <p class="login-copy">Halaman ini dibuka lewat Cloudflare Access.</p>
         <p class="login-session-note">
-          Sesi aktif 24 jam.
+          Jika pemeriksaan gagal, muat ulang setelah sesi Access aktif.
         </p>
 
-        <form id="login-form" class="login-form">
-          <label>
-            <span>User / Email</span>
-            <input id="login-email-input" type="text" placeholder="user@example.com" autocomplete="username" />
-          </label>
-          <label>
-            <span>Password</span>
-            <input id="login-password-input" type="password" placeholder="Password" autocomplete="current-password" />
-          </label>
-          <button id="login-submit-btn" class="primary-btn login-submit-btn" type="submit">Masuk</button>
-        </form>
-
         <div id="login-banner" class="status-banner muted">
-          Masukkan user dan password.
+          Memverifikasi akses Cloudflare...
         </div>
       </section>
     </div>
@@ -69,7 +57,7 @@
 
         <div class="sidebar-foot">
           <div class="side-status">
-            <span class="side-status-label">Worker Session</span>
+            <span class="side-status-label">Access Identity</span>
             <div id="sidebar-session-badge" class="session-badge muted">Not Connected</div>
           </div>
         </div>
@@ -93,7 +81,7 @@
           <div class="topbar-actions">
             <div id="session-badge" class="session-badge muted">Not Connected</div>
             <button id="refresh-current-btn" class="ghost-btn" type="button">Refresh</button>
-            <button id="logout-btn" class="ghost-btn" type="button">Logout</button>
+            <button id="logout-btn" class="ghost-btn" type="button">Logout Access</button>
           </div>
         </header>
 
@@ -358,23 +346,23 @@
                   </div>
                   <div>
                     <dt>Session Expires</dt>
-                    <dd id="settings-session-expiry">Belum login</dd>
+                    <dd id="settings-session-expiry">Managed by Access</dd>
                   </div>
                   <div>
                     <dt>Remaining Access</dt>
-                    <dd id="settings-session-remaining">0m</dd>
+                    <dd id="settings-session-remaining">Managed by Access</dd>
                   </div>
                 </dl>
 
                 <div class="form-actions settings-actions">
-                  <button id="clear-auth-btn" class="ghost-btn" type="button">Logout & Clear Session</button>
+                  <button id="clear-auth-btn" class="ghost-btn" type="button">Logout Access</button>
                 </div>
 
                 <div class="settings-note">
                   <strong>Catatan</strong>
                   <p>
-                    URL API Worker dibaca dari konfigurasi deploy.
-                    Akses dibuka setelah kredensial berhasil diverifikasi.
+                    Akses operator diverifikasi oleh Cloudflare Access.
+                    Request operator diteruskan lewat jalur internal yang sama.
                   </p>
                 </div>
               </section>

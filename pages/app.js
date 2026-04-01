@@ -17,20 +17,13 @@ const VIEW_META = {
   },
 };
 
-const ADMIN_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const STORAGE_KEYS = {
-  email: "autoscriptLicenseAdminEmail",
-  token: "autoscriptLicenseAdminToken",
   activeView: "autoscriptLicenseAdminActiveView",
   metricsWindowDays: "autoscriptLicenseMetricsWindowDays",
-  loginAt: "autoscriptLicenseAdminLoginAt",
-  expiresAt: "autoscriptLicenseAdminExpiresAt",
 };
 
 const state = {
-  apiBaseUrl: normalizeApiBase(window.AUTOSCRIPT_PORTAL_CONFIG?.apiBaseUrl || ""),
-  adminEmail: localStorage.getItem(STORAGE_KEYS.email) || "",
-  adminToken: sessionStorage.getItem(STORAGE_KEYS.token) || "",
+  adminEmail: "",
   activeView: localStorage.getItem(STORAGE_KEYS.activeView) || "dashboard",
   authStatus: "locked",
   entries: [],
@@ -38,19 +31,11 @@ const state = {
   metrics: null,
   session: null,
   metricsWindowDays: localStorage.getItem(STORAGE_KEYS.metricsWindowDays) || "14",
-  sessionLoginAt: Number(localStorage.getItem(STORAGE_KEYS.loginAt) || 0),
-  sessionExpiresAt: Number(localStorage.getItem(STORAGE_KEYS.expiresAt) || 0),
-  sessionTimer: null,
-  sessionTicker: null,
   editModalReturnFocus: null,
 };
 
 const dom = {
   loginShell: document.getElementById("login-shell"),
-  loginForm: document.getElementById("login-form"),
-  loginEmailInput: document.getElementById("login-email-input"),
-  loginPasswordInput: document.getElementById("login-password-input"),
-  loginSubmitBtn: document.getElementById("login-submit-btn"),
   loginBanner: document.getElementById("login-banner"),
   app: document.getElementById("admin-app"),
   sidebarToggle: document.getElementById("sidebar-toggle"),
@@ -124,42 +109,20 @@ bootstrap();
 
 function bootstrap() {
   initAdminDeviceContext();
-  localStorage.removeItem("autoscriptLicenseApiBaseUrl");
-  dom.loginEmailInput.value = state.adminEmail;
-  dom.loginPasswordInput.value = "";
   dom.metricsWindow.value = state.metricsWindowDays;
   bindEvents();
   setActiveView(state.activeView, { skipPersist: true });
   refreshVisuals();
-
-  if (!state.apiBaseUrl) {
-    setAuthState("locked");
-    setLoginBanner("Konfigurasi belum tersedia.", "error");
-    dom.loginSubmitBtn.disabled = true;
-    return;
-  }
-
-  if (hasStoredCredentials() && isSessionExpired()) {
-    handleLogout({ message: "Sesi sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
-    return;
-  }
-
-  if (state.adminEmail && state.adminToken) {
-    authenticateWithStoredCredentials();
-    return;
-  }
-
-  setAuthState("locked");
+  authenticateWithAccess();
 }
 
 function bindEvents() {
-  dom.loginForm.addEventListener("submit", handleLoginSubmit);
   dom.sidebarToggle.addEventListener("click", toggleSidebar);
   dom.refreshCurrentBtn.addEventListener("click", () =>
     withButtonBusy(dom.refreshCurrentBtn, "Refreshing...", refreshCurrentView)
   );
-  dom.logoutBtn.addEventListener("click", handleLogout);
-  dom.clearAuthBtn.addEventListener("click", handleLogout);
+  dom.logoutBtn.addEventListener("click", logoutAccess);
+  dom.clearAuthBtn.addEventListener("click", logoutAccess);
   dom.navLinks.forEach((button) => {
     button.addEventListener("click", () => setActiveView(button.dataset.viewTarget));
   });
@@ -242,14 +205,6 @@ function setAuthState(status) {
   dom.loginShell.classList.toggle("is-hidden", authenticated);
   dom.app.classList.toggle("is-hidden", !authenticated);
   dom.app.setAttribute("aria-hidden", String(!authenticated));
-  dom.loginSubmitBtn.disabled = status === "authenticating" || !state.apiBaseUrl;
-  if (authenticated) {
-    scheduleSessionExpiry();
-    startSessionTicker();
-  } else {
-    clearSessionTimer();
-    clearSessionTicker();
-  }
 }
 
 function toggleSidebar() {
@@ -274,92 +229,35 @@ async function withButtonBusy(button, busyLabel, task) {
   }
 }
 
-async function handleLoginSubmit(event) {
-  event.preventDefault();
-  if (!state.apiBaseUrl) {
-    setLoginBanner("Konfigurasi belum tersedia.", "error");
-    return;
-  }
-
-  const adminEmail = dom.loginEmailInput.value.trim();
-  const adminPassword = dom.loginPasswordInput.value;
-  if (!adminEmail || !adminPassword) {
-    setLoginBanner("Masukkan user dan password.", "error");
-    return;
-  }
-
+async function authenticateWithAccess() {
   setAuthState("authenticating");
-  setLoginBanner("Memverifikasi...", "muted");
-
-  try {
-    await authenticateAdmin(adminEmail, adminPassword);
-  } catch (error) {
-    setAuthState("locked");
-    setLoginBanner(error.message || "Login gagal.", "error");
-  }
-}
-
-async function authenticateWithStoredCredentials() {
-  if (isSessionExpired()) {
-    handleLogout({ message: "Sesi sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
-    return;
-  }
-  setAuthState("authenticating");
-  setLoginBanner("Memulihkan sesi...", "muted");
+  setLoginBanner("Memverifikasi akses Cloudflare...", "muted");
 
   try {
     const session = await apiFetch("/api/admin/session");
     state.session = session;
-    if (session.admin_email) {
-      state.adminEmail = session.admin_email;
-      localStorage.setItem(STORAGE_KEYS.email, session.admin_email);
-    }
-    if (session.expires_at) {
-      setSessionExpiryMetadata({ expiresAt: session.expires_at });
-    } else {
-      scheduleSessionExpiry();
-    }
+    state.adminEmail = session.admin_email || "";
     setSessionState(session);
     setAuthState("authenticated");
-    setLoginBanner("Login berhasil.", "ok");
+    setLoginBanner("Akses diverifikasi.", "ok");
     setBanner(`Terhubung: ${session.admin_email || "-"}`, "ok");
     await refreshDashboard();
-  } catch (_error) {
-    clearStoredCredentials();
+  } catch (error) {
+    state.session = null;
+    state.adminEmail = "";
     setAuthState("locked");
-    setLoginBanner("Sesi tidak valid. Silakan login ulang.", "error");
+    setLoginBanner(error.message || "Akses belum tersedia.", "error");
   }
 }
 
-async function authenticateAdmin(adminEmail, adminPassword) {
-  const session = await apiFetch("/api/admin/session/login", {
-    method: "POST",
-    body: JSON.stringify({
-      email: adminEmail,
-      password: adminPassword,
-    }),
-  });
-
-  state.adminEmail = session.admin_email || adminEmail;
-  state.adminToken = session.token || "";
-  state.session = session;
-  localStorage.setItem(STORAGE_KEYS.email, state.adminEmail);
-  sessionStorage.setItem(STORAGE_KEYS.token, state.adminToken);
-  dom.loginPasswordInput.value = "";
-  setSessionExpiryMetadata({
-    loginAt: session.issued_at,
-    expiresAt: session.expires_at,
-  });
-  setSessionState(session);
-  setAuthState("authenticated");
-  setLoginBanner("Login berhasil.", "ok");
-  setBanner(`Terhubung: ${session.admin_email || "-"}`, "ok");
-  await refreshDashboard();
+function logoutAccess() {
+  closeEditModal({ restoreFocus: false });
+  window.location.assign("/cdn-cgi/access/logout");
 }
 
-function handleLogout(options = {}) {
+function handleAccessLocked(options = {}) {
   closeEditModal({ restoreFocus: false });
-  clearStoredCredentials();
+  state.adminEmail = "";
   state.session = null;
   state.entries = [];
   state.auditLogs = [];
@@ -368,24 +266,9 @@ function handleLogout(options = {}) {
   refreshVisuals();
   setAuthState("locked");
   setLoginBanner(
-    options.message || "Sesi dibersihkan.",
+    options.message || "Akses belum tersedia.",
     options.tone || "muted"
   );
-}
-
-function clearStoredCredentials() {
-  state.adminEmail = "";
-  state.adminToken = "";
-  state.sessionLoginAt = 0;
-  state.sessionExpiresAt = 0;
-  clearSessionTimer();
-  clearSessionTicker();
-  localStorage.removeItem(STORAGE_KEYS.email);
-  sessionStorage.removeItem(STORAGE_KEYS.token);
-  localStorage.removeItem(STORAGE_KEYS.loginAt);
-  localStorage.removeItem(STORAGE_KEYS.expiresAt);
-  dom.loginEmailInput.value = "";
-  dom.loginPasswordInput.value = "";
 }
 
 async function refreshCurrentView() {
@@ -683,11 +566,7 @@ function refreshVisuals() {
 }
 
 function ensureAuthenticated() {
-  if (isSessionExpired()) {
-    handleLogout({ message: "Sesi sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
-    return false;
-  }
-  if (state.authStatus === "authenticated" && state.adminEmail && state.adminToken && state.apiBaseUrl) {
+  if (state.authStatus === "authenticated" && state.adminEmail) {
     return true;
   }
   setAuthState("locked");
@@ -695,9 +574,11 @@ function ensureAuthenticated() {
 }
 
 function handleAuthFailure(error, fallbackMessage = "Akses gagal.") {
-  if (error?.status === 401 || String(error?.message || "").includes("401")) {
-    handleLogout();
-    setLoginBanner("Sesi tidak valid. Silakan login ulang.", "error");
+  if (error?.status === 401 || error?.status === 403 || String(error?.message || "").includes("401")) {
+    handleAccessLocked({
+      message: "Akses operator tidak valid. Muat ulang setelah sesi Cloudflare Access aktif.",
+      tone: "error",
+    });
     return;
   }
   setBanner(error.message || fallbackMessage, "error");
@@ -1008,9 +889,9 @@ function renderEntrySourceSummary() {
 function renderSettingsSummary() {
   dom.settingsAdminPreview.textContent = state.adminEmail || "-";
   dom.settingsMetricsPreview.textContent = `${state.metricsWindowDays || "14"} days`;
-  dom.settingsSessionPreview.textContent = state.session?.admin_email || "Not Connected";
-  dom.settingsSessionExpiry.textContent = formatSessionExpiry(state.sessionExpiresAt);
-  dom.settingsSessionRemaining.textContent = formatSessionRemaining(state.sessionExpiresAt);
+  dom.settingsSessionPreview.textContent = state.session?.admin_email ? "Protected by Access" : "Access Required";
+  dom.settingsSessionExpiry.textContent = "Managed by Access";
+  dom.settingsSessionRemaining.textContent = "Managed by Access";
 }
 
 function decisionTone(value) {
@@ -1081,110 +962,12 @@ function handleMetricsWindowChange() {
   }
 }
 
-function hasStoredCredentials() {
-  return Boolean(state.adminEmail && state.adminToken);
-}
-
-function setSessionExpiryMetadata(options = {}) {
-  const loginAtMs = options.loginAt ? Date.parse(options.loginAt) : Date.now();
-  const expiresAtMs = options.expiresAt ? Date.parse(options.expiresAt) : loginAtMs + ADMIN_SESSION_TTL_MS;
-  state.sessionLoginAt = Number.isFinite(loginAtMs) ? loginAtMs : Date.now();
-  state.sessionExpiresAt = Number.isFinite(expiresAtMs) ? expiresAtMs : state.sessionLoginAt + ADMIN_SESSION_TTL_MS;
-  localStorage.setItem(STORAGE_KEYS.loginAt, String(state.sessionLoginAt));
-  localStorage.setItem(STORAGE_KEYS.expiresAt, String(state.sessionExpiresAt));
-  scheduleSessionExpiry();
-}
-
-function isSessionExpired() {
-  if (!state.sessionExpiresAt) {
-    return hasStoredCredentials();
-  }
-  return Date.now() >= state.sessionExpiresAt;
-}
-
-function scheduleSessionExpiry() {
-  clearSessionTimer();
-  if (!state.sessionExpiresAt || state.authStatus !== "authenticated") {
-    return;
-  }
-  const remainingMs = state.sessionExpiresAt - Date.now();
-  if (remainingMs <= 0) {
-    handleLogout({ message: "Sesi sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
-    return;
-  }
-  state.sessionTimer = window.setTimeout(() => {
-    handleLogout({ message: "Sesi sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
-  }, remainingMs);
-}
-
-function clearSessionTimer() {
-  if (state.sessionTimer) {
-    window.clearTimeout(state.sessionTimer);
-    state.sessionTimer = null;
-  }
-}
-
-function startSessionTicker() {
-  clearSessionTicker();
-  if (state.authStatus !== "authenticated" || !state.sessionExpiresAt) {
-    return;
-  }
-  state.sessionTicker = window.setInterval(() => {
-    if (isSessionExpired()) {
-      handleLogout({ message: "Sesi sudah habis setelah 1 hari. Silakan login ulang.", tone: "error" });
-      return;
-    }
-    renderSettingsSummary();
-  }, 60000);
-}
-
-function clearSessionTicker() {
-  if (state.sessionTicker) {
-    window.clearInterval(state.sessionTicker);
-    state.sessionTicker = null;
-  }
-}
-
-function formatSessionExpiry(value) {
-  if (!value) {
-    return "Belum login";
-  }
-  return formatDate(value) || "Belum login";
-}
-
-function formatSessionRemaining(value) {
-  if (!value) {
-    return "0m";
-  }
-  const remainingMs = value - Date.now();
-  if (remainingMs <= 0) {
-    return "Expired";
-  }
-  const totalMinutes = Math.ceil(remainingMs / 60000);
-  const days = Math.floor(totalMinutes / (60 * 24));
-  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
-  const minutes = totalMinutes % 60;
-  const parts = [];
-  if (days > 0) {
-    parts.push(`${days}d`);
-  }
-  if (hours > 0 || days > 0) {
-    parts.push(`${hours}h`);
-  }
-  parts.push(`${minutes}m`);
-  return parts.join(" ");
-}
-
 async function apiFetch(path, options = {}) {
   const headers = {
     "Content-Type": "application/json",
     ...(options.headers || {}),
   };
-  const token = options.token ?? state.adminToken;
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-  const response = await fetch(`${state.apiBaseUrl}${path}`, {
+  const response = await fetch(path, {
     method: options.method || "GET",
     headers,
     body: options.body,
@@ -1257,18 +1040,6 @@ function emptyStateMarkup(title, copy, extraClass = "") {
       <span class="empty-copy">${escapeHtml(copy || "Tidak ada informasi untuk ditampilkan.")}</span>
     </div>
   `;
-}
-
-function normalizeApiBase(value) {
-  const raw = String(value || "").trim().replace(/\/+$/, "");
-  if (!raw) {
-    return "";
-  }
-  try {
-    return new URL(raw).origin;
-  } catch (_error) {
-    return "";
-  }
 }
 
 function normalizeDateTimeLocal(value) {

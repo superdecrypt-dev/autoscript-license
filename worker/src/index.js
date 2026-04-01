@@ -1,9 +1,4 @@
 const IPV4_RE = /^(?:\d{1,3}\.){3}\d{1,3}$/;
-const DEFAULT_ADMIN_EMAIL = "super@decrypt.dev";
-const DEFAULT_ADMIN_PASSWORD = "superdecrypt-dev";
-const ADMIN_SESSION_TTL_SEC = 24 * 60 * 60;
-const ADMIN_LOGIN_LIMIT_MAX = 10;
-const ADMIN_LOGIN_WINDOW_SEC = 15 * 60;
 const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 const PUBLIC_RENEW_OPEN_BEFORE_DAYS = 3;
 
@@ -638,10 +633,6 @@ async function handlePublicStatus(request, env) {
 }
 
 async function routeAdminRequest(request, env, pathname) {
-  if (request.method === "POST" && pathname === "/api/admin/session/login") {
-    return handleAdminSessionLogin(request, env);
-  }
-
   const auth = await authenticateAdminRequest(request, env);
   if (!auth.ok) {
     return auth.response;
@@ -651,7 +642,7 @@ async function routeAdminRequest(request, env, pathname) {
   if (request.method === "GET" && pathname === "/api/admin/session") {
     return jsonResponse({
       admin_email: actorEmail,
-      expires_at: auth.expiresAt || "",
+      auth_mode: "cloudflare_access",
       ok: true,
     });
   }
@@ -877,104 +868,51 @@ async function handleAdminMetrics(request, env) {
 }
 
 function authenticateAdminRequest(request, env) {
-  const authHeader = String(request.headers.get("Authorization") || "").trim();
-  if (!authHeader.startsWith("Bearer ")) {
+  const sharedSecret = getAdminProxySharedSecret(env);
+  if (!sharedSecret) {
+    return Promise.resolve({
+      ok: false,
+      response: jsonResponse(
+        {
+          error: "misconfigured",
+          message: "Admin proxy secret belum dikonfigurasi.",
+        },
+        503
+      ),
+    });
+  }
+
+  const providedSecret = String(request.headers.get("X-Admin-Proxy-Secret") || "").trim();
+  if (!providedSecret || providedSecret !== sharedSecret) {
     return Promise.resolve({
       ok: false,
       response: jsonResponse(
         {
           error: "unauthorized",
-          message: "Admin session token dibutuhkan. Login ulang dari panel admin.",
+          message: "Admin API hanya menerima request internal dari Pages.",
         },
         401
       ),
     });
   }
 
-  const token = authHeader.slice(7).trim();
-  return verifyAdminSessionToken(token, env).then((session) => {
-    if (!session.ok) {
-      return {
-        ok: false,
-        response: jsonResponse({ error: "unauthorized", message: session.message }, 401),
-      };
-    }
-    return {
-      ok: true,
-      actorEmail: session.adminEmail,
-      expiresAt: session.expiresAt,
-    };
-  });
-}
-
-async function handleAdminSessionLogin(request, env) {
-  const expectedEmail = String(env.ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL).trim();
-  const expectedPassword = String(env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD).trim();
-
-  const visitorIp = getVisitorIp(request);
-  const limit = await enforcePublicRateLimit(
-    env,
-    "admin_login",
-    visitorIp,
-    parseIntSafe(env.ADMIN_LOGIN_LIMIT_MAX, ADMIN_LOGIN_LIMIT_MAX),
-    parseIntSafe(env.ADMIN_LOGIN_WINDOW_SEC, ADMIN_LOGIN_WINDOW_SEC)
-  );
-  if (!limit.allowed) {
-    return jsonResponse(
-      {
-        error: "rate_limited",
-        message: "Terlalu banyak percobaan login admin. Coba lagi nanti.",
-        retry_after_sec: limit.retryAfterSec,
-      },
-      429
-    );
-  }
-
-  const body = await parseJsonBody(request);
-  if (body.error) {
-    return body.error;
-  }
-
-  const email = normalizeShortText(body.data?.email, 255);
-  const password = String(body.data?.password || "");
-  if (!email || !password) {
-    return jsonResponse({ error: "invalid_request", message: "Email dan password admin wajib diisi." }, 400);
-  }
-
-  if (email !== expectedEmail || password !== expectedPassword) {
-    await insertAuditLog(env, {
-      eventType: "admin_login_failed",
-      ip: "",
-      entryId: "",
-      stage: "admin",
-      decision: "deny",
-      actorEmail: email,
-      requestIp: visitorIp,
-      userAgent: request.headers.get("User-Agent") || "",
-      payload: { reason: "invalid_credentials" },
+  const actorEmail = normalizeShortText(request.headers.get("X-Admin-Actor-Email"), 255);
+  if (!actorEmail) {
+    return Promise.resolve({
+      ok: false,
+      response: jsonResponse(
+        {
+          error: "unauthorized",
+          message: "Identitas Access tidak tersedia.",
+        },
+        401
+      ),
     });
-    return jsonResponse({ error: "unauthorized", message: "Email atau password admin salah." }, 401);
   }
 
-  const session = await createAdminSessionToken(expectedEmail, env);
-  await insertAuditLog(env, {
-    eventType: "admin_login_success",
-    ip: "",
-    entryId: "",
-    stage: "admin",
-    decision: "allow",
-    actorEmail: expectedEmail,
-    requestIp: visitorIp,
-    userAgent: request.headers.get("User-Agent") || "",
-    payload: { expires_at: session.expiresAt },
-  });
-
-  return jsonResponse({
+  return Promise.resolve({
     ok: true,
-    admin_email: expectedEmail,
-    token: session.token,
-    issued_at: session.issuedAt,
-    expires_at: session.expiresAt,
+    actorEmail,
   });
 }
 
@@ -1017,7 +955,7 @@ async function handleAdminCreateEntry(request, env, actorEmail) {
       nowIso,
       actorEmail,
       actorEmail,
-      getVisitorIp(request),
+      getAdminRequestIp(request),
     ]
   );
 
@@ -1028,8 +966,8 @@ async function handleAdminCreateEntry(request, env, actorEmail) {
     stage: "admin",
     decision: "mutate",
     actorEmail,
-    requestIp: getVisitorIp(request),
-    userAgent: request.headers.get("User-Agent") || "",
+    requestIp: getAdminRequestIp(request),
+    userAgent: getAdminUserAgent(request),
     payload: normalized.entry,
   });
 
@@ -1085,8 +1023,8 @@ async function handleAdminPatchEntry(request, env, actorEmail, entryId) {
     stage: "admin",
     decision: "mutate",
     actorEmail,
-    requestIp: getVisitorIp(request),
-    userAgent: request.headers.get("User-Agent") || "",
+    requestIp: getAdminRequestIp(request),
+    userAgent: getAdminUserAgent(request),
     payload: normalized.entry,
   });
 
@@ -1119,8 +1057,8 @@ async function handleAdminToggleEntry(request, env, actorEmail, entryId, targetS
     stage: "admin",
     decision: "mutate",
     actorEmail,
-    requestIp: getVisitorIp(request),
-    userAgent: request.headers.get("User-Agent") || "",
+    requestIp: getAdminRequestIp(request),
+    userAgent: getAdminUserAgent(request),
     payload: {
       target_status: targetStatus,
     },
@@ -1145,8 +1083,8 @@ async function handleAdminDeleteEntry(request, env, actorEmail, entryId) {
     stage: "admin",
     decision: "mutate",
     actorEmail,
-    requestIp: getVisitorIp(request),
-    userAgent: request.headers.get("User-Agent") || "",
+    requestIp: getAdminRequestIp(request),
+    userAgent: getAdminUserAgent(request),
     payload: {
       deleted_entry: {
         id: existing.id,
@@ -1910,108 +1848,20 @@ function decodeBasicAuth(encoded) {
   }
 }
 
-async function createAdminSessionToken(adminEmail, env) {
-  const issuedAtMs = Date.now();
-  const issuedAt = new Date(issuedAtMs).toISOString();
-  const expiresAt = new Date(issuedAtMs + ADMIN_SESSION_TTL_SEC * 1000).toISOString();
-  const payload = {
-    type: "admin_session",
-    sub: adminEmail,
-    iat: Math.floor(issuedAtMs / 1000),
-    exp: Math.floor(issuedAtMs / 1000) + ADMIN_SESSION_TTL_SEC,
-  };
-  const payloadEncoded = encodeBase64Url(JSON.stringify(payload));
-  const signature = await signAdminSessionPayload(payloadEncoded, env);
-  return {
-    token: `${payloadEncoded}.${signature}`,
-    issuedAt,
-    expiresAt,
-  };
-}
-
-async function verifyAdminSessionToken(token, env) {
-  const parts = String(token || "").split(".");
-  if (parts.length !== 2 || !parts[0] || !parts[1]) {
-    return { ok: false, message: "Token admin tidak valid." };
-  }
-  const [payloadEncoded, providedSignature] = parts;
-  const expectedSignature = await signAdminSessionPayload(payloadEncoded, env);
-  if (providedSignature !== expectedSignature) {
-    return { ok: false, message: "Token admin tidak valid." };
-  }
-
-  let payload = null;
-  try {
-    payload = JSON.parse(decodeBase64Url(payloadEncoded));
-  } catch (_error) {
-    return { ok: false, message: "Token admin tidak valid." };
-  }
-
-  if (payload?.type !== "admin_session" || !payload?.sub || !payload?.exp) {
-    return { ok: false, message: "Token admin tidak valid." };
-  }
-
-  const nowSec = Math.floor(Date.now() / 1000);
-  if (Number(payload.exp) <= nowSec) {
-    return { ok: false, message: "Sesi admin sudah kedaluwarsa." };
-  }
-
-  return {
-    ok: true,
-    adminEmail: String(payload.sub),
-    expiresAt: new Date(Number(payload.exp) * 1000).toISOString(),
-  };
-}
-
-async function signAdminSessionPayload(payloadEncoded, env) {
-  const secret = getAdminSessionSecret(env);
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    new TextEncoder().encode(payloadEncoded)
-  );
-  return encodeBase64Url(signature);
-}
-
-function getAdminSessionSecret(env) {
-  const secret = String(env.ADMIN_SESSION_SECRET || env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD).trim();
-  if (!secret) {
-    throw new Error("ADMIN session secret tidak tersedia.");
-  }
-  return secret;
-}
-
-function encodeBase64Url(value) {
-  const bytes =
-    typeof value === "string"
-      ? new TextEncoder().encode(value)
-      : value instanceof Uint8Array
-        ? value
-        : new Uint8Array(value);
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
-}
-
-function decodeBase64Url(value) {
-  const normalized = String(value || "").replaceAll("-", "+").replaceAll("_", "/");
-  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
-  const binary = atob(padded);
-  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
+function getAdminProxySharedSecret(env) {
+  return String(env.ADMIN_PROXY_SHARED_SECRET || "").trim();
 }
 
 function getVisitorIp(request) {
   return String(request.headers.get("CF-Connecting-IP") || "").trim();
+}
+
+function getAdminRequestIp(request) {
+  return String(request.headers.get("X-Admin-Request-Ip") || "").trim() || getVisitorIp(request);
+}
+
+function getAdminUserAgent(request) {
+  return String(request.headers.get("X-Admin-User-Agent") || request.headers.get("User-Agent") || "").trim();
 }
 
 function addDaysIso(baseIso, days) {
