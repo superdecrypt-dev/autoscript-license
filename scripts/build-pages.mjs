@@ -1,5 +1,13 @@
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { build } from "esbuild";
+import {
+  copyFileSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const currentFile = fileURLToPath(import.meta.url);
@@ -17,25 +25,53 @@ const fallbackTurnstileSiteKey = normalizeText(fallbackValues.turnstileSiteKey);
 const apiBaseUrl = configuredApiBaseUrl || fallbackApiBaseUrl;
 const turnstileSiteKey = configuredTurnstileSiteKey || fallbackTurnstileSiteKey;
 
+const pageSourceArtifacts = new Set([
+  "index.html",
+  "admin/index.html",
+  "public.js",
+  "public.css",
+  "app.js",
+  "styles.css",
+  "config.js",
+]);
+
 rmSync(outputDir, { force: true, recursive: true });
 mkdirSync(outputDir, { recursive: true });
-cpSync(sourceDir, outputDir, { recursive: true });
 
-const generatedConfig = `window.AUTOSCRIPT_PORTAL_CONFIG = ${JSON.stringify(
-  {
-    apiBaseUrl,
-    turnstileSiteKey,
+copyStaticPagesFiles(sourceDir);
+
+const jsAssets = await buildEntryGroup({
+  entryPoints: {
+    public: "pages/public.js",
+    admin: "pages/app.js",
   },
-  null,
-  2
-)};\n`;
+});
+const cssAssets = await buildEntryGroup({
+  entryPoints: {
+    public: "pages/public.css",
+    admin: "pages/styles.css",
+  },
+});
 
-writeFileSync(resolve(outputDir, "config.js"), generatedConfig, "utf8");
+const publicHtml = renderPublicHtml({
+  cssHref: toOutputHref(resolve(outputDir, "index.html"), cssAssets.public),
+  jsHref: toOutputHref(resolve(outputDir, "index.html"), jsAssets.public),
+  apiBaseUrl,
+  turnstileSiteKey,
+});
+const adminHtml = renderAdminHtml({
+  cssHref: toOutputHref(resolve(outputDir, "admin/index.html"), cssAssets.admin),
+  jsHref: toOutputHref(resolve(outputDir, "admin/index.html"), jsAssets.admin),
+});
+
+mkdirSync(resolve(outputDir, "admin"), { recursive: true });
+writeFileSync(resolve(outputDir, "index.html"), publicHtml, "utf8");
+writeFileSync(resolve(outputDir, "admin/index.html"), adminHtml, "utf8");
 
 if (!configuredApiBaseUrl && fallbackApiBaseUrl) {
   console.log(`[build:pages] using fallback apiBaseUrl from pages/config.js: ${fallbackApiBaseUrl}`);
 } else if (!apiBaseUrl) {
-  console.warn("[build:pages] PAGES_API_BASE_URL belum di-set; dist/config.js tetap kosong.");
+  console.warn("[build:pages] PAGES_API_BASE_URL belum di-set; config inline tetap kosong.");
 }
 if (!configuredTurnstileSiteKey && fallbackTurnstileSiteKey) {
   console.log("[build:pages] using fallback turnstileSiteKey from pages/config.js");
@@ -43,7 +79,105 @@ if (!configuredTurnstileSiteKey && fallbackTurnstileSiteKey) {
   console.warn("[build:pages] PAGES_TURNSTILE_SITE_KEY belum di-set; Turnstile publik akan nonaktif.");
 }
 
-console.log(`[build:pages] wrote ${resolve(outputDir, "config.js")}`);
+console.log(`[build:pages] wrote ${resolve(outputDir, "index.html")}`);
+console.log(`[build:pages] wrote ${resolve(outputDir, "admin/index.html")}`);
+console.log("[build:pages] emitted hashed assets under dist/assets");
+
+function copyStaticPagesFiles(currentDir) {
+  for (const entry of readdirSync(currentDir, { withFileTypes: true })) {
+    const inputPath = resolve(currentDir, entry.name);
+    const relativePath = relative(sourceDir, inputPath).replace(/\\/g, "/");
+    if (entry.isDirectory()) {
+      copyStaticPagesFiles(inputPath);
+      continue;
+    }
+    if (pageSourceArtifacts.has(relativePath)) {
+      continue;
+    }
+    const outputPath = resolve(outputDir, relativePath);
+    mkdirSync(dirname(outputPath), { recursive: true });
+    copyFileSync(inputPath, outputPath);
+  }
+}
+
+async function buildEntryGroup({ entryPoints }) {
+  const result = await build({
+    absWorkingDir: rootDir,
+    bundle: true,
+    entryNames: "assets/[name].[hash]",
+    entryPoints,
+    legalComments: "none",
+    logLevel: "silent",
+    metafile: true,
+    minify: true,
+    outdir: outputDir,
+    platform: "browser",
+    sourcemap: false,
+    target: ["es2020"],
+    write: true,
+  });
+  return extractEntryOutputs(result.metafile.outputs);
+}
+
+function extractEntryOutputs(outputs) {
+  const assets = {};
+  for (const [outputPath, meta] of Object.entries(outputs)) {
+    if (!meta.entryPoint) {
+      continue;
+    }
+    const entryName = deriveEntryName(meta.entryPoint);
+    if (!entryName) {
+      continue;
+    }
+    assets[entryName] = resolve(outputPath);
+  }
+  return assets;
+}
+
+function deriveEntryName(entryPoint) {
+  if (entryPoint.endsWith("pages/public.js") || entryPoint.endsWith("pages/public.css")) {
+    return "public";
+  }
+  if (entryPoint.endsWith("pages/app.js") || entryPoint.endsWith("pages/styles.css")) {
+    return "admin";
+  }
+  return "";
+}
+
+function renderPublicHtml({ cssHref, jsHref, apiBaseUrl, turnstileSiteKey }) {
+  const template = readFileSync(resolve(sourceDir, "index.html"), "utf8");
+  const inlineConfig = `<script>window.AUTOSCRIPT_PORTAL_CONFIG=${serializeInlineConfig({
+    apiBaseUrl,
+    turnstileSiteKey,
+  })};</script>`;
+  return template
+    .replace('<link rel="stylesheet" href="./public.css" />', `<link rel="stylesheet" href="${cssHref}" />`)
+    .replace('<script src="./config.js"></script>', inlineConfig)
+    .replace('<script src="./public.js" defer></script>', `<script src="${jsHref}" defer></script>`);
+}
+
+function renderAdminHtml({ cssHref, jsHref }) {
+  const template = readFileSync(resolve(sourceDir, "admin/index.html"), "utf8");
+  return template
+    .replace('<link rel="stylesheet" href="../styles.css" />', `<link rel="stylesheet" href="${cssHref}" />`)
+    .replace(/\s*<script src="\.\.\/config\.js"><\/script>/, "")
+    .replace('<script src="../app.js"></script>', `<script src="${jsHref}"></script>`);
+}
+
+function toOutputHref(htmlPath, assetPath) {
+  const relativeHref = relative(dirname(htmlPath), assetPath).replace(/\\/g, "/");
+  if (!relativeHref.startsWith(".")) {
+    return `./${relativeHref}`;
+  }
+  return relativeHref;
+}
+
+function serializeInlineConfig(config) {
+  return JSON.stringify(config)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026");
+}
 
 function extractFallbackConfig(source) {
   return {

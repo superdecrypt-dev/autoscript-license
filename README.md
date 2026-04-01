@@ -39,8 +39,8 @@ https://autoscript-license.minidecrypt.workers.dev/api/v1/license/check
 - `pages/admin/index.html`: halaman operator
 - `pages/public.js` dan `pages/public.css`: frontend publik
 - `pages/app.js` dan `pages/styles.css`: frontend operator
-- `pages/config.js`: fallback config lokal
-- `scripts/build-pages.mjs`: generate `dist/config.js`
+- `pages/config.js`: fallback config lokal untuk build, tidak dipublish langsung
+- `scripts/build-pages.mjs`: build HTML final + aset minified hashed ke `dist/assets`
 - `dist/`: output build Pages
 - `wrangler.toml`: config Worker dan binding D1
 
@@ -144,6 +144,8 @@ Catatan:
 - `PAGES_TURNSTILE_SITE_KEY` fallback ke `pages/config.js`
 - `ADMIN_PROXY_SHARED_SECRET` punya fallback bawaan `autoscript-license`
 - dua nilai itu tetap bisa dioverride manual dari Pages project jika diperlukan
+- output build Pages sekarang berupa HTML final + aset hashed di `dist/assets`
+- `config.js` tidak lagi dipublish sebagai file publik terpisah; config publik di-inline saat build
 
 ## Setup Dari Nol
 
@@ -360,6 +362,19 @@ Build Pages:
 npm run build:pages
 ```
 
+Output build Pages sekarang:
+- `dist/index.html`
+- `dist/admin/index.html`
+- `dist/assets/*.js`
+- `dist/assets/*.css`
+
+Build ini tidak lagi mempublikasikan file source Pages mentah seperti:
+- `/public.js`
+- `/public.css`
+- `/config.js`
+- `/app.js`
+- `/styles.css`
+
 Deploy Worker:
 
 ```bash
@@ -418,6 +433,22 @@ https://autoscript-license.minidecrypt.workers.dev/api/public/config
 ```
 
 Endpoint ini sekarang hanya readiness endpoint generik. Frontend publik tidak lagi mengambil detail runtime sensitif dari sini.
+
+### Hardening Aset Pages
+
+Sesudah deploy, URL source lama berikut seharusnya `404`:
+
+```text
+/public.js
+/public.css
+/config.js
+/app.js
+/styles.css
+```
+
+Catatan:
+- JS/CSS frontend tetap publik secara prinsip karena harus dijalankan browser
+- hardening di repo ini bertujuan menghilangkan file source mentah yang terlalu eksplisit dan menggantinya dengan aset minified hashed
 
 ### Halaman Publik
 

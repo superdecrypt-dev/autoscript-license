@@ -13,6 +13,7 @@
     "d1:migrate:remote": "wrangler d1 migrations apply LICENSE_DB --remote"
   },
   "devDependencies": {
+    "esbuild": "^0.27.4",
     "wrangler": "^4.9.0"
   }
 }
