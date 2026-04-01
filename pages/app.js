@@ -910,53 +910,10 @@ function renderTrendChart(container, points, series) {
     container.innerHTML = emptyStateMarkup("Belum ada data historis.", "Window ini belum memiliki cukup aktivitas.");
     return;
   }
-  if (isCompactMobileLayout()) {
-    container.innerHTML = renderMobileTrendChart(points, series);
-    return;
-  }
-  const maxValue = Math.max(
-    1,
-    ...points.flatMap((point) => series.map((item) => Number(point[item.key] || 0)))
-  );
-  const legend = `
-    <div class="chart-legend">
-      ${series
-        .map(
-          (item) => `
-            <span class="legend-item">
-              <i class="legend-dot ${item.tone}"></i>
-              ${escapeHtml(item.label)}
-            </span>
-          `
-        )
-        .join("")}
-    </div>
-  `;
-  const bars = `
-    <div class="trend-bars">
-      ${points
-        .map((point) => {
-          const barSet = series
-            .map((item) => {
-              const value = Number(point[item.key] || 0);
-              const height = Math.max(value > 0 ? 10 : 4, Math.round((value / maxValue) * 100));
-              return `<span class="trend-bar ${item.tone}" style="height:${height}%"><b>${value}</b></span>`;
-            })
-            .join("");
-          return `
-            <div class="trend-day">
-              <div class="trend-bar-set">${barSet}</div>
-              <span class="trend-label">${escapeHtml(formatShortDay(point.day))}</span>
-            </div>
-          `;
-        })
-        .join("")}
-    </div>
-  `;
-  container.innerHTML = `${legend}${bars}`;
+  container.innerHTML = renderSummaryTrendChart(points, series);
 }
 
-function renderMobileTrendChart(points, series) {
+function renderSummaryTrendChart(points, series) {
   const totals = series
     .map((item) => ({
       ...item,
@@ -967,21 +924,22 @@ function renderMobileTrendChart(points, series) {
     .sort((left, right) => right.total - left.total);
 
   return `
-    <div class="mobile-trend-stack">
+    <div class="trend-summary-grid">
       ${totals
         .map(
           (item) => `
-            <article class="mobile-trend-card">
-              <div class="mobile-trend-card-head">
+            <article class="trend-summary-card">
+              <div class="trend-summary-head">
                 <div>
                   <strong>${escapeHtml(item.label)}</strong>
                   <span>${item.total} total</span>
                 </div>
-                <b class="mobile-trend-badge ${item.tone}">${item.latest} latest</b>
+                <b class="trend-summary-badge ${item.tone}">${item.latest} latest</b>
               </div>
-              <svg class="mobile-sparkline ${item.tone}" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
+              <svg class="trend-sparkline ${item.tone}" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
                 <path d="${item.path}" vector-effect="non-scaling-stroke"></path>
               </svg>
+              <small class="trend-summary-meta">Window ${state.metrics?.window_days || state.metricsWindowDays} hari</small>
             </article>
           `
         )
@@ -1143,11 +1101,6 @@ function buildSparklinePath(values) {
       return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
     })
     .join(" ");
-}
-
-function isCompactMobileLayout() {
-  const device = document.body.dataset.device || document.documentElement.dataset.device || "";
-  return device === "mobile" || window.innerWidth <= 760;
 }
 
 function escapeHtml(value) {
