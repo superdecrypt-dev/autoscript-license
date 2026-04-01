@@ -104,7 +104,7 @@ function renderDurationDays() {
   const durationText = String(publicState.licenseDurationDays);
   publicDom.durationDays.textContent = durationText;
   publicDom.overviewDurationDays.textContent = durationText;
-  publicDom.createSubmitLabel.textContent = `Aktifkan ${durationText} Hari`;
+  publicDom.createSubmitLabel.textContent = `Proses ${durationText} Hari`;
 }
 
 async function handleCreateSubmit(event) {
@@ -140,7 +140,30 @@ async function handleCreateSubmit(event) {
   setSubmitState(publicDom.createSubmitBtn, publicDom.createSubmitLabel, true, "Memproses...");
 
   try {
-    const payload = await publicApiFetch("/api/public/license/create", {
+    const statusPayload = await publicApiFetch("/api/public/license/status", {
+      method: "POST",
+      body: JSON.stringify({
+        ip,
+      }),
+    });
+    const submitPlan = planCreateSubmission(statusPayload);
+    if (!submitPlan.allowed) {
+      showPublicResult(
+        publicDom.createResult,
+        renderCreateBlockedResult(statusPayload, ip, submitPlan.message),
+        submitPlan.tone,
+        true
+      );
+      setPublicBanner(submitPlan.banner || submitPlan.message, submitPlan.tone);
+      return;
+    }
+    setSubmitState(
+      publicDom.createSubmitBtn,
+      publicDom.createSubmitLabel,
+      true,
+      submitPlan.pendingLabel
+    );
+    const payload = await publicApiFetch(submitPlan.endpoint, {
       method: "POST",
       body: JSON.stringify({
         ip,
@@ -150,12 +173,12 @@ async function handleCreateSubmit(event) {
     publicDom.createForm.reset();
     showPublicResult(
       publicDom.createResult,
-      renderCreateResult(payload),
+      renderCreateResult(payload, submitPlan.actionKind),
       "ok",
       true
     );
     publicDom.statusIp.value = ip;
-    setPublicBanner("Aktivasi berhasil.", "ok");
+    setPublicBanner(submitPlan.banner || "Permintaan berhasil.", "ok");
   } catch (error) {
     showPublicResult(publicDom.createResult, error.message || "Create gagal.", "error");
   } finally {
@@ -165,7 +188,7 @@ async function handleCreateSubmit(event) {
       publicDom.createSubmitLabel,
       false,
       "Memproses...",
-      `Aktifkan ${publicState.licenseDurationDays} Hari`
+      `Proses ${publicState.licenseDurationDays} Hari`
     );
     syncCreateSubmitAvailability();
   }
@@ -209,18 +232,24 @@ async function handleStatusSubmit(event) {
   }
 }
 
-function renderCreateResult(payload) {
+function renderCreateResult(payload, actionKind = "activate") {
   const item = payload.item || {};
   const status = item.status || "active";
   const tone = statusToTone(status);
   const daysRemaining = formatDaysRemaining(item.days_remaining);
+  const isRenew = actionKind === "renew";
+  const operationLabel = isRenew ? "Perpanjangan" : "Aktivasi";
+  const operationTitle = isRenew ? "Perpanjangan Berhasil" : "Aktivasi Berhasil";
+  const operationSummary = isRenew
+    ? "siap dipakai lebih lama untuk validasi lisensi VPS."
+    : "siap dipakai untuk validasi lisensi VPS.";
   return `
     <div class="result-topline">
       <div>
-        <span class="result-kicker">Aktivasi</span>
-        <h3 class="result-title">Aktivasi Berhasil</h3>
+        <span class="result-kicker">${operationLabel}</span>
+        <h3 class="result-title">${operationTitle}</h3>
         <p class="result-lead">${escapeHtml(payload.message || "")}</p>
-        <p class="result-summary"><strong>${escapeHtml(item.ip || "-")}</strong> siap dipakai untuk validasi lisensi VPS.</p>
+        <p class="result-summary"><strong>${escapeHtml(item.ip || "-")}</strong> ${operationSummary}</p>
       </div>
       <span class="tone-chip ${tone}">${escapeHtml(statusLabel(status))}</span>
     </div>
@@ -249,9 +278,48 @@ function renderCreateResult(payload) {
     <ul class="action-list">
       <li>Aktivasi hanya untuk IP baru atau yang sudah expired.</li>
       <li>Renew publik baru dibuka saat sisa aktif ${escapeHtml(formatDaysRemaining(publicState.renewOpenBeforeDays))} atau kurang.</li>
-      <li>Simpan hasil ini bila diperlukan.</li>
+      <li>${isRenew ? "Perpanjangan langsung ditolak jika masih terlalu awal." : "IP aktif tidak bisa diaktivasi ulang sebelum expired."}</li>
       <li>Jika IP berubah, aktivasi ulang.</li>
     </ul>
+  `;
+}
+
+function renderCreateBlockedResult(statusPayload, ip, message) {
+  const tone = statusToTone(statusPayload.status);
+  const daysRemaining = formatDaysRemaining(statusPayload.days_remaining);
+  return `
+    <div class="result-topline">
+      <div>
+        <span class="result-kicker">Tidak Diproses</span>
+        <h3 class="result-title">Permintaan Ditolak</h3>
+        <p class="result-lead">${escapeHtml(message)}</p>
+        <p class="result-summary"><strong>${escapeHtml(ip || "-")}</strong> tetap memakai status yang ada saat ini.</p>
+      </div>
+      <span class="tone-chip ${tone}">${escapeHtml(statusLabel(statusPayload.status))}</span>
+    </div>
+    <div class="result-grid">
+      <article>
+        <strong>Status</strong>
+        <span>${escapeHtml(statusPayload.status || "-")}</span>
+      </article>
+      <article>
+        <strong>IP</strong>
+        <span class="mono">${escapeHtml(ip || "-")}</span>
+      </article>
+      <article>
+        <strong>Aktif Sampai</strong>
+        <span>${escapeHtml(formatDate(statusPayload.expires_at) || "-")}</span>
+      </article>
+      <article>
+        <strong>Sisa Waktu</strong>
+        <span>${escapeHtml(daysRemaining)}</span>
+      </article>
+      <article>
+        <strong>Bisa Renew</strong>
+        <span>${statusPayload.renewable ? "Ya" : "Tidak"}</span>
+      </article>
+    </div>
+    <p class="result-caption">${escapeHtml(nextActionForStatus(statusPayload))}</p>
   `;
 }
 
@@ -536,6 +604,50 @@ function nextActionForStatus(payload) {
     return "Gunakan form aktivasi untuk mendaftarkan IP ini pertama kali.";
   }
   return "Gunakan form aktivasi atau hubungi operator jika hasil tidak sesuai.";
+}
+
+function planCreateSubmission(statusPayload) {
+  const status = String(statusPayload?.status || "unknown");
+  if (status === "active") {
+    if (statusPayload.renewable) {
+      return {
+        allowed: true,
+        actionKind: "renew",
+        endpoint: "/api/public/license/renew",
+        pendingLabel: "Memperpanjang...",
+        banner: "Perpanjangan berhasil.",
+      };
+    }
+    return {
+      allowed: false,
+      tone: "warn",
+      message: `IP ini masih aktif. Perpanjangan publik baru dibuka saat sisa aktif ${publicState.renewOpenBeforeDays} hari atau kurang.`,
+      banner: "Perpanjangan belum dibuka.",
+    };
+  }
+  if (status === "revoked") {
+    return {
+      allowed: false,
+      tone: "error",
+      message: "IP ini sedang diblokir dan tidak bisa diproses dari halaman ini.",
+      banner: "IP sedang diblokir.",
+    };
+  }
+  if (status === "expired" || status === "not_found") {
+    return {
+      allowed: true,
+      actionKind: "activate",
+      endpoint: "/api/public/license/create",
+      pendingLabel: "Mengaktifkan...",
+      banner: "Aktivasi berhasil.",
+    };
+  }
+  return {
+    allowed: false,
+    tone: "error",
+    message: "Status IP tidak bisa dipastikan. Coba cek status lagi beberapa saat lagi.",
+    banner: "Status IP belum pasti.",
+  };
 }
 
 function formatDaysRemaining(value) {
