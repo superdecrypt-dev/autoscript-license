@@ -22,7 +22,7 @@ const publicDom = {
   createTurnstile: document.getElementById("create-turnstile"),
   createChallengeNote: document.getElementById("create-challenge-note"),
   durationDays: document.getElementById("license-duration-days"),
-  overviewDurationDays: document.getElementById("overview-duration-days"),
+  heroDurationDays: document.getElementById("hero-duration-days"),
   createSubmitBtn: document.getElementById("create-submit-btn"),
   statusSubmitBtn: document.getElementById("status-submit-btn"),
   createSubmitLabel: document.getElementById("create-submit-label"),
@@ -103,8 +103,8 @@ async function loadWorkerPublicConfig() {
 function renderDurationDays() {
   const durationText = String(publicState.licenseDurationDays);
   publicDom.durationDays.textContent = durationText;
-  publicDom.overviewDurationDays.textContent = durationText;
-  publicDom.createSubmitLabel.textContent = `Proses ${durationText} Hari`;
+  publicDom.heroDurationDays.textContent = durationText;
+  publicDom.createSubmitLabel.textContent = "Proses IP";
 }
 
 async function handleCreateSubmit(event) {
@@ -188,7 +188,7 @@ async function handleCreateSubmit(event) {
       publicDom.createSubmitLabel,
       false,
       "Memproses...",
-      `Proses ${publicState.licenseDurationDays} Hari`
+      "Proses IP"
     );
     syncCreateSubmitAvailability();
   }
@@ -228,7 +228,7 @@ async function handleStatusSubmit(event) {
   } catch (error) {
     showPublicResult(publicDom.statusResult, error.message || "Check status gagal.", "error");
   } finally {
-    setSubmitState(publicDom.statusSubmitBtn, publicDom.statusSubmitLabel, false, "Memeriksa...", "Check Status");
+    setSubmitState(publicDom.statusSubmitBtn, publicDom.statusSubmitLabel, false, "Memeriksa...", "Cek Status");
   }
 }
 
