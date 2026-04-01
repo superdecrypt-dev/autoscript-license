@@ -1,6 +1,7 @@
 const publicState = {
   apiBaseUrl: (window.AUTOSCRIPT_PORTAL_CONFIG?.apiBaseUrl || "").replace(/\/+$/, ""),
   licenseDurationDays: 14,
+  renewOpenBeforeDays: 3,
   workerConfigLoaded: false,
   turnstileSiteKey: "",
   turnstileScriptPromise: null,
@@ -81,6 +82,7 @@ async function loadWorkerPublicConfig() {
     const payload = await publicApiFetch("/api/public/config", { method: "GET" });
     publicState.workerConfigLoaded = true;
     publicState.licenseDurationDays = Number(payload.license_duration_days || 14);
+    publicState.renewOpenBeforeDays = Number(payload.renew_open_before_days || 3);
     publicState.turnstileSiteKey = String(payload.turnstile_site_key || "").trim();
     renderDurationDays();
     const challengeReady = await initializePublicChallenge();
@@ -245,7 +247,8 @@ function renderCreateResult(payload) {
       </article>
     </div>
     <ul class="action-list">
-      <li>Gunakan IP yang sama untuk renew.</li>
+      <li>Aktivasi hanya untuk IP baru atau yang sudah expired.</li>
+      <li>Renew publik baru dibuka saat sisa aktif ${escapeHtml(formatDaysRemaining(publicState.renewOpenBeforeDays))} atau kurang.</li>
       <li>Simpan hasil ini bila diperlukan.</li>
       <li>Jika IP berubah, aktivasi ulang.</li>
     </ul>
@@ -498,7 +501,10 @@ function statusLabel(status) {
 function describeStatus(payload) {
   const status = payload.status || "unknown";
   if (status === "active") {
-    return "IP ini aktif dan masih bisa dipakai oleh VPS yang memakai IP tersebut.";
+    if (payload.renewable) {
+      return `IP ini aktif dan sudah masuk jendela renew ${publicState.renewOpenBeforeDays} hari terakhir.`;
+    }
+    return "IP ini aktif dan belum masuk jendela renew publik.";
   }
   if (status === "expired") {
     return "IP ini pernah aktif, tetapi masa berlakunya sudah habis dan perlu diaktifkan ulang.";
@@ -515,7 +521,10 @@ function describeStatus(payload) {
 function nextActionForStatus(payload) {
   const status = payload.status || "unknown";
   if (status === "active") {
-    return "Jika ingin memperpanjang lebih awal, submit IP yang sama lagi di form aktivasi.";
+    if (payload.renewable) {
+      return `Perpanjangan publik sudah dibuka karena sisa aktif tinggal ${publicState.renewOpenBeforeDays} hari atau kurang.`;
+    }
+    return `Perpanjangan publik baru dibuka saat sisa aktif ${publicState.renewOpenBeforeDays} hari atau kurang.`;
   }
   if (status === "expired") {
     return "Lakukan aktivasi ulang dengan IP yang sama untuk menambah masa aktif baru.";

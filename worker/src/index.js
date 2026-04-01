@@ -5,6 +5,7 @@ const ADMIN_SESSION_TTL_SEC = 24 * 60 * 60;
 const ADMIN_LOGIN_LIMIT_MAX = 10;
 const ADMIN_LOGIN_WINDOW_SEC = 15 * 60;
 const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+const PUBLIC_RENEW_OPEN_BEFORE_DAYS = 3;
 
 export default {
   async fetch(request, env) {
@@ -50,6 +51,7 @@ async function routeRequest(request, env) {
       request,
       env,
       await handlePublicActivate(request, env, {
+        actionKind: "activate",
         eventBase: "public_activate",
         rateLimitKey: "public_activate",
         rateLimitMax: parseIntSafe(env.PUBLIC_CREATE_LIMIT_MAX, 5),
@@ -68,6 +70,7 @@ async function routeRequest(request, env) {
       request,
       env,
       await handlePublicActivate(request, env, {
+        actionKind: "activate",
         eventBase: "public_activate",
         rateLimitKey: "public_activate",
         rateLimitMax: parseIntSafe(env.PUBLIC_CREATE_LIMIT_MAX, 5),
@@ -90,6 +93,7 @@ async function routeRequest(request, env) {
       request,
       env,
       await handlePublicActivate(request, env, {
+        actionKind: "renew",
         eventBase: "public_renew",
         rateLimitKey: "public_renew",
         rateLimitMax: parseIntSafe(env.PUBLIC_RENEW_LIMIT_MAX, 10),
@@ -118,6 +122,7 @@ function buildPublicConfig(env, workerOrigin) {
   return {
     license_duration_days: getLicenseDurationDays(env),
     public_ui_origin: String(env.PUBLIC_UI_ORIGIN || "").trim(),
+    renew_open_before_days: getPublicRenewOpenBeforeDays(env),
     turnstile_site_key: getPublicTurnstileSiteKey(env),
     worker_api_base_url: workerOrigin,
   };
@@ -269,24 +274,17 @@ async function handlePublicActivate(request, env, options = {}) {
   const existing = await getLicenseEntryByIp(env, publicIp);
   const nowIso = nowIsoString();
   const durationDays = getLicenseDurationDays(env);
+  const renewOpenBeforeDays = getPublicRenewOpenBeforeDays(env);
+  const actionKind = normalizeShortText(options.actionKind, 32) === "renew" ? "renew" : "activate";
 
   if (existing) {
-    if (existing.status === "revoked") {
-      return jsonResponse(
-        {
-          error: "revoked",
-          message: "IP ini sedang diblokir dan tidak bisa diaktifkan dari website publik.",
-        },
-        403
-      );
-    }
+    const effectiveStatus = effectiveStatusForRow(existing, nowIso);
+    const daysRemaining = calculateDaysRemaining(existing.expires_at || "", nowIso);
 
-    const extendResult = await extendPublicLicenseEntry(env, existing.id, nowIso, durationDays, eventBase);
-    if (statementChanges(extendResult) === 0) {
-      const refreshed = await getLicenseEntryById(env, existing.id);
-      if (refreshed?.status === "revoked") {
+    if (actionKind === "renew") {
+      if (effectiveStatus === "revoked") {
         await insertAuditLog(env, {
-          eventType: `${eventBase}_revoked_during_update`,
+          eventType: `${eventBase}_revoked_denied`,
           ip: publicIp,
           entryId: existing.id,
           stage: "public",
@@ -295,9 +293,155 @@ async function handlePublicActivate(request, env, options = {}) {
           requestIp: visitorIp,
           userAgent: request.headers.get("User-Agent") || "",
           payload: {
-            source: "public-race-revoked",
+            source: "public-renew-revoked",
           },
         });
+        return jsonResponse(
+          {
+            error: "revoked",
+            message: "IP ini sedang diblokir dan tidak bisa diperpanjang dari website publik.",
+          },
+          403
+        );
+      }
+      if (effectiveStatus === "expired") {
+        await insertAuditLog(env, {
+          eventType: `${eventBase}_expired_denied`,
+          ip: publicIp,
+          entryId: existing.id,
+          stage: "public",
+          decision: "deny",
+          actorEmail: "",
+          requestIp: visitorIp,
+          userAgent: request.headers.get("User-Agent") || "",
+          payload: {
+            source: "public-renew-expired",
+          },
+        });
+        return jsonResponse(
+          {
+            error: "expired",
+            message: "IP ini sudah expired. Lakukan aktivasi ulang, bukan renew.",
+          },
+          409
+        );
+      }
+      if (effectiveStatus !== "active" || daysRemaining > renewOpenBeforeDays) {
+        await insertAuditLog(env, {
+          eventType: `${eventBase}_too_early`,
+          ip: publicIp,
+          entryId: existing.id,
+          stage: "public",
+          decision: "deny",
+          actorEmail: "",
+          requestIp: visitorIp,
+          userAgent: request.headers.get("User-Agent") || "",
+          payload: {
+            days_remaining: daysRemaining,
+            renew_open_before_days: renewOpenBeforeDays,
+            source: "public-renew-window",
+          },
+        });
+        return jsonResponse(
+          {
+            error: "renew_not_open",
+            message: `Perpanjangan publik baru dibuka saat sisa aktif ${renewOpenBeforeDays} hari atau kurang.`,
+          },
+          409
+        );
+      }
+
+      const extendResult = await extendPublicLicenseEntry(env, existing.id, nowIso, durationDays, eventBase);
+      if (statementChanges(extendResult) === 0) {
+        const refreshed = await getLicenseEntryById(env, existing.id);
+        if (refreshed?.status === "revoked") {
+          await insertAuditLog(env, {
+            eventType: `${eventBase}_revoked_during_update`,
+            ip: publicIp,
+            entryId: existing.id,
+            stage: "public",
+            decision: "deny",
+            actorEmail: "",
+            requestIp: visitorIp,
+            userAgent: request.headers.get("User-Agent") || "",
+            payload: {
+              source: "public-race-revoked",
+            },
+          });
+          return jsonResponse(
+            {
+              error: "revoked",
+              message: "IP ini sedang diblokir dan tidak bisa diperpanjang dari website publik.",
+            },
+            403
+          );
+        }
+        throw new Error(`Gagal memperbarui entry IP publik: ${existing.id}`);
+      }
+      const updated = await getLicenseEntryById(env, existing.id);
+      const newExpiresAt = updated?.expires_at || "";
+
+      await insertAuditLog(env, {
+        eventType: eventBase,
+        ip: publicIp,
+        entryId: existing.id,
+        stage: "public",
+        decision: "allow",
+        actorEmail: "",
+        requestIp: visitorIp,
+        userAgent: request.headers.get("User-Agent") || "",
+        payload: {
+          days_remaining_before: daysRemaining,
+          expires_at: newExpiresAt,
+          previous_expires_at: existing.expires_at || "",
+          source: "public-renew",
+        },
+      });
+
+      return jsonResponse({
+        item: serializePublicStatusEntry(updated, nowIso, env),
+        message: `IP diperpanjang ${durationDays} hari.`,
+      });
+    }
+
+    if (effectiveStatus === "revoked") {
+      return jsonResponse(
+        {
+          error: "revoked",
+          message: "IP ini sedang diblokir dan tidak bisa diaktifkan dari website publik.",
+        },
+        403
+      );
+    }
+    if (effectiveStatus === "active") {
+      await insertAuditLog(env, {
+        eventType: `${eventBase}_active_denied`,
+        ip: publicIp,
+        entryId: existing.id,
+        stage: "public",
+        decision: "deny",
+        actorEmail: "",
+        requestIp: visitorIp,
+        userAgent: request.headers.get("User-Agent") || "",
+        payload: {
+          days_remaining: daysRemaining,
+          renew_open_before_days: renewOpenBeforeDays,
+          source: "public-activate-active",
+        },
+      });
+      return jsonResponse(
+        {
+          error: "already_active",
+          message: "IP ini masih aktif. Aktivasi ulang ditolak sampai masa aktif habis.",
+        },
+        409
+      );
+    }
+
+    const refreshResult = await refreshExpiredPublicLicenseEntry(env, existing.id, nowIso, durationDays, eventBase);
+    if (statementChanges(refreshResult) === 0) {
+      const refreshed = await getLicenseEntryById(env, existing.id);
+      if (refreshed?.status === "revoked") {
         return jsonResponse(
           {
             error: "revoked",
@@ -306,7 +450,7 @@ async function handlePublicActivate(request, env, options = {}) {
           403
         );
       }
-      throw new Error(`Gagal memperbarui entry IP publik: ${existing.id}`);
+      throw new Error(`Gagal mengaktifkan ulang entry IP publik: ${existing.id}`);
     }
     const updated = await getLicenseEntryById(env, existing.id);
     const newExpiresAt = updated?.expires_at || "";
@@ -323,14 +467,37 @@ async function handlePublicActivate(request, env, options = {}) {
       payload: {
         expires_at: newExpiresAt,
         previous_expires_at: existing.expires_at || "",
-        source: "public-upsert",
+        source: "public-reactivate-expired",
       },
     });
 
     return jsonResponse({
-      item: serializePublicStatusEntry(updated, nowIso),
-      message: `IP diperpanjang ${durationDays} hari.`,
+      item: serializePublicStatusEntry(updated, nowIso, env),
+      message: `IP aktif kembali selama ${durationDays} hari.`,
     });
+  }
+
+  if (actionKind === "renew") {
+    await insertAuditLog(env, {
+      eventType: `${eventBase}_missing_entry`,
+      ip: publicIp,
+      entryId: "",
+      stage: "public",
+      decision: "deny",
+      actorEmail: "",
+      requestIp: visitorIp,
+      userAgent: request.headers.get("User-Agent") || "",
+      payload: {
+        source: "public-renew-missing-entry",
+      },
+    });
+    return jsonResponse(
+      {
+        error: "not_found",
+        message: "IP ini belum punya entry aktif. Gunakan aktivasi lebih dulu.",
+      },
+      404
+    );
   }
 
   const expiresAt = addDaysIso(nowIso, durationDays);
@@ -379,7 +546,7 @@ async function handlePublicActivate(request, env, options = {}) {
     });
 
     return jsonResponse({
-      item: serializePublicStatusEntry(raced, nowIso),
+      item: serializePublicStatusEntry(raced, nowIso, env),
       message: "IP sudah aktif dari request paralel sebelumnya. Gunakan status terbaru berikut.",
     });
   }
@@ -402,7 +569,7 @@ async function handlePublicActivate(request, env, options = {}) {
   const created = await getLicenseEntryById(env, id);
   return jsonResponse(
     {
-      item: serializePublicStatusEntry(created, nowIso),
+      item: serializePublicStatusEntry(created, nowIso, env),
       message: `IP aktif selama ${durationDays} hari.`,
     },
     201
@@ -451,7 +618,7 @@ async function handlePublicStatus(request, env) {
   }
 
   const entry = await getLicenseEntryByIp(env, publicIp);
-  const statusPayload = serializePublicLookupStatusEntry(entry, nowIsoString());
+  const statusPayload = serializePublicLookupStatusEntry(entry, nowIsoString(), env);
 
   await insertAuditLog(env, {
     eventType: "public_status",
@@ -1083,7 +1250,7 @@ function serializeLicenseEntry(row, nowIso = nowIsoString()) {
   };
 }
 
-function serializePublicStatusEntry(row, nowIso = nowIsoString()) {
+function serializePublicStatusEntry(row, nowIso = nowIsoString(), env = {}) {
   if (!row) {
     return {
       status: "not_found",
@@ -1093,20 +1260,24 @@ function serializePublicStatusEntry(row, nowIso = nowIsoString()) {
       expires_at: "",
       days_remaining: 0,
       renewable: false,
+      renew_open_before_days: getPublicRenewOpenBeforeDays(env),
     };
   }
   const effectiveStatus = effectiveStatusForRow(row, nowIso);
+  const daysRemaining = calculateDaysRemaining(row.expires_at || "", nowIso);
   return {
     status: effectiveStatus,
     allowed: effectiveStatus === "active",
     entry_id: row.id,
     ip: row.ip,
     expires_at: row.expires_at || "",
-    days_remaining: calculateDaysRemaining(row.expires_at || "", nowIso),
+    days_remaining: daysRemaining,
+    renewable: effectiveStatus === "active" && daysRemaining <= getPublicRenewOpenBeforeDays(env),
+    renew_open_before_days: getPublicRenewOpenBeforeDays(env),
   };
 }
 
-function serializePublicLookupStatusEntry(row, nowIso = nowIsoString()) {
+function serializePublicLookupStatusEntry(row, nowIso = nowIsoString(), env = {}) {
   if (!row) {
     return {
       status: "not_found",
@@ -1114,15 +1285,18 @@ function serializePublicLookupStatusEntry(row, nowIso = nowIsoString()) {
       renewable: false,
       expires_at: "",
       days_remaining: 0,
+      renew_open_before_days: getPublicRenewOpenBeforeDays(env),
     };
   }
   const effectiveStatus = effectiveStatusForRow(row, nowIso);
+  const daysRemaining = calculateDaysRemaining(row.expires_at || "", nowIso);
   return {
     status: effectiveStatus,
     allowed: effectiveStatus === "active",
-    renewable: effectiveStatus !== "revoked" && effectiveStatus !== "not_found",
+    renewable: effectiveStatus === "active" && daysRemaining <= getPublicRenewOpenBeforeDays(env),
     expires_at: row.expires_at || "",
-    days_remaining: calculateDaysRemaining(row.expires_at || "", nowIso),
+    days_remaining: daysRemaining,
+    renew_open_before_days: getPublicRenewOpenBeforeDays(env),
   };
 }
 
@@ -1442,6 +1616,24 @@ async function extendPublicLicenseEntry(env, entryId, nowIso, durationDays, upda
   );
 }
 
+async function refreshExpiredPublicLicenseEntry(env, entryId, nowIso, durationDays, updatedBy) {
+  return runStatement(
+    env,
+    `
+      UPDATE license_entries
+      SET
+        status = 'active',
+        expires_at = strftime('%Y-%m-%dT%H:%M:%fZ', datetime(?, '+' || ? || ' days')),
+        updated_at = ?,
+        updated_by = ?,
+        revoked_at = NULL,
+        last_renewed_at = ?
+      WHERE id = ? AND status != 'revoked'
+    `,
+    [nowIso, durationDays, nowIso, updatedBy, nowIso, entryId]
+  );
+}
+
 async function getLicenseEntryByIp(env, ip) {
   return firstRow(
     env,
@@ -1675,6 +1867,10 @@ function statementChanges(result) {
 
 function getLicenseDurationDays(env) {
   return parseIntSafe(env.PUBLIC_LICENSE_DURATION_DAYS, 14);
+}
+
+function getPublicRenewOpenBeforeDays(_env) {
+  return PUBLIC_RENEW_OPEN_BEFORE_DAYS;
 }
 
 function getPublicTurnstileSiteKey(env) {
