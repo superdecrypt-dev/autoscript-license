@@ -31,5 +31,5 @@ crons = ["17 * * * *"]
 [[d1_databases]]
 binding = "LICENSE_DB"
 database_name = "autoscript-license"
-database_id = "836b4772-baef-421c-b8be-418edf9d7a70"
+database_id = "69abbe1e-89ec-4684-a38a-a9fe11bb83ab"
 migrations_dir = "migrations"
