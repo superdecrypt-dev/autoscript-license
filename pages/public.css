@@ -167,44 +167,12 @@ label small,
   color: var(--text);
 }
 
-.hero-meta {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 26px;
-}
-
-.hero-meta-card {
-  padding: 16px 18px;
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.66);
-  border: 1px solid rgba(76, 48, 23, 0.08);
-  transition:
-    transform 180ms ease,
-    border-color 180ms ease,
-    background 180ms ease;
-}
-
-.hero-meta-card strong {
-  display: block;
-  margin-bottom: 7px;
-  font-size: 0.8rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(114, 87, 68, 0.82);
-}
-
-.hero-meta-card span {
-  display: block;
-  line-height: 1.5;
-}
-
 .hero-support {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-top: 22px;
+  margin-top: 24px;
   padding-top: 18px;
   border-top: 1px solid rgba(76, 48, 23, 0.08);
 }
@@ -614,14 +582,8 @@ input:focus-visible {
   box-shadow: var(--shadow-hover);
 }
 
-.hero-meta-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(199, 81, 36, 0.16);
-}
-
 body[data-device="tablet"] .public-grid,
-body[data-device="mobile"] .public-grid,
-body[data-device="mobile"] .hero-meta {
+body[data-device="mobile"] .public-grid {
   grid-template-columns: 1fr;
 }
 
@@ -670,8 +632,7 @@ body[data-device="mobile"] .result-title {
 }
 
 @media (max-width: 980px) {
-  .public-grid,
-  .hero-meta {
+  .public-grid {
     grid-template-columns: 1fr;
   }
 }

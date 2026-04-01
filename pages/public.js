@@ -22,7 +22,6 @@ const publicDom = {
   createTurnstile: document.getElementById("create-turnstile"),
   createChallengeNote: document.getElementById("create-challenge-note"),
   durationDays: document.getElementById("license-duration-days"),
-  heroDurationDays: document.getElementById("hero-duration-days"),
   createSubmitBtn: document.getElementById("create-submit-btn"),
   statusSubmitBtn: document.getElementById("status-submit-btn"),
   createSubmitLabel: document.getElementById("create-submit-label"),
@@ -103,7 +102,6 @@ async function loadWorkerPublicConfig() {
 function renderDurationDays() {
   const durationText = String(publicState.licenseDurationDays);
   publicDom.durationDays.textContent = durationText;
-  publicDom.heroDurationDays.textContent = durationText;
   publicDom.createSubmitLabel.textContent = "Proses IP";
 }
 
