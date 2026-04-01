@@ -267,6 +267,24 @@ label span,
   gap: 16px;
 }
 
+.view-stage,
+.view-panel,
+.dashboard-panel,
+.charts-grid,
+.chart-card,
+.chart-head,
+.chart-head > div,
+.chart-surface,
+.top-events-list,
+.source-summary,
+.source-grid,
+.top-event-row,
+.top-event-meta,
+.top-event-meta strong,
+.source-card {
+  min-width: 0;
+}
+
 .topbar,
 .panel {
   background: var(--surface);
@@ -730,6 +748,10 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.top-event-meta strong {
+  overflow-wrap: anywhere;
 }
 
 .top-event-bar {
@@ -1581,4 +1603,133 @@ body[data-device="mobile"] .modal-dialog {
     width: 100%;
     justify-content: center;
   }
+}
+
+body[data-device="mobile"] {
+  overflow-x: hidden;
+}
+
+body[data-device="mobile"] .admin-main,
+body[data-device="mobile"] .view-stage,
+body[data-device="mobile"] .view-panel,
+body[data-device="mobile"] .dashboard-panel {
+  gap: 14px;
+  overflow-x: clip;
+}
+
+body[data-device="mobile"] .topbar {
+  padding: 16px;
+}
+
+body[data-device="mobile"] .topbar-main {
+  align-items: stretch;
+  gap: 8px;
+}
+
+body[data-device="mobile"] .mobile-nav-btn {
+  align-self: flex-start;
+}
+
+body[data-device="mobile"] .dashboard-panel {
+  padding: 16px;
+}
+
+body[data-device="mobile"] .summary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+body[data-device="mobile"] .metric-card {
+  padding: 16px;
+}
+
+body[data-device="mobile"] .metric-card strong {
+  font-size: clamp(1.4rem, 7vw, 1.9rem);
+  margin-top: 8px;
+}
+
+body[data-device="mobile"] .metric-label {
+  font-size: 0.72rem;
+}
+
+body[data-device="mobile"] .mobile-spotlight {
+  gap: 12px;
+}
+
+body[data-device="mobile"] .mobile-spotlight-head {
+  margin-bottom: 10px;
+}
+
+body[data-device="mobile"] .mobile-spotlight-card {
+  padding: 14px 16px;
+}
+
+body[data-device="mobile"] .mobile-spotlight-card strong {
+  font-size: 1.35rem;
+}
+
+body[data-device="mobile"] .dashboard-panel > .charts-grid:first-of-type {
+  display: none;
+}
+
+body[data-device="mobile"] .dashboard-panel > .charts-grid:last-of-type {
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+body[data-device="mobile"] .dashboard-panel .chart-card {
+  padding: 16px;
+  border-radius: 18px;
+}
+
+body[data-device="mobile"] .dashboard-panel .chart-head {
+  margin-bottom: 12px;
+  gap: 10px;
+}
+
+body[data-device="mobile"] .dashboard-panel .chart-caption {
+  font-size: 0.72rem;
+}
+
+body[data-device="mobile"] .top-events-list,
+body[data-device="mobile"] .source-summary {
+  gap: 12px;
+}
+
+body[data-device="mobile"] .top-event-row {
+  padding: 12px;
+  gap: 8px;
+}
+
+body[data-device="mobile"] .top-event-meta {
+  align-items: flex-start;
+}
+
+body[data-device="mobile"] .top-event-meta strong {
+  font-size: 0.94rem;
+  line-height: 1.35;
+}
+
+body[data-device="mobile"] .top-event-meta span {
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+body[data-device="mobile"] .source-grid {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+body[data-device="mobile"] .source-grid .source-card:nth-child(n + 3) {
+  display: none;
+}
+
+body[data-device="mobile"] .source-card {
+  padding: 14px 16px;
+}
+
+body[data-device="mobile"] .source-card strong {
+  font-size: 1.35rem;
+  margin-top: 8px;
 }
