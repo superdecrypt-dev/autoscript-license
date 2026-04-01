@@ -1639,6 +1639,10 @@ body[data-device="mobile"] .summary-grid {
   gap: 12px;
 }
 
+body[data-device="mobile"] .metrics-summary-grid {
+  display: none;
+}
+
 body[data-device="mobile"] .metric-card {
   padding: 16px;
 }
@@ -1669,17 +1673,20 @@ body[data-device="mobile"] .mobile-spotlight-card strong {
 }
 
 body[data-device="mobile"] .dashboard-panel > .charts-grid:first-of-type {
-  display: none;
+  display: none !important;
 }
 
 body[data-device="mobile"] .dashboard-panel > .charts-grid:last-of-type {
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
 }
 
 body[data-device="mobile"] .dashboard-panel .chart-card {
+  width: 100%;
   padding: 16px;
   border-radius: 18px;
+  overflow: hidden;
 }
 
 body[data-device="mobile"] .dashboard-panel .chart-head {
@@ -1694,6 +1701,7 @@ body[data-device="mobile"] .dashboard-panel .chart-caption {
 body[data-device="mobile"] .top-events-list,
 body[data-device="mobile"] .source-summary {
   gap: 12px;
+  width: 100%;
 }
 
 body[data-device="mobile"] .top-event-row {
@@ -1732,4 +1740,147 @@ body[data-device="mobile"] .source-card {
 body[data-device="mobile"] .source-card strong {
   font-size: 1.35rem;
   margin-top: 8px;
+}
+
+body[data-device="mobile"] .source-stack {
+  height: 14px;
+}
+
+@media (max-width: 760px) {
+  .admin-main,
+  .view-stage,
+  .view-panel,
+  .dashboard-panel {
+    gap: 14px;
+    overflow-x: clip;
+  }
+
+  .topbar {
+    padding: 16px;
+  }
+
+  .topbar-main {
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .mobile-nav-btn {
+    align-self: flex-start;
+  }
+
+  .dashboard-panel {
+    padding: 16px;
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .metrics-summary-grid {
+    display: none;
+  }
+
+  .metric-card {
+    padding: 16px;
+  }
+
+  .metric-card strong {
+    font-size: clamp(1.4rem, 7vw, 1.9rem);
+    margin-top: 8px;
+  }
+
+  .metric-label {
+    font-size: 0.72rem;
+  }
+
+  .mobile-spotlight {
+    gap: 12px;
+  }
+
+  .mobile-spotlight-head {
+    margin-bottom: 10px;
+  }
+
+  .mobile-spotlight-card {
+    padding: 14px 16px;
+  }
+
+  .mobile-spotlight-card strong {
+    font-size: 1.35rem;
+  }
+
+  .view-panel[data-view="dashboard"] .dashboard-panel > .charts-grid:first-of-type {
+    display: none !important;
+  }
+
+  .view-panel[data-view="dashboard"] .dashboard-panel > .charts-grid:last-of-type {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .view-panel[data-view="dashboard"] .dashboard-panel .chart-card {
+    width: 100%;
+    padding: 16px;
+    border-radius: 18px;
+    overflow: hidden;
+  }
+
+  .view-panel[data-view="dashboard"] .dashboard-panel .chart-head {
+    margin-bottom: 12px;
+    gap: 10px;
+  }
+
+  .view-panel[data-view="dashboard"] .dashboard-panel .chart-caption {
+    font-size: 0.72rem;
+  }
+
+  .top-events-list,
+  .source-summary {
+    gap: 12px;
+    width: 100%;
+  }
+
+  .top-event-row {
+    padding: 12px;
+    gap: 8px;
+  }
+
+  .top-event-meta {
+    align-items: flex-start;
+  }
+
+  .top-event-meta strong {
+    font-size: 0.94rem;
+    line-height: 1.35;
+  }
+
+  .top-event-meta span {
+    flex-shrink: 0;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+
+  .source-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .source-grid .source-card:nth-child(n + 3) {
+    display: none;
+  }
+
+  .source-card {
+    padding: 14px 16px;
+  }
+
+  .source-card strong {
+    font-size: 1.35rem;
+    margin-top: 8px;
+  }
+
+  .source-stack {
+    height: 14px;
+  }
 }
