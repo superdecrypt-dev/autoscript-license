@@ -3,7 +3,7 @@ const DEFAULT_ADMIN_PROXY_SHARED_SECRET = "autoscript-license";
 
 export async function onRequest(context) {
   const { request, env } = context;
-  const actorEmail = String(request.headers.get("CF-Access-Authenticated-User-Email") || "").trim();
+  const actorEmail = await resolveAccessActorEmail(request);
   if (!actorEmail) {
     return jsonResponse(
       {
@@ -54,6 +54,38 @@ export async function onRequest(context) {
 
   const upstreamResponse = await fetch(upstreamUrl.toString(), init);
   return withAdminProxySecurityHeaders(upstreamResponse);
+}
+
+async function resolveAccessActorEmail(request) {
+  const directHeader = String(
+    request.headers.get("CF-Access-Authenticated-User-Email") ||
+      request.headers.get("Cf-Access-Authenticated-User-Email") ||
+      ""
+  ).trim();
+  if (directHeader) {
+    return directHeader;
+  }
+
+  const cookie = request.headers.get("Cookie");
+  if (!cookie) {
+    return "";
+  }
+
+  try {
+    const identityUrl = new URL("/cdn-cgi/access/get-identity", request.url);
+    const response = await fetch(identityUrl.toString(), {
+      headers: {
+        Cookie: cookie,
+      },
+    });
+    if (!response.ok) {
+      return "";
+    }
+    const payload = await response.json();
+    return String(payload?.email || payload?.identity?.email || "").trim();
+  } catch (_error) {
+    return "";
+  }
 }
 
 function normalizeOrigin(value) {
