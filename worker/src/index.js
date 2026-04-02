@@ -1760,7 +1760,7 @@ function withCors(request, env, response, options) {
 
 function buildCorsHeaders(request, _env, options) {
   const requestOrigin = request.headers.get("Origin") || "";
-  const allowedOrigin = options.origin || requestOrigin || "*";
+  const allowedOrigin = resolveAllowedOrigin(requestOrigin, options.origin);
   const headers = buildApiSecurityHeaders({
     "Access-Control-Allow-Headers": options.allowHeaders,
     "Access-Control-Allow-Methods": options.allowMethods,
@@ -1775,6 +1775,24 @@ function buildCorsHeaders(request, _env, options) {
 
 function getAdminUiOrigin(env) {
   return String(env.ADMIN_UI_ORIGIN || env.PUBLIC_UI_ORIGIN || "").trim();
+}
+
+function resolveAllowedOrigin(requestOrigin, configuredOrigins) {
+  const allowedOrigins = parseAllowedOrigins(configuredOrigins);
+  if (!allowedOrigins.length) {
+    return requestOrigin || "*";
+  }
+  if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
+    return requestOrigin;
+  }
+  return allowedOrigins[0];
+}
+
+function parseAllowedOrigins(value) {
+  return String(value || "")
+    .split(/[,\n]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function jsonResponse(payload, status = 200, extraHeaders = {}) {

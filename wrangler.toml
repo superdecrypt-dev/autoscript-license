@@ -9,8 +9,8 @@ preview_urls = false
 # https://autoscript-license.minidecrypt.workers.dev/api/v1/license/check
 CACHE_TTL_SEC_DEFAULT = "3600"
 PUBLIC_LICENSE_DURATION_DAYS = "14"
-PUBLIC_UI_ORIGIN = "https://autoscript-license.pages.dev"
-ADMIN_UI_ORIGIN = "https://autoscript-license.pages.dev"
+PUBLIC_UI_ORIGIN = "https://autoscript-license.pages.dev,https://autoscript.license.dpdns.org"
+ADMIN_UI_ORIGIN = "https://autoscript-license.pages.dev,https://autoscript.license.dpdns.org"
 PUBLIC_TURNSTILE_SITE_KEY = "0x4AAAAAACyuCecga_IsHlm8"
 PUBLIC_CREATE_LIMIT_MAX = "5"
 PUBLIC_CREATE_WINDOW_SEC = "900"

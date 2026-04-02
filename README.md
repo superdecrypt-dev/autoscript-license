@@ -7,6 +7,10 @@ Sistem lisensi IP untuk `autoscript` yang terdiri dari:
 
 Repo ini adalah project standalone. Semua file Worker, Pages, dan migrasi ada langsung di repo ini.
 
+Hostname publik saat ini:
+- utama: `https://autoscript.license.dpdns.org`
+- sekunder/legacy: `https://autoscript-license.pages.dev`
+
 ## Ringkasan
 
 Fitur utama:
@@ -130,6 +134,7 @@ Catatan:
 - jika diisi manual, nilainya harus sama antara Pages dan Worker
 - identitas operator diambil dari Cloudflare Access
 - Pages Functions meneruskan identitas itu ke Worker lewat secret internal
+- `PUBLIC_UI_ORIGIN` dan `ADMIN_UI_ORIGIN` bisa diisi satu origin atau daftar origin dipisah koma
 
 ### Build Pages
 
@@ -225,8 +230,8 @@ Isi minimal:
 ```text
 CACHE_TTL_SEC_DEFAULT=3600
 PUBLIC_LICENSE_DURATION_DAYS=14
-PUBLIC_UI_ORIGIN=https://<pages-domain-anda>
-ADMIN_UI_ORIGIN=https://<pages-domain-anda>
+PUBLIC_UI_ORIGIN=https://autoscript-license.pages.dev,https://autoscript.license.dpdns.org
+ADMIN_UI_ORIGIN=https://autoscript-license.pages.dev,https://autoscript.license.dpdns.org
 PUBLIC_TURNSTILE_SITE_KEY=<site-key-turnstile>
 PUBLIC_CREATE_LIMIT_MAX=5
 PUBLIC_CREATE_WINDOW_SEC=900
@@ -328,8 +333,9 @@ Catatan:
 ### 10. Deploy
 
 Setelah Worker dan Pages selesai:
-- halaman publik: `https://<pages-domain>/`
-- halaman operator: `https://<pages-domain>/admin/`
+- halaman publik utama: `https://autoscript.license.dpdns.org/`
+- halaman publik legacy: `https://autoscript-license.pages.dev/`
+- halaman operator mengikuti hostname Pages yang Anda lindungi dengan Access
 
 ## Quick Path Dashboard
 
@@ -353,7 +359,7 @@ Urutan menu tercepat di Cloudflare Dashboard:
 Untuk jalur operator, buat aplikasi Access dengan:
 
 - `Application type`: `Self-hosted`
-- `Domain`: `autoscript-license.pages.dev` atau domain Pages Anda
+- `Domain`: `autoscript.license.dpdns.org` sebagai utama
 - `Paths`:
   - `/admin*`
   - `/api/admin*`
@@ -363,6 +369,9 @@ Untuk jalur operator, buat aplikasi Access dengan:
 Catatan:
 - kalau UI Access hanya menerima satu path per app, buat 2 app terpisah
 - `/api/admin*` wajib ikut dilindungi, bukan hanya `/admin*`
+- kalau Anda tetap ingin dua hostname aktif, buat Access juga untuk:
+  - `autoscript-license.pages.dev`
+  - `autoscript.license.dpdns.org`
 
 ## Cara Deploy
 
@@ -491,9 +500,10 @@ Catatan:
 Contoh cek cepat:
 
 ```bash
+curl -I https://autoscript.license.dpdns.org/
+curl -I https://autoscript.license.dpdns.org/admin/
+curl -I https://autoscript.license.dpdns.org/public.js
 curl -I https://autoscript-license.pages.dev/
-curl -I https://autoscript-license.pages.dev/admin/
-curl -I https://autoscript-license.pages.dev/public.js
 curl -I https://autoscript-license.minidecrypt.workers.dev/api/public/config
 ```
 
@@ -608,8 +618,8 @@ Sebelum dipakai production, pastikan:
 6. Turnstile secret key sudah diisi
 7. cron cleanup aktif
 8. Pages sudah deploy
-9. halaman `/` bisa aktivasi
-10. halaman `/admin/` terbuka setelah lolos Cloudflare Access
+9. halaman `/` di `autoscript.license.dpdns.org` bisa aktivasi
+10. halaman `/admin/` di hostname yang Anda lindungi bisa terbuka setelah lolos Cloudflare Access
 11. `healthz` Worker normal
 
 ## Catatan Keamanan
@@ -618,3 +628,4 @@ Sebelum dipakai production, pastikan:
 - `ADMIN_PROXY_SHARED_SECRET` hanya boleh ada di Pages dan Worker
 - browser operator tidak perlu lagi memanggil `workers.dev` langsung untuk `/api/admin/*`
 - Cloudflare Access harus melindungi `/admin*` dan `/api/admin*`
+- kalau dua hostname aktif bersamaan, pastikan CORS Worker dan policy Access keduanya mengizinkan dua origin itu
