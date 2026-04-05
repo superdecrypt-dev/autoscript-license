@@ -55,9 +55,9 @@ async function bootstrapPublicPortal() {
   renderDurationDays();
   setCreateChallengeState(false, "Memuat verifikasi keamanan...");
   if (!publicState.apiBaseUrl) {
-    setPublicBanner("Belum siap.", "error");
-    setStatusBadge("Not ready", "error");
-    setCreateChallengeState(false, "Verifikasi keamanan belum tersedia.");
+    setPublicBanner("Portal belum dikonfigurasi. Isi PAGES_API_BASE_URL saat build atau deploy Pages.", "error");
+    setStatusBadge("Config required", "error");
+    setCreateChallengeState(false, "Verifikasi keamanan belum tersedia sampai API base URL dikonfigurasi.");
     return;
   }
   const challengeReady = await initializePublicChallenge();

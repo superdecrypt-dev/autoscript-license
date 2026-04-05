@@ -130,7 +130,7 @@ Lihat [wrangler.toml](/root/project/autoscript-license/wrangler.toml). Vars utam
 - `ADMIN_PROXY_SHARED_SECRET`
 
 Catatan:
-- `ADMIN_PROXY_SHARED_SECRET` punya fallback bawaan `autoscript-license`
+- `ADMIN_PROXY_SHARED_SECRET` wajib diisi manual dan harus acak
 - jika diisi manual, nilainya harus sama antara Pages dan Worker
 - identitas operator diambil dari Cloudflare Access
 - Pages Functions meneruskan identitas itu ke Worker lewat secret internal
@@ -144,16 +144,16 @@ Env build Pages:
 - `PAGES_TURNSTILE_SITE_KEY`
 - `ADMIN_PROXY_SHARED_SECRET`
 
-Kalau env ini tidak diisi, build akan fallback ke default di `pages/config.js`, yang sekarang diarahkan ke:
+Kalau env ini tidak diisi, build akan fallback ke default di `pages/config.js`, yang saat ini bernilai:
 
 ```text
-https://autoscript-license.minidecrypt.workers.dev
+(kosong untuk `apiBaseUrl`)
 ```
 
 Catatan:
-- `PAGES_API_BASE_URL` punya fallback bawaan `https://autoscript-license.minidecrypt.workers.dev`
+- `PAGES_API_BASE_URL` sebaiknya selalu diisi manual ke origin Worker yang benar
 - `PAGES_TURNSTILE_SITE_KEY` fallback ke `pages/config.js`
-- `ADMIN_PROXY_SHARED_SECRET` punya fallback bawaan `autoscript-license`
+- `ADMIN_PROXY_SHARED_SECRET` wajib diisi di Pages env
 - dua nilai itu tetap bisa dioverride manual dari Pages project jika diperlukan
 - output build Pages sekarang berupa HTML final + aset hashed di `dist/assets`
 - `config.js` tidak lagi dipublish sebagai file publik terpisah; config publik di-inline saat build sebagai JSON pasif
@@ -314,15 +314,10 @@ Lindungi path operator dengan Cloudflare Access:
 /api/admin*
 ```
 
-`PAGES_API_BASE_URL` opsional kalau endpoint produksi Anda tetap:
-
-```text
-https://autoscript-license.minidecrypt.workers.dev
-```
-
 Tambahkan juga runtime variable di Pages:
 
 ```text
+PAGES_API_BASE_URL=https://autoscript-license.minidecrypt.workers.dev
 ADMIN_PROXY_SHARED_SECRET=<secret-yang-sama-dengan-worker>
 ```
 
@@ -605,7 +600,7 @@ Cleanup terjadwal menghapus data lama:
 export AUTOSCRIPT_LICENSE_DEFAULT_API_URL="https://autoscript-license.minidecrypt.workers.dev/api/v1/license/check"
 ```
 
-Jadi install baru di VPS tidak perlu set endpoint lisensi manual kalau memang hostname produksinya tetap sama.
+Secara default install baru di VPS memang akan memakai URL itu, tetapi `AUTOSCRIPT_LICENSE_API_URL` dan `AUTOSCRIPT_LICENSE_DEFAULT_API_URL` sekarang tetap bisa dioverride dari env/config jika ingin mengarah ke deployment Worker lain.
 
 ## Checklist Produksi
 
