@@ -32,6 +32,7 @@ const state = {
   authStatus: "locked",
   entries: [],
   auditLogs: [],
+  backups: [],
   metrics: null,
   session: null,
   metricsWindowDays: localStorage.getItem(STORAGE_KEYS.metricsWindowDays) || "14",
@@ -53,6 +54,10 @@ const dom = {
   refreshDashboardBtn: document.getElementById("refresh-dashboard-btn"),
   refreshAuditBtn: document.getElementById("refresh-audit-btn"),
   refreshMetricsBtn: document.getElementById("refresh-metrics-btn"),
+  refreshBackupsBtn: document.getElementById("refresh-backups-btn"),
+  createBackupBtn: document.getElementById("create-backup-btn"),
+  importBackupBtn: document.getElementById("import-backup-btn"),
+  importBackupInput: document.getElementById("import-backup-input"),
   resetFormBtn: document.getElementById("reset-form-btn"),
   cancelEditBtn: document.getElementById("cancel-edit-btn"),
   editModal: document.getElementById("edit-modal"),
@@ -98,6 +103,10 @@ const dom = {
   settingsSessionPreview: document.getElementById("settings-session-preview"),
   settingsSessionExpiry: document.getElementById("settings-session-expiry"),
   settingsSessionRemaining: document.getElementById("settings-session-remaining"),
+  settingsBackupCount: document.getElementById("settings-backup-count"),
+  settingsBackupLatest: document.getElementById("settings-backup-latest"),
+  backupListMobile: document.getElementById("backup-list-mobile"),
+  backupListBody: document.getElementById("backup-list-body"),
   form: document.getElementById("entry-form"),
   formTitle: document.getElementById("form-title"),
   entryId: document.getElementById("entry-id"),
@@ -139,6 +148,16 @@ function bindEvents() {
   dom.refreshMetricsBtn.addEventListener("click", () =>
     withButtonBusy(dom.refreshMetricsBtn, "Refreshing...", refreshMetrics)
   );
+  dom.refreshBackupsBtn.addEventListener("click", () =>
+    withButtonBusy(dom.refreshBackupsBtn, "Refreshing...", refreshBackups)
+  );
+  dom.createBackupBtn.addEventListener("click", () =>
+    withButtonBusy(dom.createBackupBtn, "Creating...", createBackup)
+  );
+  dom.importBackupBtn.addEventListener("click", () => {
+    dom.importBackupInput.click();
+  });
+  dom.importBackupInput.addEventListener("change", handleImportBackupFile);
   dom.resetFormBtn.addEventListener("click", resetForm);
   dom.cancelEditBtn.addEventListener("click", resetForm);
   dom.form.addEventListener("submit", handleSubmitEntry);
@@ -271,6 +290,7 @@ function handleAccessLocked(options = {}) {
   state.session = null;
   state.entries = [];
   state.auditLogs = [];
+  state.backups = [];
   state.metrics = null;
   setSessionState(null);
   refreshVisuals();
@@ -292,7 +312,7 @@ async function refreshCurrentView() {
   } else if (state.activeView === "audit") {
     await refreshAuditLogs();
   } else if (state.activeView === "settings") {
-    refreshVisuals();
+    await refreshBackups();
   }
 }
 
@@ -305,15 +325,17 @@ async function refreshDashboard() {
   renderMetricsLoading();
   setBanner("Memuat data...", "muted");
   try {
-    const [session, entriesPayload, auditPayload, metricsPayload] = await Promise.all([
+    const [session, entriesPayload, auditPayload, metricsPayload, backupsPayload] = await Promise.all([
       apiFetch("/api/admin/session"),
       fetchEntries(),
       fetchAuditLogs(),
       fetchMetrics(),
+      fetchBackups(),
     ]);
     state.session = session;
     state.entries = entriesPayload.items || [];
     state.auditLogs = auditPayload.items || [];
+    state.backups = backupsPayload.items || [];
     state.metrics = metricsPayload;
     setSessionState(session);
     setBanner(`Terhubung: ${session.admin_email || "-"}`, "ok");
@@ -365,6 +387,20 @@ async function refreshMetrics() {
   }
 }
 
+async function refreshBackups() {
+  if (!ensureAuthenticated()) {
+    return;
+  }
+  renderBackupsLoading();
+  try {
+    const payload = await fetchBackups();
+    state.backups = payload.items || [];
+    refreshVisuals();
+  } catch (error) {
+    handleAuthFailure(error, "Gagal refresh backup snapshot.");
+  }
+}
+
 async function fetchEntries() {
   const search = dom.searchInput.value.trim();
   const status = dom.statusFilter.value;
@@ -395,6 +431,117 @@ async function fetchAuditLogs() {
 async function fetchMetrics() {
   const params = new URLSearchParams({ days: state.metricsWindowDays || "14" });
   return apiFetch(`/api/admin/metrics?${params.toString()}`);
+}
+
+async function fetchBackups() {
+  return apiFetch("/api/admin/backups");
+}
+
+async function createBackup() {
+  if (!ensureAuthenticated()) {
+    return;
+  }
+  try {
+    await apiFetch("/api/admin/backups", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    setBanner("Snapshot backup berhasil dibuat.", "ok");
+    await refreshBackups();
+  } catch (error) {
+    handleAuthFailure(error, "Gagal membuat snapshot backup.");
+  }
+}
+
+async function handleImportBackupFile(event) {
+  const [file] = Array.from(event.target.files || []);
+  event.target.value = "";
+  if (!file) {
+    return;
+  }
+  if (!ensureAuthenticated()) {
+    return;
+  }
+  const confirmed = window.confirm(
+    `Import backup ${file.name} akan mengganti seluruh data lisensi, audit, dan rate limit saat ini. Lanjutkan?`
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    const rawPayload = await file.text();
+    await apiFetch("/api/admin/backups/import", {
+      method: "POST",
+      body: rawPayload,
+    });
+    setBanner(`Backup ${file.name} berhasil di-import.`, "ok");
+    await refreshDashboard();
+  } catch (error) {
+    handleAuthFailure(error, "Gagal import file backup.");
+  }
+}
+
+async function restoreBackup(backupKey) {
+  if (!ensureAuthenticated()) {
+    return;
+  }
+  const confirmed = window.confirm(
+    `Restore snapshot ${backupKey} akan mengganti seluruh data saat ini. Lanjutkan?`
+  );
+  if (!confirmed) {
+    return;
+  }
+  try {
+    await apiFetch(`/api/admin/backups/${encodeURIComponent(backupKey)}/restore`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    setBanner("Restore snapshot berhasil.", "ok");
+    await refreshDashboard();
+  } catch (error) {
+    handleAuthFailure(error, "Gagal restore snapshot backup.");
+  }
+}
+
+async function deleteBackup(backupKey) {
+  if (!ensureAuthenticated()) {
+    return;
+  }
+  const confirmed = window.confirm(`Hapus snapshot ${backupKey}?`);
+  if (!confirmed) {
+    return;
+  }
+  try {
+    await apiFetch(`/api/admin/backups/${encodeURIComponent(backupKey)}`, {
+      method: "DELETE",
+    });
+    setBanner("Snapshot backup berhasil dihapus.", "ok");
+    await refreshBackups();
+  } catch (error) {
+    handleAuthFailure(error, "Gagal menghapus snapshot backup.");
+  }
+}
+
+async function downloadBackup(backupKey) {
+  if (!ensureAuthenticated()) {
+    return;
+  }
+  try {
+    const response = await fetchAdminBlob(`/api/admin/backups/${encodeURIComponent(backupKey)}/download`);
+    const blob = await response.blob();
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = backupKey.split("/").at(-1) || "autoscript-license-backup.json";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(downloadUrl);
+    setBanner("Snapshot backup berhasil diunduh.", "ok");
+  } catch (error) {
+    handleAuthFailure(error, "Gagal mengunduh snapshot backup.");
+  }
 }
 
 async function handleSubmitEntry(event) {
@@ -902,6 +1049,95 @@ function renderSettingsSummary() {
   dom.settingsSessionPreview.textContent = state.session?.admin_email ? "Protected by Access" : "Access Required";
   dom.settingsSessionExpiry.textContent = "Managed by Access";
   dom.settingsSessionRemaining.textContent = "Managed by Access";
+  dom.settingsBackupCount.textContent = `${state.backups.length} snapshot${state.backups.length === 1 ? "" : "s"}`;
+  dom.settingsBackupLatest.textContent = formatDate(state.backups[0]?.created_at || "") || "-";
+  renderBackups();
+}
+
+function renderBackups() {
+  if (!state.backups.length) {
+    const emptyMarkup = emptyStateMarkup("Belum ada snapshot backup.", "Buat backup pertama dari panel admin.");
+    dom.backupListMobile.innerHTML = emptyMarkup;
+    dom.backupListBody.innerHTML = `
+      <tr>
+        <td colspan="5" class="empty-row">${emptyMarkup}</td>
+      </tr>
+    `;
+    return;
+  }
+
+  dom.backupListBody.innerHTML = state.backups
+    .map(
+      (backup) => `
+        <tr>
+          <td>${escapeHtml(formatDate(backup.created_at) || "-")}</td>
+          <td>${escapeHtml(backup.created_by || "-")}</td>
+          <td>${escapeHtml(formatBackupRows(backup.row_counts))}</td>
+          <td>${escapeHtml(formatBytes(backup.size || 0))}</td>
+          <td>
+            <div class="action-stack">
+              <button class="action-btn action-btn-edit" type="button" data-backup-action="download" data-backup-key="${escapeHtml(backup.key)}">Download</button>
+              <button class="action-btn action-btn-reactivate" type="button" data-backup-action="restore" data-backup-key="${escapeHtml(backup.key)}">Restore</button>
+              <button class="action-btn action-btn-delete" type="button" data-backup-action="delete" data-backup-key="${escapeHtml(backup.key)}">Delete</button>
+            </div>
+          </td>
+        </tr>
+      `
+    )
+    .join("");
+
+  dom.backupListMobile.innerHTML = state.backups
+    .map(
+      (backup) => `
+        <article class="mobile-card">
+          <div class="mobile-card-head">
+            <div class="entry-meta">
+              <strong>${escapeHtml(formatDate(backup.created_at) || "-")}</strong>
+              <span>${escapeHtml(backup.created_by || "-")}</span>
+            </div>
+            <span class="status-pill active">${escapeHtml(formatBytes(backup.size || 0))}</span>
+          </div>
+          <dl class="mobile-card-meta">
+            <div>
+              <dt>Rows</dt>
+              <dd>${escapeHtml(formatBackupRows(backup.row_counts))}</dd>
+            </div>
+            <div>
+              <dt>Key</dt>
+              <dd class="mono">${escapeHtml(backup.key)}</dd>
+            </div>
+          </dl>
+          <div class="mobile-action-row">
+            <button class="action-btn action-btn-edit" type="button" data-backup-action="download" data-backup-key="${escapeHtml(backup.key)}">Download</button>
+            <button class="action-btn action-btn-reactivate" type="button" data-backup-action="restore" data-backup-key="${escapeHtml(backup.key)}">Restore</button>
+            <button class="action-btn action-btn-delete" type="button" data-backup-action="delete" data-backup-key="${escapeHtml(backup.key)}">Delete</button>
+          </div>
+        </article>
+      `
+    )
+    .join("");
+
+  bindBackupActionButtons(dom.backupListBody);
+  bindBackupActionButtons(dom.backupListMobile);
+}
+
+function bindBackupActionButtons(container) {
+  container.querySelectorAll("button[data-backup-action]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const action = button.dataset.backupAction;
+      const backupKey = button.dataset.backupKey;
+      if (!backupKey) {
+        return;
+      }
+      if (action === "download") {
+        await downloadBackup(backupKey);
+      } else if (action === "restore") {
+        await restoreBackup(backupKey);
+      } else if (action === "delete") {
+        await deleteBackup(backupKey);
+      }
+    });
+  });
 }
 
 function decisionTone(value) {
@@ -1014,6 +1250,34 @@ async function apiFetch(path, options = {}) {
   return payload;
 }
 
+async function fetchAdminBlob(path) {
+  const requestUrl = new URL(path, adminApiOrigin);
+  let response;
+  try {
+    response = await fetch(requestUrl.toString(), {
+      method: "GET",
+      credentials: "include",
+    });
+  } catch (_error) {
+    const error = new Error("Sesi Access belum aktif.");
+    error.status = 0;
+    throw error;
+  }
+
+  if (!response.ok) {
+    let payload = {};
+    try {
+      payload = await response.clone().json();
+    } catch (_error) {
+      payload = {};
+    }
+    const error = new Error(payload.message || `HTTP ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
+  return response;
+}
+
 function resolveAdminConfig() {
   const inlineConfig = document.getElementById("admin-config");
   let payload = {};
@@ -1117,6 +1381,16 @@ function renderMetricsLoading() {
   dom.entrySourceSummary.innerHTML = loadingStateMarkup("Memuat source split...");
 }
 
+function renderBackupsLoading() {
+  const loadingMarkup = loadingStateMarkup("Memuat snapshot backup...");
+  dom.backupListMobile.innerHTML = loadingMarkup;
+  dom.backupListBody.innerHTML = `
+    <tr>
+      <td colspan="5" class="empty-row">${loadingMarkup}</td>
+    </tr>
+  `;
+}
+
 function loadingStateMarkup(message) {
   return `
     <div class="empty-state loading-state">
@@ -1208,4 +1482,28 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function formatBackupRows(rowCounts) {
+  const totals = [
+    Number(rowCounts?.license_entries || 0),
+    Number(rowCounts?.audit_logs || 0),
+    Number(rowCounts?.public_rate_limits || 0),
+    Number(rowCounts?.public_target_rate_limits || 0),
+  ];
+  return `${totals.reduce((sum, value) => sum + value, 0)} rows`;
+}
+
+function formatBytes(value) {
+  const bytes = Number(value || 0);
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return "0 B";
+  }
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

@@ -36,29 +36,184 @@ async function bundleModule(entryPoint, outfileName) {
   };
 }
 
-function createD1Stub({ entriesByIp = new Map() } = {}) {
+function createD1Stub({ entriesByIp = new Map(), tables = {} } = {}) {
+  const state = {
+    license_entries: Array.isArray(tables.license_entries) ? [...tables.license_entries] : [],
+    audit_logs: Array.isArray(tables.audit_logs) ? [...tables.audit_logs] : [],
+    public_rate_limits: Array.isArray(tables.public_rate_limits) ? [...tables.public_rate_limits] : [],
+    public_target_rate_limits: Array.isArray(tables.public_target_rate_limits) ? [...tables.public_target_rate_limits] : [],
+  };
+
+  if (!state.license_entries.length && entriesByIp.size) {
+    state.license_entries = Array.from(entriesByIp.values());
+  }
+
+  function executeStatement(sql, binds, mode) {
+    const normalizedSql = String(sql || "").replace(/\s+/g, " ").trim();
+
+    if (mode === "first") {
+      if (normalizedSql.includes("FROM license_entries") && normalizedSql.includes("WHERE ip = ?")) {
+        return state.license_entries.find((row) => row.ip === String(binds[0] || "")) || null;
+      }
+      if (normalizedSql.includes("FROM license_entries") && normalizedSql.includes("WHERE id = ?")) {
+        return state.license_entries.find((row) => row.id === String(binds[0] || "")) || null;
+      }
+      return null;
+    }
+
+    if (mode === "all") {
+      if (normalizedSql.includes("FROM license_entries")) {
+        return { results: [...state.license_entries] };
+      }
+      if (normalizedSql.includes("FROM audit_logs")) {
+        return { results: [...state.audit_logs] };
+      }
+      if (normalizedSql.includes("FROM public_rate_limits")) {
+        return { results: [...state.public_rate_limits] };
+      }
+      if (normalizedSql.includes("FROM public_target_rate_limits")) {
+        return { results: [...state.public_target_rate_limits] };
+      }
+      return { results: [] };
+    }
+
+    if (mode === "run") {
+      const deleteMatch = normalizedSql.match(/^DELETE FROM ([a-z_]+)/i);
+      if (deleteMatch) {
+        const tableName = deleteMatch[1];
+        const changes = Array.isArray(state[tableName]) ? state[tableName].length : 0;
+        state[tableName] = [];
+        return { meta: { changes } };
+      }
+
+      const insertMatch = normalizedSql.match(/^INSERT(?: OR IGNORE)? INTO ([a-z_]+) \((.+?)\) VALUES \((.+)\)$/i);
+      if (insertMatch) {
+        const tableName = insertMatch[1];
+        const columns = insertMatch[2].split(",").map((item) => item.trim());
+        const row = {};
+        columns.forEach((column, index) => {
+          row[column] = binds[index] ?? null;
+        });
+        if (!Array.isArray(state[tableName])) {
+          state[tableName] = [];
+        }
+        state[tableName].push(row);
+        return { meta: { changes: 1 } };
+      }
+
+      return { meta: { changes: 1 } };
+    }
+
+    return null;
+  }
+
   return {
+    _state: state,
     prepare(sql) {
       return {
+        sql,
         bind(...binds) {
           return {
+            sql,
+            binds,
             async first() {
-              if (sql.includes("FROM license_entries") && sql.includes("WHERE ip = ?")) {
-                return entriesByIp.get(String(binds[0] || "")) || null;
-              }
-              return null;
+              return executeStatement(sql, binds, "first");
             },
             async all() {
-              return { results: [] };
+              return executeStatement(sql, binds, "all");
             },
             async run() {
-              return { meta: { changes: 1 } };
+              return executeStatement(sql, binds, "run");
             },
           };
         },
       };
     },
+    async batch(statements) {
+      return Promise.all(statements.map((statement) => executeStatement(statement.sql, statement.binds || [], "run")));
+    },
   };
+}
+
+function createR2BucketStub(initialObjects = {}) {
+  const state = new Map();
+  const now = new Date("2026-04-07T00:00:00.000Z");
+  for (const [key, object] of Object.entries(initialObjects)) {
+    state.set(key, {
+      key,
+      body: object.body || "",
+      size: String(object.body || "").length,
+      uploaded: object.uploaded || now,
+      customMetadata: object.customMetadata || {},
+      httpMetadata: object.httpMetadata || { contentType: "application/json; charset=utf-8" },
+    });
+  }
+
+  return {
+    _state: state,
+    async put(key, body, options = {}) {
+      state.set(key, {
+        key,
+        body: String(body || ""),
+        size: String(body || "").length,
+        uploaded: new Date(),
+        customMetadata: options.customMetadata || {},
+        httpMetadata: options.httpMetadata || { contentType: "application/json; charset=utf-8" },
+      });
+    },
+    async get(key) {
+      const object = state.get(key);
+      if (!object) {
+        return null;
+      }
+      return {
+        key: object.key,
+        size: object.size,
+        uploaded: object.uploaded,
+        customMetadata: object.customMetadata,
+        httpMetadata: object.httpMetadata,
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(object.body));
+            controller.close();
+          },
+        }),
+        async text() {
+          return object.body;
+        },
+      };
+    },
+    async delete(key) {
+      state.delete(key);
+    },
+    async list({ prefix = "" } = {}) {
+      return {
+        objects: Array.from(state.values())
+          .filter((object) => object.key.startsWith(prefix))
+          .map((object) => ({
+            key: object.key,
+            size: object.size,
+            uploaded: object.uploaded,
+            customMetadata: object.customMetadata,
+          })),
+      };
+    },
+  };
+}
+
+function createAdminRequest(path, options = {}) {
+  const headers = new Headers(options.headers || {});
+  if (!headers.has("X-Admin-Actor-Email")) {
+    headers.set("X-Admin-Actor-Email", "admin@example.com");
+  }
+  if (!headers.has("X-Admin-Proxy-Secret")) {
+    headers.set("X-Admin-Proxy-Secret", "secret-backup");
+  }
+  return new Request(`https://license.example${path}`, {
+    method: options.method || "GET",
+    headers,
+    body: options.body,
+  });
 }
 
 test("worker /api/v1/license/check memakai source IP request dan mengembalikan public_ip final", async () => {
@@ -310,6 +465,343 @@ test("Pages admin proxy mengembalikan 502 JSON saat upstream fetch gagal", async
     assert.equal(payload.error, "upstream_unavailable");
   } finally {
     globalThis.fetch = originalFetch;
+    bundled.cleanup();
+  }
+});
+
+test("worker admin backup create/list/download/delete bekerja dengan R2", async () => {
+  const bundled = await bundleModule("worker/src/index.js", "worker-backups.mjs");
+  try {
+    const worker = bundled.module.default;
+    const env = {
+      ADMIN_PROXY_SHARED_SECRET: "secret-backup",
+      LICENSE_DB: createD1Stub({
+        tables: {
+          license_entries: [
+            {
+              id: "entry-1",
+              ip: "198.51.100.10",
+              label: "primary",
+              owner: "alice",
+              notes: "seed",
+              status: "active",
+              expires_at: "2099-01-01T00:00:00.000Z",
+              created_at: "2026-04-01T00:00:00.000Z",
+              updated_at: "2026-04-01T00:00:00.000Z",
+              created_by: "admin@example.com",
+              updated_by: "admin@example.com",
+              revoked_at: null,
+              entry_source: "admin",
+              renewal_token_hash: "",
+              last_renewed_at: null,
+              created_request_ip: "198.51.100.1",
+            },
+          ],
+          audit_logs: [
+            {
+              id: "audit-1",
+              event_type: "admin_create",
+              ip: "198.51.100.10",
+              entry_id: "entry-1",
+              stage: "admin",
+              decision: "mutate",
+              actor_email: "admin@example.com",
+              request_ip: "198.51.100.1",
+              user_agent: "test",
+              payload_json: "{\"ok\":true}",
+              created_at: "2026-04-01T00:00:00.000Z",
+            },
+          ],
+          public_rate_limits: [
+            {
+              endpoint: "public_activate",
+              client_ip: "198.51.100.1",
+              window_slot: "2026-04-01T00:00:00.000Z",
+              request_count: 2,
+              updated_at: "2026-04-01T00:00:00.000Z",
+            },
+          ],
+          public_target_rate_limits: [
+            {
+              endpoint: "public_activate",
+              target_ip: "198.51.100.10",
+              window_slot: "2026-04-01T00:00:00.000Z",
+              request_count: 1,
+              updated_at: "2026-04-01T00:00:00.000Z",
+            },
+          ],
+        },
+      }),
+      LICENSE_BACKUPS: createR2BucketStub(),
+    };
+
+    const createResponse = await worker.fetch(
+      createAdminRequest("/api/admin/backups", {
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
+      env
+    );
+    const createPayload = await createResponse.json();
+    assert.equal(createResponse.status, 201);
+    assert.ok(createPayload.item.key.startsWith("snapshots/"));
+    assert.equal(env.LICENSE_BACKUPS._state.size, 1);
+
+    const listResponse = await worker.fetch(createAdminRequest("/api/admin/backups"), env);
+    const listPayload = await listResponse.json();
+    assert.equal(listResponse.status, 200);
+    assert.equal(listPayload.items.length, 1);
+    assert.equal(listPayload.items[0].row_counts.license_entries, 1);
+
+    const backupKey = encodeURIComponent(createPayload.item.key);
+    const downloadResponse = await worker.fetch(
+      createAdminRequest(`/api/admin/backups/${backupKey}/download`),
+      env
+    );
+    const downloadPayload = JSON.parse(await downloadResponse.text());
+    assert.equal(downloadResponse.status, 200);
+    assert.equal(downloadPayload.format, "autoscript-license-backup");
+    assert.equal(downloadPayload.tables.license_entries.length, 1);
+
+    const deleteResponse = await worker.fetch(
+      createAdminRequest(`/api/admin/backups/${backupKey}`, {
+        method: "DELETE",
+      }),
+      env
+    );
+    const deletePayload = await deleteResponse.json();
+    assert.equal(deleteResponse.status, 200);
+    assert.equal(deletePayload.ok, true);
+    assert.equal(env.LICENSE_BACKUPS._state.size, 0);
+  } finally {
+    bundled.cleanup();
+  }
+});
+
+test("worker admin backup import replace-only mengganti isi tabel D1", async () => {
+  const bundled = await bundleModule("worker/src/index.js", "worker-backup-import.mjs");
+  try {
+    const worker = bundled.module.default;
+    const env = {
+      ADMIN_PROXY_SHARED_SECRET: "secret-backup",
+      LICENSE_DB: createD1Stub({
+        tables: {
+          license_entries: [
+            {
+              id: "legacy-entry",
+              ip: "203.0.113.1",
+              label: "legacy",
+              owner: "",
+              notes: "",
+              status: "active",
+              expires_at: "2026-04-15T00:00:00.000Z",
+              created_at: "2026-04-01T00:00:00.000Z",
+              updated_at: "2026-04-01T00:00:00.000Z",
+              created_by: "legacy@example.com",
+              updated_by: "legacy@example.com",
+              revoked_at: null,
+              entry_source: "admin",
+              renewal_token_hash: "",
+              last_renewed_at: null,
+              created_request_ip: "203.0.113.1",
+            },
+          ],
+        },
+      }),
+      LICENSE_BACKUPS: createR2BucketStub(),
+    };
+
+    const snapshot = {
+      format: "autoscript-license-backup",
+      schema_version: 1,
+      created_at: "2026-04-07T10:00:00.000Z",
+      created_by: "admin@example.com",
+      source: "browser_import",
+      row_counts: {
+        license_entries: 1,
+        audit_logs: 1,
+        public_rate_limits: 1,
+        public_target_rate_limits: 1,
+      },
+      tables: {
+        license_entries: [
+          {
+            id: "entry-new",
+            ip: "198.51.100.20",
+            label: "imported",
+            owner: "bob",
+            notes: "snapshot",
+            status: "active",
+            expires_at: "2026-05-01T00:00:00.000Z",
+            created_at: "2026-04-07T10:00:00.000Z",
+            updated_at: "2026-04-07T10:00:00.000Z",
+            created_by: "admin@example.com",
+            updated_by: "admin@example.com",
+            revoked_at: null,
+            entry_source: "admin",
+            renewal_token_hash: "",
+            last_renewed_at: null,
+            created_request_ip: "198.51.100.20",
+          },
+        ],
+        audit_logs: [
+          {
+            id: "audit-imported",
+            event_type: "admin_create",
+            ip: "198.51.100.20",
+            entry_id: "entry-new",
+            stage: "admin",
+            decision: "mutate",
+            actor_email: "admin@example.com",
+            request_ip: "198.51.100.20",
+            user_agent: "test",
+            payload_json: "{\"from\":\"snapshot\"}",
+            created_at: "2026-04-07T10:00:00.000Z",
+          },
+        ],
+        public_rate_limits: [
+          {
+            endpoint: "public_status",
+            client_ip: "198.51.100.20",
+            window_slot: "2026-04-07T10:00:00.000Z",
+            request_count: 4,
+            updated_at: "2026-04-07T10:00:00.000Z",
+          },
+        ],
+        public_target_rate_limits: [
+          {
+            endpoint: "public_status",
+            target_ip: "198.51.100.20",
+            window_slot: "2026-04-07T10:00:00.000Z",
+            request_count: 4,
+            updated_at: "2026-04-07T10:00:00.000Z",
+          },
+        ],
+      },
+    };
+
+    const importResponse = await worker.fetch(
+      createAdminRequest("/api/admin/backups/import", {
+        method: "POST",
+        body: JSON.stringify(snapshot),
+      }),
+      env
+    );
+    const importPayload = await importResponse.json();
+    assert.equal(importResponse.status, 200);
+    assert.equal(importPayload.ok, true);
+    assert.equal(env.LICENSE_DB._state.license_entries.length, 1);
+    assert.equal(env.LICENSE_DB._state.license_entries[0].id, "entry-new");
+    assert.equal(env.LICENSE_DB._state.public_rate_limits.length, 1);
+    assert.equal(env.LICENSE_DB._state.public_target_rate_limits.length, 1);
+    assert.ok(env.LICENSE_DB._state.audit_logs.some((row) => row.id === "audit-imported"));
+    assert.ok(env.LICENSE_DB._state.audit_logs.some((row) => row.event_type === "admin_backup_import"));
+  } finally {
+    bundled.cleanup();
+  }
+});
+
+test("worker admin backup restore dari R2 mengganti isi tabel D1", async () => {
+  const bundled = await bundleModule("worker/src/index.js", "worker-backup-restore.mjs");
+  try {
+    const worker = bundled.module.default;
+    const backupKey = "snapshots/2026/04/07/20260407T120000Z-admin.json";
+    const snapshot = {
+      format: "autoscript-license-backup",
+      schema_version: 1,
+      created_at: "2026-04-07T12:00:00.000Z",
+      created_by: "admin@example.com",
+      source: "r2",
+      row_counts: {
+        license_entries: 1,
+        audit_logs: 0,
+        public_rate_limits: 0,
+        public_target_rate_limits: 0,
+      },
+      tables: {
+        license_entries: [
+          {
+            id: "entry-r2",
+            ip: "198.51.100.30",
+            label: "r2",
+            owner: "eve",
+            notes: "",
+            status: "active",
+            expires_at: "2026-06-01T00:00:00.000Z",
+            created_at: "2026-04-07T12:00:00.000Z",
+            updated_at: "2026-04-07T12:00:00.000Z",
+            created_by: "admin@example.com",
+            updated_by: "admin@example.com",
+            revoked_at: null,
+            entry_source: "admin",
+            renewal_token_hash: "",
+            last_renewed_at: null,
+            created_request_ip: "198.51.100.30",
+          },
+        ],
+        audit_logs: [],
+        public_rate_limits: [],
+        public_target_rate_limits: [],
+      },
+    };
+
+    const env = {
+      ADMIN_PROXY_SHARED_SECRET: "secret-backup",
+      LICENSE_DB: createD1Stub({
+        tables: {
+          license_entries: [
+            {
+              id: "entry-old",
+              ip: "198.51.100.40",
+              label: "old",
+              owner: "",
+              notes: "",
+              status: "active",
+              expires_at: "2026-04-20T00:00:00.000Z",
+              created_at: "2026-04-01T00:00:00.000Z",
+              updated_at: "2026-04-01T00:00:00.000Z",
+              created_by: "admin@example.com",
+              updated_by: "admin@example.com",
+              revoked_at: null,
+              entry_source: "admin",
+              renewal_token_hash: "",
+              last_renewed_at: null,
+              created_request_ip: "198.51.100.40",
+            },
+          ],
+        },
+      }),
+      LICENSE_BACKUPS: createR2BucketStub({
+        [backupKey]: {
+          body: JSON.stringify(snapshot),
+          customMetadata: {
+            created_at: snapshot.created_at,
+            created_by: snapshot.created_by,
+            schema_version: "1",
+            source: "r2",
+            license_entries_count: "1",
+            audit_logs_count: "0",
+            public_rate_limits_count: "0",
+            public_target_rate_limits_count: "0",
+          },
+        },
+      }),
+    };
+
+    const restoreResponse = await worker.fetch(
+      createAdminRequest(`/api/admin/backups/${encodeURIComponent(backupKey)}/restore`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
+      env
+    );
+    const restorePayload = await restoreResponse.json();
+    assert.equal(restoreResponse.status, 200);
+    assert.equal(restorePayload.ok, true);
+    assert.equal(env.LICENSE_DB._state.license_entries.length, 1);
+    assert.equal(env.LICENSE_DB._state.license_entries[0].id, "entry-r2");
+    assert.ok(env.LICENSE_DB._state.audit_logs.some((row) => row.event_type === "admin_backup_restore"));
+  } finally {
     bundled.cleanup();
   }
 });

@@ -322,7 +322,7 @@
           </section>
 
           <section class="view-panel" data-view="settings">
-            <div class="settings-grid settings-grid-single">
+            <div class="settings-grid">
               <section class="panel">
                 <div class="section-head">
                   <div>
@@ -363,6 +363,61 @@
                   <p>
                     Akses operator diverifikasi oleh Cloudflare Access.
                     Request operator diteruskan lewat jalur internal yang sama.
+                  </p>
+                </div>
+              </section>
+
+              <section class="panel">
+                <div class="section-head">
+                  <div>
+                    <p class="eyebrow">Recovery</p>
+                    <h3>Backup & Restore</h3>
+                  </div>
+                  <button id="refresh-backups-btn" class="ghost-btn" type="button">Refresh Backups</button>
+                </div>
+
+                <dl class="settings-meta settings-meta-single">
+                  <div>
+                    <dt>Snapshots</dt>
+                    <dd id="settings-backup-count">0 snapshots</dd>
+                  </div>
+                  <div>
+                    <dt>Latest Backup</dt>
+                    <dd id="settings-backup-latest">-</dd>
+                  </div>
+                </dl>
+
+                <div class="form-actions settings-actions">
+                  <button id="create-backup-btn" class="primary-btn" type="button">Create Backup</button>
+                  <button id="import-backup-btn" class="ghost-btn" type="button">Import Backup</button>
+                  <input id="import-backup-input" type="file" accept="application/json,.json" hidden />
+                </div>
+
+                <div id="backup-list-mobile" class="mobile-list"></div>
+
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Created</th>
+                        <th>Actor</th>
+                        <th>Rows</th>
+                        <th>Size</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="backup-list-body">
+                      <tr>
+                        <td colspan="5" class="empty-row">Belum ada snapshot backup.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="settings-note">
+                  <strong>Mode restore</strong>
+                  <p>
+                    Restore v1 memakai mode replace. Semua data lisensi, audit, dan rate limit saat ini akan diganti penuh oleh isi snapshot.
                   </p>
                 </div>
               </section>

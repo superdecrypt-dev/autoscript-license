@@ -2,6 +2,69 @@ const IPV4_RE = /^(?:\d{1,3}\.){3}\d{1,3}$/;
 const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 const PUBLIC_RENEW_OPEN_BEFORE_DAYS = 3;
 const PUBLIC_LICENSE_SUPPORT_EMAIL = "autoscript@atomicmail.io";
+const BACKUP_FORMAT = "autoscript-license-backup";
+const BACKUP_SCHEMA_VERSION = 1;
+const BACKUP_PREFIX = "snapshots/";
+const BACKUP_IMPORT_MAX_BYTES = 20 * 1024 * 1024;
+const BACKUP_TABLES = [
+  {
+    name: "license_entries",
+    columns: [
+      "id",
+      "ip",
+      "label",
+      "owner",
+      "notes",
+      "status",
+      "expires_at",
+      "created_at",
+      "updated_at",
+      "created_by",
+      "updated_by",
+      "revoked_at",
+      "entry_source",
+      "renewal_token_hash",
+      "last_renewed_at",
+      "created_request_ip",
+    ],
+  },
+  {
+    name: "audit_logs",
+    columns: [
+      "id",
+      "event_type",
+      "ip",
+      "entry_id",
+      "stage",
+      "decision",
+      "actor_email",
+      "request_ip",
+      "user_agent",
+      "payload_json",
+      "created_at",
+    ],
+  },
+  {
+    name: "public_rate_limits",
+    columns: [
+      "endpoint",
+      "client_ip",
+      "window_slot",
+      "request_count",
+      "updated_at",
+    ],
+  },
+  {
+    name: "public_target_rate_limits",
+    columns: [
+      "endpoint",
+      "target_ip",
+      "window_slot",
+      "request_count",
+      "updated_at",
+    ],
+  },
+];
 
 export default {
   async fetch(request, env) {
@@ -650,8 +713,20 @@ async function routeAdminRequest(request, env, pathname) {
     return handleAdminListEntries(request, env);
   }
 
+  if (request.method === "GET" && pathname === "/api/admin/backups") {
+    return handleAdminListBackups(env);
+  }
+
   if (request.method === "GET" && pathname === "/api/admin/metrics") {
     return handleAdminMetrics(request, env);
+  }
+
+  if (request.method === "POST" && pathname === "/api/admin/backups") {
+    return handleAdminCreateBackup(env, actorEmail);
+  }
+
+  if (request.method === "POST" && pathname === "/api/admin/backups/import") {
+    return handleAdminImportBackup(request, env, actorEmail);
   }
 
   if (request.method === "POST" && pathname === "/api/admin/license-entries") {
@@ -660,6 +735,21 @@ async function routeAdminRequest(request, env, pathname) {
 
   if (request.method === "GET" && pathname === "/api/admin/audit-logs") {
     return handleAdminListAuditLogs(request, env);
+  }
+
+  const downloadMatch = pathname.match(/^\/api\/admin\/backups\/(.+)\/download$/);
+  if (request.method === "GET" && downloadMatch) {
+    return handleAdminDownloadBackup(env, decodeURIComponent(downloadMatch[1]));
+  }
+
+  const restoreMatch = pathname.match(/^\/api\/admin\/backups\/(.+)\/restore$/);
+  if (request.method === "POST" && restoreMatch) {
+    return handleAdminRestoreBackup(env, actorEmail, decodeURIComponent(restoreMatch[1]));
+  }
+
+  const deleteBackupMatch = pathname.match(/^\/api\/admin\/backups\/(.+)$/);
+  if (request.method === "DELETE" && deleteBackupMatch) {
+    return handleAdminDeleteBackup(env, actorEmail, decodeURIComponent(deleteBackupMatch[1]));
   }
 
   const patchMatch = pathname.match(/^\/api\/admin\/license-entries\/([^/]+)$/);
@@ -863,6 +953,220 @@ async function handleAdminMetrics(request, env) {
       event_type: row.event_type,
       count: Number(row.count || 0),
     })),
+  });
+}
+
+async function handleAdminListBackups(env) {
+  const bucket = getLicenseBackupBucket(env);
+  if (!bucket) {
+    return jsonResponse({ items: [] });
+  }
+  const listed = await bucket.list({
+    prefix: BACKUP_PREFIX,
+    limit: 100,
+  });
+  const items = (listed.objects || [])
+    .map((object) => serializeBackupObject(object))
+    .sort((left, right) => String(right.created_at || "").localeCompare(String(left.created_at || "")));
+  return jsonResponse({ items });
+}
+
+async function handleAdminCreateBackup(env, actorEmail) {
+  const bucket = getLicenseBackupBucket(env);
+  if (!bucket) {
+    return jsonResponse(
+      {
+        error: "misconfigured",
+        message: "Bucket backup R2 belum dikonfigurasi.",
+      },
+      503
+    );
+  }
+
+  const snapshot = await buildBackupSnapshot(env, actorEmail, "r2");
+  const key = buildBackupObjectKey(snapshot.created_at, actorEmail);
+  const metadata = buildBackupObjectMetadata(snapshot);
+  await bucket.put(key, JSON.stringify(snapshot, null, 2), {
+    httpMetadata: {
+      contentType: "application/json; charset=utf-8",
+    },
+    customMetadata: metadata,
+  });
+
+  await insertAuditLog(env, {
+    eventType: "admin_backup_create",
+    ip: "",
+    entryId: null,
+    stage: "admin",
+    decision: "mutate",
+    actorEmail,
+    requestIp: "",
+    userAgent: "",
+    payload: {
+      backup_key: key,
+      row_counts: snapshot.row_counts,
+    },
+  });
+
+  return jsonResponse(
+    {
+      item: {
+        ...serializeBackupObject({
+          key,
+          uploaded: new Date(snapshot.created_at),
+          size: JSON.stringify(snapshot).length,
+          customMetadata: metadata,
+        }),
+        source: snapshot.source,
+      },
+    },
+    201
+  );
+}
+
+async function handleAdminDownloadBackup(env, backupKey) {
+  const bucket = getLicenseBackupBucket(env);
+  if (!bucket) {
+    return jsonResponse(
+      {
+        error: "misconfigured",
+        message: "Bucket backup R2 belum dikonfigurasi.",
+      },
+      503
+    );
+  }
+  const object = await bucket.get(backupKey);
+  if (!object || !object.body) {
+    return jsonResponse({ error: "not_found", message: "Snapshot backup tidak ditemukan." }, 404);
+  }
+
+  const fileName = backupKey.split("/").at(-1) || "autoscript-license-backup.json";
+  const headers = buildApiSecurityHeaders({
+    "Content-Type": object.httpMetadata?.contentType || "application/json; charset=utf-8",
+    "Content-Disposition": `attachment; filename="${fileName}"`,
+  });
+  return new Response(object.body, {
+    status: 200,
+    headers,
+  });
+}
+
+async function handleAdminRestoreBackup(env, actorEmail, backupKey) {
+  const bucket = getLicenseBackupBucket(env);
+  if (!bucket) {
+    return jsonResponse(
+      {
+        error: "misconfigured",
+        message: "Bucket backup R2 belum dikonfigurasi.",
+      },
+      503
+    );
+  }
+  const object = await bucket.get(backupKey);
+  if (!object) {
+    return jsonResponse({ error: "not_found", message: "Snapshot backup tidak ditemukan." }, 404);
+  }
+  const rawPayload = await object.text();
+  const snapshot = parseAndValidateBackupSnapshot(rawPayload);
+  if (snapshot.error) {
+    return jsonResponse(snapshot.error, 400);
+  }
+
+  await restoreBackupSnapshot(env, snapshot.value);
+  await insertAuditLog(env, {
+    eventType: "admin_backup_restore",
+    ip: "",
+    entryId: null,
+    stage: "admin",
+    decision: "mutate",
+    actorEmail,
+    requestIp: "",
+    userAgent: "",
+    payload: {
+      backup_key: backupKey,
+      row_counts: snapshot.value.row_counts,
+      source: "r2",
+    },
+  });
+  return jsonResponse({
+    ok: true,
+    restored_key: backupKey,
+    row_counts: snapshot.value.row_counts,
+  });
+}
+
+async function handleAdminDeleteBackup(env, actorEmail, backupKey) {
+  const bucket = getLicenseBackupBucket(env);
+  if (!bucket) {
+    return jsonResponse(
+      {
+        error: "misconfigured",
+        message: "Bucket backup R2 belum dikonfigurasi.",
+      },
+      503
+    );
+  }
+  await bucket.delete(backupKey);
+  await insertAuditLog(env, {
+    eventType: "admin_backup_delete",
+    ip: "",
+    entryId: null,
+    stage: "admin",
+    decision: "mutate",
+    actorEmail,
+    requestIp: "",
+    userAgent: "",
+    payload: {
+      backup_key: backupKey,
+    },
+  });
+  return jsonResponse({
+    ok: true,
+    deleted_key: backupKey,
+  });
+}
+
+async function handleAdminImportBackup(request, env, actorEmail) {
+  const rawPayload = await request.text();
+  if (!rawPayload.trim()) {
+    return jsonResponse({ error: "invalid_request", message: "File backup kosong." }, 400);
+  }
+  if (rawPayload.length > BACKUP_IMPORT_MAX_BYTES) {
+    return jsonResponse(
+      {
+        error: "payload_too_large",
+        message: "Ukuran file backup terlalu besar untuk di-import.",
+      },
+      413
+    );
+  }
+
+  const snapshot = parseAndValidateBackupSnapshot(rawPayload);
+  if (snapshot.error) {
+    return jsonResponse(snapshot.error, 400);
+  }
+
+  await restoreBackupSnapshot(env, snapshot.value);
+  await insertAuditLog(env, {
+    eventType: "admin_backup_import",
+    ip: "",
+    entryId: null,
+    stage: "admin",
+    decision: "mutate",
+    actorEmail,
+    requestIp: "",
+    userAgent: "",
+    payload: {
+      imported_name: snapshot.value.file_name || "",
+      row_counts: snapshot.value.row_counts,
+      source: "browser_import",
+    },
+  });
+
+  return jsonResponse({
+    ok: true,
+    imported: true,
+    row_counts: snapshot.value.row_counts,
   });
 }
 
@@ -1140,6 +1444,199 @@ async function handleAdminListAuditLogs(request, env) {
       payload_json: parseJsonSafe(row.payload_json, {}),
     })),
   });
+}
+
+async function buildBackupSnapshot(env, actorEmail, source) {
+  const createdAt = nowIsoString();
+  const tables = {};
+  const rowCounts = {};
+
+  for (const table of BACKUP_TABLES) {
+    const rows = await allRows(
+      env,
+      `SELECT ${table.columns.join(", ")} FROM ${table.name}`
+    );
+    tables[table.name] = rows.map((row) => sanitizeBackupRow(row, table.columns));
+    rowCounts[table.name] = rows.length;
+  }
+
+  return {
+    format: BACKUP_FORMAT,
+    schema_version: BACKUP_SCHEMA_VERSION,
+    created_at: createdAt,
+    created_by: actorEmail,
+    source,
+    row_counts: rowCounts,
+    tables,
+  };
+}
+
+function sanitizeBackupRow(row, columns) {
+  const sanitized = {};
+  for (const column of columns) {
+    if (Object.prototype.hasOwnProperty.call(row, column)) {
+      sanitized[column] = row[column];
+    } else {
+      sanitized[column] = null;
+    }
+  }
+  return sanitized;
+}
+
+function buildBackupObjectKey(createdAt, actorEmail) {
+  const parsed = new Date(createdAt);
+  const year = String(parsed.getUTCFullYear());
+  const month = String(parsed.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getUTCDate()).padStart(2, "0");
+  const stamp = createdAt.replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
+  const actorSlug = String(actorEmail || "admin")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48) || "admin";
+  return `${BACKUP_PREFIX}${year}/${month}/${day}/${stamp}-${actorSlug}.json`;
+}
+
+function buildBackupObjectMetadata(snapshot) {
+  return {
+    format: BACKUP_FORMAT,
+    schema_version: String(BACKUP_SCHEMA_VERSION),
+    created_at: snapshot.created_at,
+    created_by: snapshot.created_by || "admin",
+    source: snapshot.source || "r2",
+    license_entries_count: String(snapshot.row_counts?.license_entries || 0),
+    audit_logs_count: String(snapshot.row_counts?.audit_logs || 0),
+    public_rate_limits_count: String(snapshot.row_counts?.public_rate_limits || 0),
+    public_target_rate_limits_count: String(snapshot.row_counts?.public_target_rate_limits || 0),
+  };
+}
+
+function serializeBackupObject(object) {
+  const metadata = object.customMetadata || {};
+  const rowCounts = {
+    license_entries: Number(metadata.license_entries_count || 0),
+    audit_logs: Number(metadata.audit_logs_count || 0),
+    public_rate_limits: Number(metadata.public_rate_limits_count || 0),
+    public_target_rate_limits: Number(metadata.public_target_rate_limits_count || 0),
+  };
+  return {
+    key: object.key,
+    size: Number(object.size || 0),
+    created_at: metadata.created_at || object.uploaded?.toISOString?.() || "",
+    created_by: metadata.created_by || "admin",
+    source: metadata.source || "r2",
+    schema_version: Number(metadata.schema_version || BACKUP_SCHEMA_VERSION),
+    row_counts: rowCounts,
+  };
+}
+
+function parseAndValidateBackupSnapshot(rawPayload) {
+  const parsed = parseJsonSafe(rawPayload, null);
+  if (!parsed || typeof parsed !== "object") {
+    return {
+      error: {
+        error: "invalid_backup",
+        message: "Format file backup tidak valid.",
+      },
+    };
+  }
+  if (parsed.format !== BACKUP_FORMAT) {
+    return {
+      error: {
+        error: "invalid_backup",
+        message: "Format snapshot backup tidak dikenali.",
+      },
+    };
+  }
+  if (Number(parsed.schema_version || 0) !== BACKUP_SCHEMA_VERSION) {
+    return {
+      error: {
+        error: "unsupported_backup",
+        message: "Versi schema snapshot backup tidak didukung.",
+      },
+    };
+  }
+  if (!parsed.tables || typeof parsed.tables !== "object") {
+    return {
+      error: {
+        error: "invalid_backup",
+        message: "Isi tabel snapshot backup tidak lengkap.",
+      },
+    };
+  }
+
+  const normalizedTables = {};
+  const rowCounts = {};
+  for (const table of BACKUP_TABLES) {
+    const rows = parsed.tables[table.name];
+    if (!Array.isArray(rows)) {
+      return {
+        error: {
+          error: "invalid_backup",
+          message: `Data tabel ${table.name} tidak valid.`,
+        },
+      };
+    }
+    normalizedTables[table.name] = rows.map((row) => sanitizeBackupRow(row || {}, table.columns));
+    rowCounts[table.name] = normalizedTables[table.name].length;
+  }
+
+  return {
+    value: {
+      format: BACKUP_FORMAT,
+      schema_version: BACKUP_SCHEMA_VERSION,
+      created_at: String(parsed.created_at || "").trim() || nowIsoString(),
+      created_by: String(parsed.created_by || "").trim() || "admin",
+      source: String(parsed.source || "").trim() || "import",
+      file_name: String(parsed.file_name || "").trim(),
+      row_counts: rowCounts,
+      tables: normalizedTables,
+    },
+  };
+}
+
+async function restoreBackupSnapshot(env, snapshot) {
+  const deleteStatements = BACKUP_TABLES.map((table) => env.LICENSE_DB.prepare(`DELETE FROM ${table.name}`));
+  await runBatchStatements(env, deleteStatements);
+
+  for (const table of BACKUP_TABLES) {
+    const rows = snapshot.tables[table.name] || [];
+    if (!rows.length) {
+      continue;
+    }
+    const insertSql = buildInsertStatement(table.name, table.columns);
+    const statements = rows.map((row) =>
+      env.LICENSE_DB.prepare(insertSql).bind(...table.columns.map((column) => normalizeBackupValue(row[column])))
+    );
+    await runBatchStatements(env, statements);
+  }
+}
+
+function buildInsertStatement(tableName, columns) {
+  const placeholders = columns.map(() => "?").join(", ");
+  return `INSERT INTO ${tableName} (${columns.join(", ")}) VALUES (${placeholders})`;
+}
+
+function normalizeBackupValue(value) {
+  return value === undefined ? null : value;
+}
+
+async function runBatchStatements(env, statements) {
+  if (!Array.isArray(statements) || !statements.length) {
+    return [];
+  }
+  const chunkSize = 50;
+  const results = [];
+  for (let index = 0; index < statements.length; index += chunkSize) {
+    const chunk = statements.slice(index, index + chunkSize);
+    const chunkResults = await env.LICENSE_DB.batch(chunk);
+    results.push(...chunkResults);
+  }
+  return results;
+}
+
+function getLicenseBackupBucket(env) {
+  return env.LICENSE_BACKUPS || null;
 }
 
 function buildLicenseDecision(entry, env) {

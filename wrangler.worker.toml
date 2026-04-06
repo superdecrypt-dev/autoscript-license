@@ -33,3 +33,7 @@ binding = "LICENSE_DB"
 database_name = "autoscript-license"
 database_id = "91d51648-0760-47dd-8998-795d2d9a01ae"
 migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "LICENSE_BACKUPS"
+bucket_name = "autoscript-license-backups"
