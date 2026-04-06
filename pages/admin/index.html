@@ -399,6 +399,17 @@
                     type="search"
                     placeholder="Cari backup berdasarkan waktu, actor, atau key"
                   />
+                  <select id="backup-source-filter">
+                    <option value="all">All Sources</option>
+                    <option value="r2">Manual</option>
+                    <option value="scheduled">Scheduled</option>
+                  </select>
+                  <select id="backup-sort">
+                    <option value="created_desc">Newest First</option>
+                    <option value="created_asc">Oldest First</option>
+                    <option value="rows_desc">Largest Rows</option>
+                    <option value="size_desc">Largest Size</option>
+                  </select>
                 </div>
 
                 <div id="backup-list-mobile" class="mobile-list"></div>

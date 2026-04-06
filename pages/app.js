@@ -60,6 +60,8 @@ const dom = {
   importBackupBtn: document.getElementById("import-backup-btn"),
   importBackupInput: document.getElementById("import-backup-input"),
   backupSearchInput: document.getElementById("backup-search-input"),
+  backupSourceFilter: document.getElementById("backup-source-filter"),
+  backupSort: document.getElementById("backup-sort"),
   resetFormBtn: document.getElementById("reset-form-btn"),
   cancelEditBtn: document.getElementById("cancel-edit-btn"),
   editModal: document.getElementById("edit-modal"),
@@ -163,6 +165,8 @@ function bindEvents() {
   });
   dom.importBackupInput.addEventListener("change", handleImportBackupFile);
   dom.backupSearchInput.addEventListener("input", renderBackups);
+  dom.backupSourceFilter.addEventListener("change", refreshVisuals);
+  dom.backupSort.addEventListener("change", renderBackups);
   dom.resetFormBtn.addEventListener("click", resetForm);
   dom.cancelEditBtn.addEventListener("click", resetForm);
   dom.form.addEventListener("submit", handleSubmitEntry);
@@ -1169,7 +1173,7 @@ function renderBackups() {
           <td>
             <div class="entry-meta">
               <strong>${escapeHtml(backup.created_by || "-")}</strong>
-              <span class="status-pill ${backup.source === "scheduled" ? "expired" : "active"}">${escapeHtml(backup.source || "r2")}</span>
+              <span class="status-pill ${backup.source === "scheduled" ? "expired" : "active"}">${escapeHtml(humanizeBackupSource(backup.source))}</span>
             </div>
           </td>
           <td>${escapeHtml(formatBackupRows(backup.row_counts))}</td>
@@ -1197,7 +1201,7 @@ function renderBackups() {
           <div class="mobile-card-head">
             <div class="entry-meta">
               <strong>${escapeHtml(formatDate(backup.created_at) || "-")}</strong>
-              <span>${escapeHtml(backup.created_by || "-")} • ${escapeHtml(backup.source || "r2")}</span>
+              <span>${escapeHtml(backup.created_by || "-")} • ${escapeHtml(humanizeBackupSource(backup.source))}</span>
             </div>
             <span class="status-pill active">${escapeHtml(formatBytes(backup.size || 0))}</span>
           </div>
@@ -1236,10 +1240,17 @@ function getFilteredBackups() {
   const query = String(dom.backupSearchInput?.value || "")
     .trim()
     .toLowerCase();
-  if (!query) {
-    return state.backups;
-  }
-  return state.backups.filter((backup) => {
+  const sourceFilter = String(dom.backupSourceFilter?.value || "all").trim().toLowerCase();
+  const sortKey = String(dom.backupSort?.value || "created_desc").trim().toLowerCase();
+
+  const filtered = state.backups.filter((backup) => {
+    const source = String(backup.source || "r2").trim().toLowerCase();
+    if (sourceFilter !== "all" && source !== sourceFilter) {
+      return false;
+    }
+    if (!query) {
+      return true;
+    }
     const haystack = [
       backup.key,
       backup.created_at,
@@ -1247,11 +1258,51 @@ function getFilteredBackups() {
       formatDate(backup.created_at || ""),
       formatBackupRows(backup.row_counts),
       backup.checksum_sha256,
+      humanizeBackupSource(backup.source),
     ]
       .join(" ")
       .toLowerCase();
     return haystack.includes(query);
   });
+
+  return filtered.sort((left, right) => compareBackups(left, right, sortKey));
+}
+
+function compareBackups(left, right, sortKey) {
+  if (sortKey === "created_asc") {
+    return compareDateValue(left.created_at, right.created_at);
+  }
+  if (sortKey === "rows_desc") {
+    return backupRowTotal(right.row_counts) - backupRowTotal(left.row_counts);
+  }
+  if (sortKey === "size_desc") {
+    return Number(right.size || 0) - Number(left.size || 0);
+  }
+  return compareDateValue(right.created_at, left.created_at);
+}
+
+function compareDateValue(left, right) {
+  return Date.parse(String(left || "")) - Date.parse(String(right || ""));
+}
+
+function backupRowTotal(rowCounts) {
+  return (
+    Number(rowCounts?.license_entries || 0) +
+    Number(rowCounts?.audit_logs || 0) +
+    Number(rowCounts?.public_rate_limits || 0) +
+    Number(rowCounts?.public_target_rate_limits || 0)
+  );
+}
+
+function humanizeBackupSource(value) {
+  const source = String(value || "r2").trim().toLowerCase();
+  if (source === "scheduled") {
+    return "Scheduled";
+  }
+  if (source === "r2") {
+    return "Manual";
+  }
+  return source || "Unknown";
 }
 
 function bindBackupActionButtons(container) {
