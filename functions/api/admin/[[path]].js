@@ -1,5 +1,8 @@
 export async function onRequest(context) {
   const { request, env } = context;
+  if (request.method === "OPTIONS") {
+    return buildPreflightResponse(request, env);
+  }
   const actorEmail = await resolveAccessActorEmail(request);
   if (!actorEmail) {
     return jsonResponse(
@@ -7,7 +10,9 @@ export async function onRequest(context) {
         error: "unauthorized",
         message: "Cloudflare Access identity tidak tersedia.",
       },
-      401
+      401,
+      request,
+      env
     );
   }
 
@@ -19,7 +24,9 @@ export async function onRequest(context) {
         error: "misconfigured",
         message: "Proxy admin belum dikonfigurasi. Isi PAGES_API_BASE_URL dan ADMIN_PROXY_SHARED_SECRET.",
       },
-      503
+      503,
+      request,
+      env
     );
   }
 
@@ -51,14 +58,16 @@ export async function onRequest(context) {
 
   try {
     const upstreamResponse = await fetch(upstreamUrl.toString(), init);
-    return withAdminProxySecurityHeaders(upstreamResponse);
+    return withAdminProxySecurityHeaders(upstreamResponse, request, env);
   } catch (_error) {
     return jsonResponse(
       {
         error: "upstream_unavailable",
         message: "Admin upstream tidak dapat dihubungi.",
       },
-      502
+      502,
+      request,
+      env
     );
   }
 }
@@ -107,17 +116,17 @@ function normalizeOrigin(value) {
   }
 }
 
-function jsonResponse(payload, status = 200) {
+function jsonResponse(payload, status = 200, request, env) {
   return new Response(JSON.stringify(payload, null, 2), {
     status,
     headers: buildAdminApiSecurityHeaders({
       "Content-Type": "application/json; charset=utf-8",
-    }),
+    }, request, env),
   });
 }
 
-function withAdminProxySecurityHeaders(response) {
-  const headers = buildAdminApiSecurityHeaders(response.headers);
+function withAdminProxySecurityHeaders(response, request, env) {
+  const headers = buildAdminApiSecurityHeaders(response.headers, request, env);
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -125,12 +134,57 @@ function withAdminProxySecurityHeaders(response) {
   });
 }
 
-function buildAdminApiSecurityHeaders(extraHeaders = {}) {
+function buildAdminApiSecurityHeaders(extraHeaders = {}, request, env) {
   const headers = new Headers(extraHeaders);
   headers.set("Cache-Control", "no-store, max-age=0");
   headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+  applyCorsHeaders(headers, request, env);
   return headers;
+}
+
+function buildPreflightResponse(request, env) {
+  const headers = buildAdminApiSecurityHeaders({}, request, env);
+  const origin = request.headers.get("Origin");
+  if (!isAllowedOrigin(origin, request, env)) {
+    return new Response(null, {
+      status: 403,
+      headers,
+    });
+  }
+  headers.set("Access-Control-Allow-Methods", "GET, HEAD, POST, PATCH, DELETE, OPTIONS");
+  headers.set("Access-Control-Allow-Headers", "Content-Type");
+  headers.set("Access-Control-Max-Age", "86400");
+  return new Response(null, {
+    status: 204,
+    headers,
+  });
+}
+
+function applyCorsHeaders(headers, request, env) {
+  const origin = request?.headers?.get("Origin");
+  if (!isAllowedOrigin(origin, request, env)) {
+    return;
+  }
+  headers.set("Access-Control-Allow-Origin", origin);
+  headers.set("Access-Control-Allow-Credentials", "true");
+  headers.append("Vary", "Origin");
+}
+
+function isAllowedOrigin(origin, request, env) {
+  const normalizedOrigin = normalizeOrigin(origin || "");
+  if (!normalizedOrigin) {
+    return false;
+  }
+  const requestOrigin = normalizeOrigin(request?.url || "");
+  if (normalizedOrigin === requestOrigin) {
+    return true;
+  }
+  const configuredOrigins = String(env?.PAGES_ADMIN_APP_ORIGINS || "")
+    .split(",")
+    .map((item) => normalizeOrigin(item))
+    .filter(Boolean);
+  return configuredOrigins.includes(normalizedOrigin);
 }

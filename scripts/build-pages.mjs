@@ -19,10 +19,12 @@ const fallbackConfigPath = resolve(sourceDir, "config.js");
 const fallbackConfig = readFileSync(fallbackConfigPath, "utf8");
 const fallbackValues = extractFallbackConfig(fallbackConfig);
 const configuredApiBaseUrl = normalizeUrl(process.env.PAGES_API_BASE_URL);
+const configuredAdminApiBaseUrl = normalizeUrl(process.env.PAGES_ADMIN_API_BASE_URL);
 const configuredTurnstileSiteKey = normalizeText(process.env.PAGES_TURNSTILE_SITE_KEY);
 const fallbackApiBaseUrl = normalizeUrl(fallbackValues.apiBaseUrl);
 const fallbackTurnstileSiteKey = normalizeText(fallbackValues.turnstileSiteKey);
 const apiBaseUrl = configuredApiBaseUrl || fallbackApiBaseUrl;
+const adminApiBaseUrl = configuredAdminApiBaseUrl;
 const turnstileSiteKey = configuredTurnstileSiteKey || fallbackTurnstileSiteKey;
 
 if (!apiBaseUrl) {
@@ -69,10 +71,11 @@ const publicHtml = renderPublicHtml({
 const adminHtml = renderAdminHtml({
   cssHref: toOutputHref(resolve(outputDir, "admin/index.html"), cssAssets.admin),
   jsHref: toOutputHref(resolve(outputDir, "admin/index.html"), jsAssets.admin),
+  adminApiBaseUrl,
 });
 const headersFile = renderHeaders({
   publicCsp: buildPublicCsp(apiBaseUrl),
-  adminCsp: buildAdminCsp(),
+  adminCsp: buildAdminCsp(adminApiBaseUrl),
 });
 
 mkdirSync(resolve(outputDir, "admin"), { recursive: true });
@@ -167,11 +170,14 @@ function renderPublicHtml({ cssHref, jsHref, apiBaseUrl, turnstileSiteKey }) {
     .replace('<script src="./public.js" defer></script>', `<script src="${jsHref}" defer></script>`);
 }
 
-function renderAdminHtml({ cssHref, jsHref }) {
+function renderAdminHtml({ cssHref, jsHref, adminApiBaseUrl }) {
   const template = readFileSync(resolve(sourceDir, "admin/index.html"), "utf8");
+  const inlineConfig = `<script id="admin-config" type="application/json">${serializeInlineConfig({
+    adminApiBaseUrl,
+  })}</script>`;
   return template
     .replace('<link rel="stylesheet" href="../styles.css" />', `<link rel="stylesheet" href="${cssHref}" />`)
-    .replace(/\s*<script src="\.\.\/config\.js"><\/script>/, "")
+    .replace("</head>", `    ${inlineConfig}\n  </head>`)
     .replace('<script src="../app.js"></script>', `<script src="${jsHref}"></script>`);
 }
 
@@ -220,7 +226,11 @@ function buildPublicCsp(apiBaseUrl) {
   ].join("; ");
 }
 
-function buildAdminCsp() {
+function buildAdminCsp(adminApiBaseUrl) {
+  const connectSources = ["'self'"];
+  if (adminApiBaseUrl) {
+    connectSources.push(adminApiBaseUrl);
+  }
   return [
     "default-src 'self'",
     "base-uri 'none'",
@@ -232,7 +242,7 @@ function buildAdminCsp() {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data:",
-    "connect-src 'self'",
+    `connect-src ${connectSources.join(" ")}`,
   ].join("; ");
 }
 

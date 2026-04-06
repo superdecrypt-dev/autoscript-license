@@ -177,19 +177,47 @@ test("Pages admin proxy meneruskan request ke upstream yang dikonfigurasi", asyn
         headers: {
           "CF-Access-Authenticated-User-Email": "admin@example.com",
           "CF-Connecting-IP": "198.51.100.77",
+          Origin: "https://admin.example",
         },
       }),
       env: {
         ADMIN_PROXY_SHARED_SECRET: "secret-2",
         PAGES_API_BASE_URL: "https://worker.example",
+        PAGES_ADMIN_APP_ORIGINS: "https://admin.example",
       },
     });
     const payload = await response.json();
 
     assert.equal(response.status, 200);
     assert.equal(payload.ok, true);
+    assert.equal(response.headers.get("Access-Control-Allow-Origin"), "https://admin.example");
+    assert.equal(response.headers.get("Access-Control-Allow-Credentials"), "true");
   } finally {
     globalThis.fetch = originalFetch;
+    bundled.cleanup();
+  }
+});
+
+test("Pages admin proxy menjawab preflight CORS untuk origin yang diizinkan", async () => {
+  const bundled = await bundleModule("functions/api/admin/[[path]].js", "pages-admin-cors.mjs");
+  try {
+    const response = await bundled.module.onRequest({
+      request: new Request("https://pages.example/api/admin/session", {
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://autoscript.license.dpdns.org",
+        },
+      }),
+      env: {
+        PAGES_ADMIN_APP_ORIGINS: "https://autoscript.license.dpdns.org",
+      },
+    });
+
+    assert.equal(response.status, 204);
+    assert.equal(response.headers.get("Access-Control-Allow-Origin"), "https://autoscript.license.dpdns.org");
+    assert.equal(response.headers.get("Access-Control-Allow-Credentials"), "true");
+    assert.match(String(response.headers.get("Access-Control-Allow-Methods") || ""), /PATCH/);
+  } finally {
     bundled.cleanup();
   }
 });

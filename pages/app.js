@@ -22,6 +22,10 @@ const STORAGE_KEYS = {
   metricsWindowDays: "autoscriptLicenseMetricsWindowDays",
 };
 
+const adminConfig = resolveAdminConfig();
+const adminApiOrigin = adminConfig.adminApiBaseUrl ? new URL(adminConfig.adminApiBaseUrl).origin : window.location.origin;
+const usesCrossOriginAdminApi = adminApiOrigin !== window.location.origin;
+
 const state = {
   adminEmail: "",
   activeView: localStorage.getItem(STORAGE_KEYS.activeView) || "dashboard",
@@ -235,6 +239,7 @@ async function authenticateWithAccess() {
 
   try {
     const session = await apiFetch("/api/admin/session");
+    maybeCompleteAccessRelay();
     state.session = session;
     state.adminEmail = session.admin_email || "";
     setSessionState(session);
@@ -246,13 +251,18 @@ async function authenticateWithAccess() {
     state.session = null;
     state.adminEmail = "";
     setAuthState("locked");
+    if (shouldStartAccessRelay(error)) {
+      redirectToAccessRelay();
+      return;
+    }
     setLoginBanner(error.message || "Akses belum tersedia.", "error");
   }
 }
 
 function logoutAccess() {
   closeEditModal({ restoreFocus: false });
-  window.location.assign("/cdn-cgi/access/logout");
+  const logoutUrl = new URL("/cdn-cgi/access/logout", adminApiOrigin);
+  window.location.assign(logoutUrl.toString());
 }
 
 function handleAccessLocked(options = {}) {
@@ -963,11 +973,20 @@ async function apiFetch(path, options = {}) {
     "Content-Type": "application/json",
     ...(options.headers || {}),
   };
-  const response = await fetch(path, {
-    method: options.method || "GET",
-    headers,
-    body: options.body,
-  });
+  const requestUrl = new URL(path, adminApiOrigin);
+  let response;
+  try {
+    response = await fetch(requestUrl.toString(), {
+      method: options.method || "GET",
+      headers,
+      body: options.body,
+      credentials: "include",
+    });
+  } catch (_error) {
+    const error = new Error("Sesi Access belum aktif.");
+    error.status = 0;
+    throw error;
+  }
 
   let payload = {};
   try {
@@ -982,6 +1001,74 @@ async function apiFetch(path, options = {}) {
     throw error;
   }
   return payload;
+}
+
+function resolveAdminConfig() {
+  const inlineConfig = document.getElementById("admin-config");
+  let payload = {};
+  if (inlineConfig?.textContent) {
+    try {
+      payload = JSON.parse(inlineConfig.textContent);
+    } catch (_error) {
+      payload = {};
+    }
+  }
+  const rawBaseUrl = String(payload?.adminApiBaseUrl || "").trim().replace(/\/+$/, "");
+  if (!rawBaseUrl) {
+    return {
+      adminApiBaseUrl: window.location.origin,
+    };
+  }
+  try {
+    return {
+      adminApiBaseUrl: new URL(rawBaseUrl).origin,
+    };
+  } catch (_error) {
+    return {
+      adminApiBaseUrl: window.location.origin,
+    };
+  }
+}
+
+function shouldStartAccessRelay(error) {
+  return (
+    usesCrossOriginAdminApi &&
+    [0, 401].includes(Number(error?.status || 0)) &&
+    !new URL(window.location.href).searchParams.has("relay_failed")
+  );
+}
+
+function redirectToAccessRelay() {
+  const relayUrl = new URL("/admin/", adminApiOrigin);
+  const currentUrl = new URL(window.location.href);
+  currentUrl.searchParams.delete("relay_failed");
+  relayUrl.searchParams.set("return_to", currentUrl.toString());
+  window.location.assign(relayUrl.toString());
+}
+
+function maybeCompleteAccessRelay() {
+  const currentUrl = new URL(window.location.href);
+  if (currentUrl.searchParams.has("relay_failed")) {
+    currentUrl.searchParams.delete("relay_failed");
+    window.history.replaceState({}, "", currentUrl.toString());
+  }
+  const returnTarget = currentUrl.searchParams.get("return_to");
+  if (!returnTarget) {
+    return;
+  }
+  try {
+    const targetUrl = new URL(returnTarget, window.location.origin);
+    if (targetUrl.origin === window.location.origin) {
+      currentUrl.searchParams.delete("return_to");
+      window.history.replaceState({}, "", currentUrl.toString());
+      return;
+    }
+    targetUrl.searchParams.set("relay_failed", "0");
+    window.location.replace(targetUrl.toString());
+  } catch (_error) {
+    currentUrl.searchParams.delete("return_to");
+    window.history.replaceState({}, "", currentUrl.toString());
+  }
 }
 
 function setBanner(message, tone = "muted") {
