@@ -58,6 +58,7 @@ const dom = {
   createBackupBtn: document.getElementById("create-backup-btn"),
   importBackupBtn: document.getElementById("import-backup-btn"),
   importBackupInput: document.getElementById("import-backup-input"),
+  backupSearchInput: document.getElementById("backup-search-input"),
   resetFormBtn: document.getElementById("reset-form-btn"),
   cancelEditBtn: document.getElementById("cancel-edit-btn"),
   editModal: document.getElementById("edit-modal"),
@@ -158,6 +159,7 @@ function bindEvents() {
     dom.importBackupInput.click();
   });
   dom.importBackupInput.addEventListener("change", handleImportBackupFile);
+  dom.backupSearchInput.addEventListener("input", renderBackups);
   dom.resetFormBtn.addEventListener("click", resetForm);
   dom.cancelEditBtn.addEventListener("click", resetForm);
   dom.form.addEventListener("submit", handleSubmitEntry);
@@ -486,8 +488,17 @@ async function restoreBackup(backupKey) {
   if (!ensureAuthenticated()) {
     return;
   }
+  const backup = state.backups.find((item) => item.key === backupKey);
+  const backupSummary = backup
+    ? [
+        `Created: ${formatDate(backup.created_at) || "-"}`,
+        `Actor: ${backup.created_by || "-"}`,
+        `Rows: ${formatBackupRows(backup.row_counts)}`,
+        `Size: ${formatBytes(backup.size || 0)}`,
+      ].join("\n")
+    : backupKey;
   const confirmed = window.confirm(
-    `Restore snapshot ${backupKey} akan mengganti seluruh data saat ini. Lanjutkan?`
+    `Restore snapshot berikut akan mengganti seluruh data saat ini:\n\n${backupSummary}\n\nLanjutkan?`
   );
   if (!confirmed) {
     return;
@@ -1049,12 +1060,14 @@ function renderSettingsSummary() {
   dom.settingsSessionPreview.textContent = state.session?.admin_email ? "Protected by Access" : "Access Required";
   dom.settingsSessionExpiry.textContent = "Managed by Access";
   dom.settingsSessionRemaining.textContent = "Managed by Access";
-  dom.settingsBackupCount.textContent = `${state.backups.length} snapshot${state.backups.length === 1 ? "" : "s"}`;
+  const visibleBackups = getFilteredBackups();
+  dom.settingsBackupCount.textContent = `${visibleBackups.length}/${state.backups.length} snapshot${state.backups.length === 1 ? "" : "s"}`;
   dom.settingsBackupLatest.textContent = formatDate(state.backups[0]?.created_at || "") || "-";
   renderBackups();
 }
 
 function renderBackups() {
+  const backups = getFilteredBackups();
   if (!state.backups.length) {
     const emptyMarkup = emptyStateMarkup("Belum ada snapshot backup.", "Buat backup pertama dari panel admin.");
     dom.backupListMobile.innerHTML = emptyMarkup;
@@ -1065,8 +1078,18 @@ function renderBackups() {
     `;
     return;
   }
+  if (!backups.length) {
+    const emptyMarkup = emptyStateMarkup("Snapshot tidak ditemukan.", "Ubah kata kunci pencarian backup.");
+    dom.backupListMobile.innerHTML = emptyMarkup;
+    dom.backupListBody.innerHTML = `
+      <tr>
+        <td colspan="5" class="empty-row">${emptyMarkup}</td>
+      </tr>
+    `;
+    return;
+  }
 
-  dom.backupListBody.innerHTML = state.backups
+  dom.backupListBody.innerHTML = backups
     .map(
       (backup) => `
         <tr>
@@ -1086,7 +1109,7 @@ function renderBackups() {
     )
     .join("");
 
-  dom.backupListMobile.innerHTML = state.backups
+  dom.backupListMobile.innerHTML = backups
     .map(
       (backup) => `
         <article class="mobile-card">
@@ -1119,6 +1142,27 @@ function renderBackups() {
 
   bindBackupActionButtons(dom.backupListBody);
   bindBackupActionButtons(dom.backupListMobile);
+}
+
+function getFilteredBackups() {
+  const query = String(dom.backupSearchInput?.value || "")
+    .trim()
+    .toLowerCase();
+  if (!query) {
+    return state.backups;
+  }
+  return state.backups.filter((backup) => {
+    const haystack = [
+      backup.key,
+      backup.created_at,
+      backup.created_by,
+      formatDate(backup.created_at || ""),
+      formatBackupRows(backup.row_counts),
+    ]
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(query);
+  });
 }
 
 function bindBackupActionButtons(container) {
