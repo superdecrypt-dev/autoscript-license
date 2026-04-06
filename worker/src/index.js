@@ -743,6 +743,11 @@ async function routeAdminRequest(request, env, pathname) {
     return handleAdminDownloadBackup(env, decodeURIComponent(downloadMatch[1]));
   }
 
+  const previewMatch = pathname.match(/^\/api\/admin\/backups\/(.+)\/preview$/);
+  if (request.method === "GET" && previewMatch) {
+    return handleAdminPreviewBackup(env, decodeURIComponent(previewMatch[1]));
+  }
+
   const restoreMatch = pathname.match(/^\/api\/admin\/backups\/(.+)\/restore$/);
   if (request.method === "POST" && restoreMatch) {
     return handleAdminRestoreBackup(env, actorEmail, decodeURIComponent(restoreMatch[1]));
@@ -986,8 +991,10 @@ async function handleAdminCreateBackup(env, actorEmail) {
 
   const snapshot = await buildBackupSnapshot(env, actorEmail, "r2");
   const key = buildBackupObjectKey(snapshot.created_at, actorEmail);
-  const metadata = buildBackupObjectMetadata(snapshot);
-  await bucket.put(key, JSON.stringify(snapshot, null, 2), {
+  const body = JSON.stringify(snapshot, null, 2);
+  const checksumSha256 = await computeSha256Hex(body);
+  const metadata = buildBackupObjectMetadata(snapshot, checksumSha256);
+  await bucket.put(key, body, {
     httpMetadata: {
       contentType: "application/json; charset=utf-8",
     },
@@ -1015,7 +1022,7 @@ async function handleAdminCreateBackup(env, actorEmail) {
         ...serializeBackupObject({
           key,
           uploaded: new Date(snapshot.created_at),
-          size: JSON.stringify(snapshot).length,
+          size: body.length,
           customMetadata: metadata,
         }),
         source: snapshot.source,
@@ -1045,10 +1052,54 @@ async function handleAdminDownloadBackup(env, backupKey) {
   const headers = buildApiSecurityHeaders({
     "Content-Type": object.httpMetadata?.contentType || "application/json; charset=utf-8",
     "Content-Disposition": `attachment; filename="${fileName}"`,
+    "X-Backup-SHA256": object.customMetadata?.checksum_sha256 || "",
   });
   return new Response(object.body, {
     status: 200,
     headers,
+  });
+}
+
+async function handleAdminPreviewBackup(env, backupKey) {
+  const bucket = getLicenseBackupBucket(env);
+  if (!bucket) {
+    return jsonResponse(
+      {
+        error: "misconfigured",
+        message: "Bucket backup R2 belum dikonfigurasi.",
+      },
+      503
+    );
+  }
+  const object = await bucket.get(backupKey);
+  if (!object) {
+    return jsonResponse({ error: "not_found", message: "Snapshot backup tidak ditemukan." }, 404);
+  }
+  const rawPayload = await object.text();
+  const snapshot = parseAndValidateBackupSnapshot(rawPayload);
+  if (snapshot.error) {
+    return jsonResponse(snapshot.error, 400);
+  }
+  const checksumSha256 = object.customMetadata?.checksum_sha256 || (await computeSha256Hex(rawPayload));
+  return jsonResponse({
+    item: {
+      ...serializeBackupObject(object),
+      checksum_sha256: checksumSha256,
+      preview: {
+        license_entries: (snapshot.value.tables.license_entries || []).slice(0, 5).map((row) => ({
+          id: row.id,
+          ip: row.ip,
+          label: row.label || "",
+          status: row.status || "",
+          expires_at: row.expires_at || "",
+        })),
+        audit_events: (snapshot.value.tables.audit_logs || []).slice(0, 5).map((row) => ({
+          event_type: row.event_type || "",
+          ip: row.ip || "",
+          created_at: row.created_at || "",
+        })),
+      },
+    },
   });
 }
 
@@ -1498,13 +1549,14 @@ function buildBackupObjectKey(createdAt, actorEmail) {
   return `${BACKUP_PREFIX}${year}/${month}/${day}/${stamp}-${actorSlug}.json`;
 }
 
-function buildBackupObjectMetadata(snapshot) {
+function buildBackupObjectMetadata(snapshot, checksumSha256 = "") {
   return {
     format: BACKUP_FORMAT,
     schema_version: String(BACKUP_SCHEMA_VERSION),
     created_at: snapshot.created_at,
     created_by: snapshot.created_by || "admin",
     source: snapshot.source || "r2",
+    checksum_sha256: checksumSha256,
     license_entries_count: String(snapshot.row_counts?.license_entries || 0),
     audit_logs_count: String(snapshot.row_counts?.audit_logs || 0),
     public_rate_limits_count: String(snapshot.row_counts?.public_rate_limits || 0),
@@ -1527,8 +1579,17 @@ function serializeBackupObject(object) {
     created_by: metadata.created_by || "admin",
     source: metadata.source || "r2",
     schema_version: Number(metadata.schema_version || BACKUP_SCHEMA_VERSION),
+    checksum_sha256: metadata.checksum_sha256 || "",
     row_counts: rowCounts,
   };
+}
+
+async function computeSha256Hex(input) {
+  const bytes = new TextEncoder().encode(String(input || ""));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((value) => value.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 function parseAndValidateBackupSnapshot(rawPayload) {
@@ -2263,8 +2324,10 @@ async function maintainBackupSnapshots(env, options = {}) {
     if (shouldCreate) {
       const snapshot = await buildBackupSnapshot(env, BACKUP_AUTO_ACTOR, "scheduled");
       const key = buildBackupObjectKey(snapshot.created_at, BACKUP_AUTO_ACTOR);
-      const metadata = buildBackupObjectMetadata(snapshot);
-      await bucket.put(key, JSON.stringify(snapshot, null, 2), {
+      const body = JSON.stringify(snapshot, null, 2);
+      const checksumSha256 = await computeSha256Hex(body);
+      const metadata = buildBackupObjectMetadata(snapshot, checksumSha256);
+      await bucket.put(key, body, {
         httpMetadata: {
           contentType: "application/json; charset=utf-8",
         },

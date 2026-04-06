@@ -33,6 +33,7 @@ const state = {
   entries: [],
   auditLogs: [],
   backups: [],
+  backupPreview: null,
   metrics: null,
   session: null,
   metricsWindowDays: localStorage.getItem(STORAGE_KEYS.metricsWindowDays) || "14",
@@ -108,6 +109,8 @@ const dom = {
   settingsBackupLatest: document.getElementById("settings-backup-latest"),
   backupListMobile: document.getElementById("backup-list-mobile"),
   backupListBody: document.getElementById("backup-list-body"),
+  backupPreviewSummary: document.getElementById("backup-preview-summary"),
+  backupPreviewDetails: document.getElementById("backup-preview-details"),
   form: document.getElementById("entry-form"),
   formTitle: document.getElementById("form-title"),
   entryId: document.getElementById("entry-id"),
@@ -293,6 +296,7 @@ function handleAccessLocked(options = {}) {
   state.entries = [];
   state.auditLogs = [];
   state.backups = [];
+  state.backupPreview = null;
   state.metrics = null;
   setSessionState(null);
   refreshVisuals();
@@ -488,13 +492,21 @@ async function restoreBackup(backupKey) {
   if (!ensureAuthenticated()) {
     return;
   }
-  const backup = state.backups.find((item) => item.key === backupKey);
+  let backup = state.backups.find((item) => item.key === backupKey);
+  if (!backup || !backup.checksum_sha256) {
+    try {
+      backup = await loadBackupPreview(backupKey, { silent: true });
+    } catch (_error) {
+      backup = backup || null;
+    }
+  }
   const backupSummary = backup
     ? [
         `Created: ${formatDate(backup.created_at) || "-"}`,
         `Actor: ${backup.created_by || "-"}`,
         `Rows: ${formatBackupRows(backup.row_counts)}`,
         `Size: ${formatBytes(backup.size || 0)}`,
+        `Checksum: ${backup.checksum_sha256 || "-"}`,
       ].join("\n")
     : backupKey;
   const confirmed = window.confirm(
@@ -1064,6 +1076,7 @@ function renderSettingsSummary() {
   dom.settingsBackupCount.textContent = `${visibleBackups.length}/${state.backups.length} snapshot${state.backups.length === 1 ? "" : "s"}`;
   dom.settingsBackupLatest.textContent = formatDate(state.backups[0]?.created_at || "") || "-";
   renderBackups();
+  renderBackupPreview();
 }
 
 function renderBackups() {
@@ -1073,7 +1086,7 @@ function renderBackups() {
     dom.backupListMobile.innerHTML = emptyMarkup;
     dom.backupListBody.innerHTML = `
       <tr>
-        <td colspan="5" class="empty-row">${emptyMarkup}</td>
+        <td colspan="6" class="empty-row">${emptyMarkup}</td>
       </tr>
     `;
     return;
@@ -1083,7 +1096,7 @@ function renderBackups() {
     dom.backupListMobile.innerHTML = emptyMarkup;
     dom.backupListBody.innerHTML = `
       <tr>
-        <td colspan="5" class="empty-row">${emptyMarkup}</td>
+        <td colspan="6" class="empty-row">${emptyMarkup}</td>
       </tr>
     `;
     return;
@@ -1097,8 +1110,10 @@ function renderBackups() {
           <td>${escapeHtml(backup.created_by || "-")}</td>
           <td>${escapeHtml(formatBackupRows(backup.row_counts))}</td>
           <td>${escapeHtml(formatBytes(backup.size || 0))}</td>
+          <td class="mono">${escapeHtml(shortChecksum(backup.checksum_sha256))}</td>
           <td>
             <div class="action-stack">
+              <button class="action-btn" type="button" data-backup-action="preview" data-backup-key="${escapeHtml(backup.key)}">Preview</button>
               <button class="action-btn action-btn-edit" type="button" data-backup-action="download" data-backup-key="${escapeHtml(backup.key)}">Download</button>
               <button class="action-btn action-btn-reactivate" type="button" data-backup-action="restore" data-backup-key="${escapeHtml(backup.key)}">Restore</button>
               <button class="action-btn action-btn-delete" type="button" data-backup-action="delete" data-backup-key="${escapeHtml(backup.key)}">Delete</button>
@@ -1129,8 +1144,13 @@ function renderBackups() {
               <dt>Key</dt>
               <dd class="mono">${escapeHtml(backup.key)}</dd>
             </div>
+            <div>
+              <dt>Checksum</dt>
+              <dd class="mono">${escapeHtml(shortChecksum(backup.checksum_sha256))}</dd>
+            </div>
           </dl>
           <div class="mobile-action-row">
+            <button class="action-btn" type="button" data-backup-action="preview" data-backup-key="${escapeHtml(backup.key)}">Preview</button>
             <button class="action-btn action-btn-edit" type="button" data-backup-action="download" data-backup-key="${escapeHtml(backup.key)}">Download</button>
             <button class="action-btn action-btn-reactivate" type="button" data-backup-action="restore" data-backup-key="${escapeHtml(backup.key)}">Restore</button>
             <button class="action-btn action-btn-delete" type="button" data-backup-action="delete" data-backup-key="${escapeHtml(backup.key)}">Delete</button>
@@ -1158,6 +1178,7 @@ function getFilteredBackups() {
       backup.created_by,
       formatDate(backup.created_at || ""),
       formatBackupRows(backup.row_counts),
+      backup.checksum_sha256,
     ]
       .join(" ")
       .toLowerCase();
@@ -1173,7 +1194,9 @@ function bindBackupActionButtons(container) {
       if (!backupKey) {
         return;
       }
-      if (action === "download") {
+      if (action === "preview") {
+        await loadBackupPreview(backupKey);
+      } else if (action === "download") {
         await downloadBackup(backupKey);
       } else if (action === "restore") {
         await restoreBackup(backupKey);
@@ -1182,6 +1205,63 @@ function bindBackupActionButtons(container) {
       }
     });
   });
+}
+
+async function loadBackupPreview(backupKey, options = {}) {
+  try {
+    const payload = await apiFetch(`/api/admin/backups/${encodeURIComponent(backupKey)}/preview`);
+    state.backupPreview = payload.item || null;
+    if (!options.silent) {
+      setBanner("Preview snapshot berhasil dimuat.", "ok");
+    }
+    renderBackupPreview();
+    return state.backupPreview;
+  } catch (error) {
+    if (!options.silent) {
+      handleAuthFailure(error, "Gagal memuat preview snapshot backup.");
+    }
+    throw error;
+  }
+}
+
+function renderBackupPreview() {
+  const preview = state.backupPreview;
+  if (!preview) {
+    dom.backupPreviewSummary.textContent = "Pilih preview snapshot untuk melihat ringkasan isi sebelum restore.";
+    dom.backupPreviewDetails.innerHTML = "";
+    return;
+  }
+
+  dom.backupPreviewSummary.textContent =
+    `${formatDate(preview.created_at) || "-"} • ${preview.created_by || "-"} • ${formatBackupRows(preview.row_counts)} • ${formatBytes(preview.size || 0)}`;
+
+  const licenseItems = (preview.preview?.license_entries || [])
+    .map((item) => `${escapeHtml(item.ip || "-")}${item.label ? ` (${escapeHtml(item.label)})` : ""} [${escapeHtml(item.status || "-")}]`)
+    .join("<br>");
+  const auditItems = (preview.preview?.audit_events || [])
+    .map((item) => `${escapeHtml(item.event_type || "-")} • ${escapeHtml(item.ip || "-")}`)
+    .join("<br>");
+
+  dom.backupPreviewDetails.innerHTML = `
+    <dl class="settings-meta settings-meta-single">
+      <div>
+        <dt>Key</dt>
+        <dd class="mono">${escapeHtml(preview.key || "-")}</dd>
+      </div>
+      <div>
+        <dt>Checksum</dt>
+        <dd class="mono">${escapeHtml(preview.checksum_sha256 || "-")}</dd>
+      </div>
+      <div>
+        <dt>License Sample</dt>
+        <dd>${licenseItems || "-"}</dd>
+      </div>
+      <div>
+        <dt>Audit Sample</dt>
+        <dd>${auditItems || "-"}</dd>
+      </div>
+    </dl>
+  `;
 }
 
 function decisionTone(value) {
@@ -1430,7 +1510,7 @@ function renderBackupsLoading() {
   dom.backupListMobile.innerHTML = loadingMarkup;
   dom.backupListBody.innerHTML = `
     <tr>
-      <td colspan="5" class="empty-row">${loadingMarkup}</td>
+      <td colspan="6" class="empty-row">${loadingMarkup}</td>
     </tr>
   `;
 }
@@ -1550,4 +1630,15 @@ function formatBytes(value) {
     return `${(bytes / 1024).toFixed(1)} KB`;
   }
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function shortChecksum(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return "-";
+  }
+  if (raw.length <= 18) {
+    return raw;
+  }
+  return `${raw.slice(0, 8)}...${raw.slice(-8)}`;
 }

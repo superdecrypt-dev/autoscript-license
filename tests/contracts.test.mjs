@@ -806,6 +806,100 @@ test("worker admin backup restore dari R2 mengganti isi tabel D1", async () => {
   }
 });
 
+test("worker admin backup preview mengembalikan checksum dan sample isi snapshot", async () => {
+  const bundled = await bundleModule("worker/src/index.js", "worker-backup-preview.mjs");
+  try {
+    const worker = bundled.module.default;
+    const backupKey = "snapshots/2026/04/07/20260407T120000Z-admin.json";
+    const snapshot = {
+      format: "autoscript-license-backup",
+      schema_version: 1,
+      created_at: "2026-04-07T12:00:00.000Z",
+      created_by: "admin@example.com",
+      source: "r2",
+      row_counts: {
+        license_entries: 1,
+        audit_logs: 1,
+        public_rate_limits: 0,
+        public_target_rate_limits: 0,
+      },
+      tables: {
+        license_entries: [
+          {
+            id: "entry-preview",
+            ip: "198.51.100.88",
+            label: "preview",
+            owner: "",
+            notes: "",
+            status: "active",
+            expires_at: "2026-06-01T00:00:00.000Z",
+            created_at: "2026-04-07T12:00:00.000Z",
+            updated_at: "2026-04-07T12:00:00.000Z",
+            created_by: "admin@example.com",
+            updated_by: "admin@example.com",
+            revoked_at: null,
+            entry_source: "admin",
+            renewal_token_hash: "",
+            last_renewed_at: null,
+            created_request_ip: "198.51.100.88",
+          },
+        ],
+        audit_logs: [
+          {
+            id: "audit-preview",
+            event_type: "admin_create",
+            ip: "198.51.100.88",
+            entry_id: "entry-preview",
+            stage: "admin",
+            decision: "mutate",
+            actor_email: "admin@example.com",
+            request_ip: "198.51.100.88",
+            user_agent: "test",
+            payload_json: "{\"from\":\"preview\"}",
+            created_at: "2026-04-07T12:00:00.000Z",
+          },
+        ],
+        public_rate_limits: [],
+        public_target_rate_limits: [],
+      },
+    };
+    const snapshotBody = JSON.stringify(snapshot);
+
+    const env = {
+      ADMIN_PROXY_SHARED_SECRET: "secret-backup",
+      LICENSE_DB: createD1Stub(),
+      LICENSE_BACKUPS: createR2BucketStub({
+        [backupKey]: {
+          body: snapshotBody,
+          customMetadata: {
+            created_at: snapshot.created_at,
+            created_by: snapshot.created_by,
+            schema_version: "1",
+            source: "r2",
+            checksum_sha256: "abc123",
+            license_entries_count: "1",
+            audit_logs_count: "1",
+            public_rate_limits_count: "0",
+            public_target_rate_limits_count: "0",
+          },
+        },
+      }),
+    };
+
+    const previewResponse = await worker.fetch(
+      createAdminRequest(`/api/admin/backups/${encodeURIComponent(backupKey)}/preview`),
+      env
+    );
+    const previewPayload = await previewResponse.json();
+    assert.equal(previewResponse.status, 200);
+    assert.equal(previewPayload.item.checksum_sha256, "abc123");
+    assert.equal(previewPayload.item.preview.license_entries[0].ip, "198.51.100.88");
+    assert.equal(previewPayload.item.preview.audit_events[0].event_type, "admin_create");
+  } finally {
+    bundled.cleanup();
+  }
+});
+
 test("worker scheduled maintenance membuat backup otomatis dan prune snapshot lama", async () => {
   const bundled = await bundleModule("worker/src/index.js", "worker-scheduled-backup.mjs");
   try {

@@ -411,15 +411,24 @@
                         <th>Actor</th>
                         <th>Rows</th>
                         <th>Size</th>
+                        <th>Checksum</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody id="backup-list-body">
                       <tr>
-                        <td colspan="5" class="empty-row">Belum ada snapshot backup.</td>
+                        <td colspan="6" class="empty-row">Belum ada snapshot backup.</td>
                       </tr>
                     </tbody>
                   </table>
+                </div>
+
+                <div id="backup-preview-panel" class="settings-note">
+                  <strong>Backup Preview</strong>
+                  <p id="backup-preview-summary">
+                    Pilih preview snapshot untuk melihat ringkasan isi sebelum restore.
+                  </p>
+                  <div id="backup-preview-details"></div>
                 </div>
 
                 <div class="settings-note">
