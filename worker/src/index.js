@@ -748,6 +748,11 @@ async function routeAdminRequest(request, env, pathname) {
     return handleAdminPreviewBackup(env, decodeURIComponent(previewMatch[1]));
   }
 
+  const manifestMatch = pathname.match(/^\/api\/admin\/backups\/(.+)\/manifest$/);
+  if (request.method === "GET" && manifestMatch) {
+    return handleAdminBackupManifest(env, decodeURIComponent(manifestMatch[1]));
+  }
+
   const restoreMatch = pathname.match(/^\/api\/admin\/backups\/(.+)\/restore$/);
   if (request.method === "POST" && restoreMatch) {
     return handleAdminRestoreBackup(env, actorEmail, decodeURIComponent(restoreMatch[1]));
@@ -1085,6 +1090,7 @@ async function handleAdminPreviewBackup(env, backupKey) {
     item: {
       ...serializeBackupObject(object),
       checksum_sha256: checksumSha256,
+      checksum_valid: true,
       preview: {
         license_entries: (snapshot.value.tables.license_entries || []).slice(0, 5).map((row) => ({
           id: row.id,
@@ -1100,6 +1106,42 @@ async function handleAdminPreviewBackup(env, backupKey) {
         })),
       },
     },
+  });
+}
+
+async function handleAdminBackupManifest(env, backupKey) {
+  const bucket = getLicenseBackupBucket(env);
+  if (!bucket) {
+    return jsonResponse(
+      {
+        error: "misconfigured",
+        message: "Bucket backup R2 belum dikonfigurasi.",
+      },
+      503
+    );
+  }
+  const object = await bucket.get(backupKey);
+  if (!object) {
+    return jsonResponse({ error: "not_found", message: "Snapshot backup tidak ditemukan." }, 404);
+  }
+  let serialized = serializeBackupObject(object);
+  if (!serialized.checksum_sha256) {
+    const rawPayload = await object.text();
+    serialized = {
+      ...serialized,
+      checksum_sha256: await computeSha256Hex(rawPayload),
+    };
+  }
+  const payload = {
+    item: serialized,
+  };
+  const baseName = (backupKey.split("/").at(-1) || "autoscript-license-backup.json").replace(/\.json$/i, "");
+  return new Response(JSON.stringify(payload, null, 2), {
+    status: 200,
+    headers: buildApiSecurityHeaders({
+      "Content-Type": "application/json; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${baseName}.manifest.json"`,
+    }),
   });
 }
 
@@ -1119,6 +1161,10 @@ async function handleAdminRestoreBackup(env, actorEmail, backupKey) {
     return jsonResponse({ error: "not_found", message: "Snapshot backup tidak ditemukan." }, 404);
   }
   const rawPayload = await object.text();
+  const checksumValidation = await validateBackupChecksum(rawPayload, object.customMetadata?.checksum_sha256 || "");
+  if (!checksumValidation.ok) {
+    return jsonResponse(checksumValidation.error, 409);
+  }
   const snapshot = parseAndValidateBackupSnapshot(rawPayload);
   if (snapshot.error) {
     return jsonResponse(snapshot.error, 400);
@@ -1136,6 +1182,7 @@ async function handleAdminRestoreBackup(env, actorEmail, backupKey) {
     userAgent: "",
     payload: {
       backup_key: backupKey,
+      checksum_sha256: checksumValidation.checksumSha256,
       row_counts: snapshot.value.row_counts,
       source: "r2",
     },
@@ -1143,6 +1190,7 @@ async function handleAdminRestoreBackup(env, actorEmail, backupKey) {
   return jsonResponse({
     ok: true,
     restored_key: backupKey,
+    checksum_sha256: checksumValidation.checksumSha256,
     row_counts: snapshot.value.row_counts,
   });
 }
@@ -1193,6 +1241,14 @@ async function handleAdminImportBackup(request, env, actorEmail) {
     );
   }
 
+  const checksumValidation = await validateBackupChecksum(
+    rawPayload,
+    String(request.headers.get("X-Backup-SHA256") || "").trim()
+  );
+  if (!checksumValidation.ok) {
+    return jsonResponse(checksumValidation.error, 409);
+  }
+
   const snapshot = parseAndValidateBackupSnapshot(rawPayload);
   if (snapshot.error) {
     return jsonResponse(snapshot.error, 400);
@@ -1210,6 +1266,7 @@ async function handleAdminImportBackup(request, env, actorEmail) {
     userAgent: "",
     payload: {
       imported_name: snapshot.value.file_name || "",
+      checksum_sha256: checksumValidation.checksumSha256,
       row_counts: snapshot.value.row_counts,
       source: "browser_import",
     },
@@ -1218,6 +1275,7 @@ async function handleAdminImportBackup(request, env, actorEmail) {
   return jsonResponse({
     ok: true,
     imported: true,
+    checksum_sha256: checksumValidation.checksumSha256,
     row_counts: snapshot.value.row_counts,
   });
 }
@@ -1590,6 +1648,25 @@ async function computeSha256Hex(input) {
   return Array.from(new Uint8Array(digest))
     .map((value) => value.toString(16).padStart(2, "0"))
     .join("");
+}
+
+async function validateBackupChecksum(rawPayload, expectedChecksum) {
+  const checksumSha256 = await computeSha256Hex(rawPayload);
+  const normalizedExpected = String(expectedChecksum || "").trim().toLowerCase();
+  if (normalizedExpected && normalizedExpected !== checksumSha256) {
+    return {
+      ok: false,
+      checksumSha256,
+      error: {
+        error: "checksum_mismatch",
+        message: "Checksum backup tidak cocok dengan payload snapshot.",
+      },
+    };
+  }
+  return {
+    ok: true,
+    checksumSha256,
+  };
 }
 
 function parseAndValidateBackupSnapshot(rawPayload) {

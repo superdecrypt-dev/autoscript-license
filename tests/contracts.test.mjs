@@ -900,6 +900,157 @@ test("worker admin backup preview mengembalikan checksum dan sample isi snapshot
   }
 });
 
+test("worker admin backup manifest mengembalikan metadata snapshot tanpa body penuh", async () => {
+  const bundled = await bundleModule("worker/src/index.js", "worker-backup-manifest.mjs");
+  try {
+    const worker = bundled.module.default;
+    const backupKey = "snapshots/2026/04/07/20260407T120000Z-admin.json";
+    const env = {
+      ADMIN_PROXY_SHARED_SECRET: "secret-backup",
+      LICENSE_DB: createD1Stub(),
+      LICENSE_BACKUPS: createR2BucketStub({
+        [backupKey]: {
+          body: "{\"format\":\"autoscript-license-backup\"}",
+          customMetadata: {
+            created_at: "2026-04-07T12:00:00.000Z",
+            created_by: "admin@example.com",
+            schema_version: "1",
+            source: "r2",
+            checksum_sha256: "manifest123",
+            license_entries_count: "4",
+            audit_logs_count: "12",
+            public_rate_limits_count: "3",
+            public_target_rate_limits_count: "1",
+          },
+        },
+      }),
+    };
+
+    const response = await worker.fetch(
+      createAdminRequest(`/api/admin/backups/${encodeURIComponent(backupKey)}/manifest`),
+      env
+    );
+    const payload = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(payload.item.checksum_sha256, "manifest123");
+    assert.equal(payload.item.row_counts.license_entries, 4);
+    assert.match(String(response.headers.get("Content-Disposition") || ""), /\.manifest\.json/);
+  } finally {
+    bundled.cleanup();
+  }
+});
+
+test("worker admin backup restore menolak checksum metadata yang mismatch", async () => {
+  const bundled = await bundleModule("worker/src/index.js", "worker-backup-restore-checksum.mjs");
+  try {
+    const worker = bundled.module.default;
+    const backupKey = "snapshots/2026/04/07/mismatch.json";
+    const snapshot = {
+      format: "autoscript-license-backup",
+      schema_version: 1,
+      created_at: "2026-04-07T12:00:00.000Z",
+      created_by: "admin@example.com",
+      source: "r2",
+      row_counts: {
+        license_entries: 0,
+        audit_logs: 0,
+        public_rate_limits: 0,
+        public_target_rate_limits: 0,
+      },
+      tables: {
+        license_entries: [],
+        audit_logs: [],
+        public_rate_limits: [],
+        public_target_rate_limits: [],
+      },
+    };
+
+    const env = {
+      ADMIN_PROXY_SHARED_SECRET: "secret-backup",
+      LICENSE_DB: createD1Stub(),
+      LICENSE_BACKUPS: createR2BucketStub({
+        [backupKey]: {
+          body: JSON.stringify(snapshot),
+          customMetadata: {
+            created_at: snapshot.created_at,
+            created_by: snapshot.created_by,
+            schema_version: "1",
+            source: "r2",
+            checksum_sha256: "definitely-wrong",
+            license_entries_count: "0",
+            audit_logs_count: "0",
+            public_rate_limits_count: "0",
+            public_target_rate_limits_count: "0",
+          },
+        },
+      }),
+    };
+
+    const response = await worker.fetch(
+      createAdminRequest(`/api/admin/backups/${encodeURIComponent(backupKey)}/restore`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
+      env
+    );
+    const payload = await response.json();
+    assert.equal(response.status, 409);
+    assert.equal(payload.error, "checksum_mismatch");
+  } finally {
+    bundled.cleanup();
+  }
+});
+
+test("worker admin backup import menolak checksum header yang mismatch", async () => {
+  const bundled = await bundleModule("worker/src/index.js", "worker-backup-import-checksum.mjs");
+  try {
+    const worker = bundled.module.default;
+    const snapshot = {
+      format: "autoscript-license-backup",
+      schema_version: 1,
+      created_at: "2026-04-07T10:00:00.000Z",
+      created_by: "admin@example.com",
+      source: "browser_import",
+      row_counts: {
+        license_entries: 0,
+        audit_logs: 0,
+        public_rate_limits: 0,
+        public_target_rate_limits: 0,
+      },
+      tables: {
+        license_entries: [],
+        audit_logs: [],
+        public_rate_limits: [],
+        public_target_rate_limits: [],
+      },
+    };
+
+    const env = {
+      ADMIN_PROXY_SHARED_SECRET: "secret-backup",
+      LICENSE_DB: createD1Stub(),
+      LICENSE_BACKUPS: createR2BucketStub(),
+    };
+
+    const response = await worker.fetch(
+      createAdminRequest("/api/admin/backups/import", {
+        method: "POST",
+        headers: {
+          "X-Admin-Actor-Email": "admin@example.com",
+          "X-Admin-Proxy-Secret": "secret-backup",
+          "X-Backup-SHA256": "wrong-checksum",
+        },
+        body: JSON.stringify(snapshot),
+      }),
+      env
+    );
+    const payload = await response.json();
+    assert.equal(response.status, 409);
+    assert.equal(payload.error, "checksum_mismatch");
+  } finally {
+    bundled.cleanup();
+  }
+});
+
 test("worker scheduled maintenance membuat backup otomatis dan prune snapshot lama", async () => {
   const bundled = await bundleModule("worker/src/index.js", "worker-scheduled-backup.mjs");
   try {

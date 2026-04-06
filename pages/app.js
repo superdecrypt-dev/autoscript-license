@@ -477,8 +477,12 @@ async function handleImportBackupFile(event) {
 
   try {
     const rawPayload = await file.text();
+    const checksumSha256 = await computeSha256Hex(rawPayload);
     await apiFetch("/api/admin/backups/import", {
       method: "POST",
+      headers: {
+        "X-Backup-SHA256": checksumSha256,
+      },
       body: rawPayload,
     });
     setBanner(`Backup ${file.name} berhasil di-import.`, "ok");
@@ -564,6 +568,27 @@ async function downloadBackup(backupKey) {
     setBanner("Snapshot backup berhasil diunduh.", "ok");
   } catch (error) {
     handleAuthFailure(error, "Gagal mengunduh snapshot backup.");
+  }
+}
+
+async function downloadBackupManifest(backupKey) {
+  if (!ensureAuthenticated()) {
+    return;
+  }
+  try {
+    const response = await fetchAdminBlob(`/api/admin/backups/${encodeURIComponent(backupKey)}/manifest`);
+    const blob = await response.blob();
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = `${backupKey.split("/").at(-1) || "autoscript-license-backup"}.manifest.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(downloadUrl);
+    setBanner("Manifest backup berhasil diunduh.", "ok");
+  } catch (error) {
+    handleAuthFailure(error, "Gagal mengunduh manifest backup.");
   }
 }
 
@@ -1114,6 +1139,7 @@ function renderBackups() {
           <td>
             <div class="action-stack">
               <button class="action-btn" type="button" data-backup-action="preview" data-backup-key="${escapeHtml(backup.key)}">Preview</button>
+              <button class="action-btn" type="button" data-backup-action="manifest" data-backup-key="${escapeHtml(backup.key)}">Manifest</button>
               <button class="action-btn action-btn-edit" type="button" data-backup-action="download" data-backup-key="${escapeHtml(backup.key)}">Download</button>
               <button class="action-btn action-btn-reactivate" type="button" data-backup-action="restore" data-backup-key="${escapeHtml(backup.key)}">Restore</button>
               <button class="action-btn action-btn-delete" type="button" data-backup-action="delete" data-backup-key="${escapeHtml(backup.key)}">Delete</button>
@@ -1151,6 +1177,7 @@ function renderBackups() {
           </dl>
           <div class="mobile-action-row">
             <button class="action-btn" type="button" data-backup-action="preview" data-backup-key="${escapeHtml(backup.key)}">Preview</button>
+            <button class="action-btn" type="button" data-backup-action="manifest" data-backup-key="${escapeHtml(backup.key)}">Manifest</button>
             <button class="action-btn action-btn-edit" type="button" data-backup-action="download" data-backup-key="${escapeHtml(backup.key)}">Download</button>
             <button class="action-btn action-btn-reactivate" type="button" data-backup-action="restore" data-backup-key="${escapeHtml(backup.key)}">Restore</button>
             <button class="action-btn action-btn-delete" type="button" data-backup-action="delete" data-backup-key="${escapeHtml(backup.key)}">Delete</button>
@@ -1196,6 +1223,8 @@ function bindBackupActionButtons(container) {
       }
       if (action === "preview") {
         await loadBackupPreview(backupKey);
+      } else if (action === "manifest") {
+        await downloadBackupManifest(backupKey);
       } else if (action === "download") {
         await downloadBackup(backupKey);
       } else if (action === "restore") {
@@ -1211,6 +1240,13 @@ async function loadBackupPreview(backupKey, options = {}) {
   try {
     const payload = await apiFetch(`/api/admin/backups/${encodeURIComponent(backupKey)}/preview`);
     state.backupPreview = payload.item || null;
+    if (state.backupPreview?.key) {
+      state.backups = state.backups.map((item) =>
+        item.key === state.backupPreview.key
+          ? { ...item, checksum_sha256: state.backupPreview.checksum_sha256 || item.checksum_sha256 || "" }
+          : item
+      );
+    }
     if (!options.silent) {
       setBanner("Preview snapshot berhasil dimuat.", "ok");
     }
@@ -1641,4 +1677,12 @@ function shortChecksum(value) {
     return raw;
   }
   return `${raw.slice(0, 8)}...${raw.slice(-8)}`;
+}
+
+async function computeSha256Hex(input) {
+  const bytes = new TextEncoder().encode(String(input || ""));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((value) => value.toString(16).padStart(2, "0"))
+    .join("");
 }
