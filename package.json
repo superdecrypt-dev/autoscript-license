@@ -5,14 +5,14 @@
   "description": "Cloudflare Worker + Pages portal for Autoscript VPS IP licensing",
   "scripts": {
     "build:pages": "node scripts/build-pages.mjs",
-    "dev:worker": "wrangler dev",
-    "dev:pages": "npm run build:pages && wrangler pages dev dist --compatibility-date=2026-03-31 --port 8788",
-    "deploy:worker": "wrangler deploy",
-    "deploy:pages": "npm run build:pages && wrangler pages deploy dist",
+    "dev:worker": "wrangler --config wrangler.worker.toml dev",
+    "dev:pages": "npm run build:pages && wrangler pages dev dist --port 8788",
+    "deploy:worker": "wrangler --config wrangler.worker.toml deploy",
+    "deploy:pages": "npm run build:pages && wrangler pages deploy",
     "test": "npm run test:contracts",
     "test:contracts": "node --test tests/contracts.test.mjs",
-    "d1:migrate:local": "wrangler d1 migrations apply LICENSE_DB --local",
-    "d1:migrate:remote": "wrangler d1 migrations apply LICENSE_DB --remote"
+    "d1:migrate:local": "wrangler --config wrangler.worker.toml d1 migrations apply LICENSE_DB --local",
+    "d1:migrate:remote": "wrangler --config wrangler.worker.toml d1 migrations apply LICENSE_DB --remote"
   },
   "devDependencies": {
     "esbuild": "^0.27.4",

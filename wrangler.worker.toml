@@ -1,0 +1,35 @@
+name = "autoscript-license"
+main = "worker/src/index.js"
+compatibility_date = "2026-03-31"
+workers_dev = true
+preview_urls = false
+
+[vars]
+# Built-in autoscript client now points to:
+# https://autoscript-license.minidecrypt.workers.dev/api/v1/license/check
+CACHE_TTL_SEC_DEFAULT = "3600"
+PUBLIC_LICENSE_DURATION_DAYS = "14"
+PUBLIC_UI_ORIGIN = "https://autoscript-license.pages.dev,https://autoscript.license.dpdns.org"
+ADMIN_UI_ORIGIN = "https://autoscript-license.pages.dev,https://autoscript.license.dpdns.org"
+PUBLIC_TURNSTILE_SITE_KEY = "0x4AAAAAACyuCecga_IsHlm8"
+PUBLIC_CREATE_LIMIT_MAX = "5"
+PUBLIC_CREATE_WINDOW_SEC = "900"
+PUBLIC_CREATE_TARGET_LIMIT_MAX = "3"
+PUBLIC_CREATE_TARGET_WINDOW_SEC = "900"
+PUBLIC_STATUS_LIMIT_MAX = "30"
+PUBLIC_STATUS_WINDOW_SEC = "900"
+PUBLIC_RENEW_LIMIT_MAX = "10"
+PUBLIC_RENEW_WINDOW_SEC = "900"
+PUBLIC_RENEW_TARGET_LIMIT_MAX = "5"
+PUBLIC_RENEW_TARGET_WINDOW_SEC = "900"
+AUDIT_LOG_RETENTION_DAYS = "30"
+PUBLIC_RATE_LIMIT_RETENTION_DAYS = "7"
+
+[triggers]
+crons = ["17 * * * *"]
+
+[[d1_databases]]
+binding = "LICENSE_DB"
+database_name = "autoscript-license"
+database_id = "91d51648-0760-47dd-8998-795d2d9a01ae"
+migrations_dir = "migrations"
