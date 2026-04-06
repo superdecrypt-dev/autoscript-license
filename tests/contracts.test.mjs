@@ -193,3 +193,40 @@ test("Pages admin proxy meneruskan request ke upstream yang dikonfigurasi", asyn
     bundled.cleanup();
   }
 });
+
+test("Pages admin proxy mengembalikan 502 JSON saat upstream fetch gagal", async () => {
+  const bundled = await bundleModule("functions/api/admin/[[path]].js", "pages-admin-upstream-error.mjs");
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async (url) => {
+      if (String(url).includes("/cdn-cgi/access/get-identity")) {
+        return new Response(JSON.stringify({ email: "admin@example.com" }), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json; charset=utf-8",
+          },
+        });
+      }
+      throw new Error("connect failed");
+    };
+
+    const response = await bundled.module.onRequest({
+      request: new Request("https://pages.example/api/admin/session", {
+        headers: {
+          Cookie: "CF_Authorization=session",
+        },
+      }),
+      env: {
+        ADMIN_PROXY_SHARED_SECRET: "secret-3",
+        PAGES_API_BASE_URL: "https://worker.example",
+      },
+    });
+    const payload = await response.json();
+
+    assert.equal(response.status, 502);
+    assert.equal(payload.error, "upstream_unavailable");
+  } finally {
+    globalThis.fetch = originalFetch;
+    bundled.cleanup();
+  }
+});

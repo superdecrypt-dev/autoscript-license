@@ -25,6 +25,12 @@ const fallbackTurnstileSiteKey = normalizeText(fallbackValues.turnstileSiteKey);
 const apiBaseUrl = configuredApiBaseUrl || fallbackApiBaseUrl;
 const turnstileSiteKey = configuredTurnstileSiteKey || fallbackTurnstileSiteKey;
 
+if (!apiBaseUrl) {
+  throw new Error(
+    "PAGES_API_BASE_URL belum di-set dan pages/config.js tidak menyediakan fallback apiBaseUrl."
+  );
+}
+
 const pageSourceArtifacts = new Set([
   "_headers",
   "index.html",
@@ -76,8 +82,6 @@ writeFileSync(resolve(outputDir, "_headers"), headersFile, "utf8");
 
 if (!configuredApiBaseUrl && fallbackApiBaseUrl) {
   console.log(`[build:pages] using fallback apiBaseUrl from pages/config.js: ${fallbackApiBaseUrl}`);
-} else if (!apiBaseUrl) {
-  console.warn("[build:pages] PAGES_API_BASE_URL belum di-set; config inline tetap kosong.");
 }
 if (!configuredTurnstileSiteKey && fallbackTurnstileSiteKey) {
   console.log("[build:pages] using fallback turnstileSiteKey from pages/config.js");

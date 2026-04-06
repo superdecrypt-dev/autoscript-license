@@ -49,8 +49,18 @@ export async function onRequest(context) {
     init.body = await request.text();
   }
 
-  const upstreamResponse = await fetch(upstreamUrl.toString(), init);
-  return withAdminProxySecurityHeaders(upstreamResponse);
+  try {
+    const upstreamResponse = await fetch(upstreamUrl.toString(), init);
+    return withAdminProxySecurityHeaders(upstreamResponse);
+  } catch (_error) {
+    return jsonResponse(
+      {
+        error: "upstream_unavailable",
+        message: "Admin upstream tidak dapat dihubungi.",
+      },
+      502
+    );
+  }
 }
 
 async function resolveAccessActorEmail(request) {

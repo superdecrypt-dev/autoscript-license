@@ -9,6 +9,7 @@
     "dev:pages": "npm run build:pages && wrangler pages dev dist --compatibility-date=2026-03-31 --port 8788",
     "deploy:worker": "wrangler deploy",
     "deploy:pages": "npm run build:pages && wrangler pages deploy dist",
+    "test": "npm run test:contracts",
     "test:contracts": "node --test tests/contracts.test.mjs",
     "d1:migrate:local": "wrangler d1 migrations apply LICENSE_DB --local",
     "d1:migrate:remote": "wrangler d1 migrations apply LICENSE_DB --remote"
