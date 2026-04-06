@@ -1157,6 +1157,124 @@ test("worker admin backup import menolak checksum header yang mismatch", async (
   }
 });
 
+test("worker admin backup import dry-run tidak menulis D1", async () => {
+  const bundled = await bundleModule("worker/src/index.js", "worker-backup-import-dry-run.mjs");
+  try {
+    const worker = bundled.module.default;
+    const snapshot = {
+      format: "autoscript-license-backup",
+      schema_version: 1,
+      created_at: "2026-04-07T10:00:00.000Z",
+      created_by: "admin@example.com",
+      source: "browser_import",
+      row_counts: {
+        license_entries: 1,
+        audit_logs: 0,
+        public_rate_limits: 0,
+        public_target_rate_limits: 0,
+      },
+      tables: {
+        license_entries: [
+          {
+            id: "entry-import-dry",
+            ip: "198.51.100.91",
+            label: "dry",
+            owner: "",
+            notes: "",
+            status: "active",
+            expires_at: "2026-06-01T00:00:00.000Z",
+            created_at: "2026-04-07T10:00:00.000Z",
+            updated_at: "2026-04-07T10:00:00.000Z",
+            created_by: "admin@example.com",
+            updated_by: "admin@example.com",
+            revoked_at: null,
+            entry_source: "admin",
+            renewal_token_hash: "",
+            last_renewed_at: null,
+            created_request_ip: "198.51.100.91",
+          },
+        ],
+        audit_logs: [],
+        public_rate_limits: [],
+        public_target_rate_limits: [],
+      },
+    };
+    const raw = JSON.stringify(snapshot);
+
+    const env = {
+      ADMIN_PROXY_SHARED_SECRET: "secret-backup",
+      LICENSE_DB: createD1Stub({
+        tables: {
+          license_entries: [
+            {
+              id: "entry-existing",
+              ip: "198.51.100.92",
+              label: "existing",
+              owner: "",
+              notes: "",
+              status: "active",
+              expires_at: "2026-06-01T00:00:00.000Z",
+              created_at: "2026-04-07T10:00:00.000Z",
+              updated_at: "2026-04-07T10:00:00.000Z",
+              created_by: "admin@example.com",
+              updated_by: "admin@example.com",
+              revoked_at: null,
+              entry_source: "admin",
+              renewal_token_hash: "",
+              last_renewed_at: null,
+              created_request_ip: "198.51.100.92",
+            },
+          ],
+        },
+      }),
+      LICENSE_BACKUPS: createR2BucketStub(),
+    };
+
+    const response = await worker.fetch(
+      createAdminRequest("/api/admin/backups/import?dry_run=1", {
+        method: "POST",
+        headers: {
+          "X-Admin-Actor-Email": "admin@example.com",
+          "X-Admin-Proxy-Secret": "secret-backup",
+          "X-Backup-SHA256": "5190f7",
+        },
+        body: raw,
+      }),
+      env
+    );
+    const payload = await response.json();
+    assert.equal(response.status, 409);
+    assert.equal(payload.error, "checksum_mismatch");
+
+    const okResponse = await worker.fetch(
+      createAdminRequest("/api/admin/backups/import?dry_run=1", {
+        method: "POST",
+        headers: {
+          "X-Admin-Actor-Email": "admin@example.com",
+          "X-Admin-Proxy-Secret": "secret-backup",
+          "X-Backup-SHA256": await crypto.subtle
+            .digest("SHA-256", new TextEncoder().encode(raw))
+            .then((digest) =>
+              Array.from(new Uint8Array(digest))
+                .map((value) => value.toString(16).padStart(2, "0"))
+                .join("")
+            ),
+        },
+        body: raw,
+      }),
+      env
+    );
+    const okPayload = await okResponse.json();
+    assert.equal(okResponse.status, 200);
+    assert.equal(okPayload.dry_run, true);
+    assert.equal(env.LICENSE_DB._state.license_entries[0].id, "entry-existing");
+    assert.ok(env.LICENSE_DB._state.audit_logs.some((row) => row.event_type === "admin_backup_import_dry_run"));
+    assert.equal(env.LICENSE_DB._state.audit_logs.some((row) => row.event_type === "admin_backup_import"), false);
+  } finally {
+    bundled.cleanup();
+  }
+});
+
 test("worker scheduled maintenance membuat backup otomatis dan prune snapshot lama", async () => {
   const bundled = await bundleModule("worker/src/index.js", "worker-scheduled-backup.mjs");
   try {

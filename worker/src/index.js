@@ -1280,6 +1280,32 @@ async function handleAdminImportBackup(request, env, actorEmail) {
   if (snapshot.error) {
     return jsonResponse(snapshot.error, 400);
   }
+  const dryRun = isTruthyQueryValue(new URL(request.url).searchParams.get("dry_run"));
+
+  if (dryRun) {
+    await insertAuditLog(env, {
+      eventType: "admin_backup_import_dry_run",
+      ip: "",
+      entryId: null,
+      stage: "admin",
+      decision: "inspect",
+      actorEmail,
+      requestIp: "",
+      userAgent: "",
+      payload: {
+        imported_name: snapshot.value.file_name || "",
+        checksum_sha256: checksumValidation.checksumSha256,
+        row_counts: snapshot.value.row_counts,
+        source: "browser_import",
+      },
+    });
+    return jsonResponse({
+      ok: true,
+      dry_run: true,
+      checksum_sha256: checksumValidation.checksumSha256,
+      row_counts: snapshot.value.row_counts,
+    });
+  }
 
   await restoreBackupSnapshot(env, snapshot.value);
   await insertAuditLog(env, {

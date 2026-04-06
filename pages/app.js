@@ -478,6 +478,20 @@ async function handleImportBackupFile(event) {
   try {
     const rawPayload = await file.text();
     const checksumSha256 = await computeSha256Hex(rawPayload);
+    const dryRunPayload = await apiFetch("/api/admin/backups/import?dry_run=1", {
+      method: "POST",
+      headers: {
+        "X-Backup-SHA256": checksumSha256,
+      },
+      body: rawPayload,
+    });
+    const confirmed = window.confirm(
+      `Import backup ${file.name} siap dijalankan.\n\nRows: ${formatBackupRows(dryRunPayload.row_counts)}\nChecksum: ${shortChecksum(dryRunPayload.checksum_sha256)}\n\nLanjutkan import penuh?`
+    );
+    if (!confirmed) {
+      setBanner("Import backup dibatalkan setelah dry-run.", "muted");
+      return;
+    }
     await apiFetch("/api/admin/backups/import", {
       method: "POST",
       headers: {
@@ -508,6 +522,7 @@ async function restoreBackup(backupKey) {
     ? [
         `Created: ${formatDate(backup.created_at) || "-"}`,
         `Actor: ${backup.created_by || "-"}`,
+        `Source: ${backup.source || "-"}`,
         `Rows: ${formatBackupRows(backup.row_counts)}`,
         `Size: ${formatBytes(backup.size || 0)}`,
         `Checksum: ${backup.checksum_sha256 || "-"}`,
@@ -1151,7 +1166,12 @@ function renderBackups() {
       (backup) => `
         <tr>
           <td>${escapeHtml(formatDate(backup.created_at) || "-")}</td>
-          <td>${escapeHtml(backup.created_by || "-")}</td>
+          <td>
+            <div class="entry-meta">
+              <strong>${escapeHtml(backup.created_by || "-")}</strong>
+              <span class="status-pill ${backup.source === "scheduled" ? "expired" : "active"}">${escapeHtml(backup.source || "r2")}</span>
+            </div>
+          </td>
           <td>${escapeHtml(formatBackupRows(backup.row_counts))}</td>
           <td>${escapeHtml(formatBytes(backup.size || 0))}</td>
           <td class="mono">${escapeHtml(shortChecksum(backup.checksum_sha256))}</td>
@@ -1177,7 +1197,7 @@ function renderBackups() {
           <div class="mobile-card-head">
             <div class="entry-meta">
               <strong>${escapeHtml(formatDate(backup.created_at) || "-")}</strong>
-              <span>${escapeHtml(backup.created_by || "-")}</span>
+              <span>${escapeHtml(backup.created_by || "-")} • ${escapeHtml(backup.source || "r2")}</span>
             </div>
             <span class="status-pill active">${escapeHtml(formatBytes(backup.size || 0))}</span>
           </div>
