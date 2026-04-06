@@ -1,4 +1,7 @@
 import { build } from "esbuild";
+import postcss from "postcss";
+import tailwind from "@tailwindcss/postcss";
+import autoprefixer from "autoprefixer";
 import {
   copyFileSync,
   mkdirSync,
@@ -7,6 +10,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { createHash } from "node:crypto";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,9 +33,7 @@ const adminApiBaseUrl = configuredAdminApiBaseUrl || fallbackAdminApiBaseUrl;
 const turnstileSiteKey = configuredTurnstileSiteKey || fallbackTurnstileSiteKey;
 
 if (!apiBaseUrl) {
-  throw new Error(
-    "PAGES_API_BASE_URL belum di-set dan pages/config.js tidak menyediakan fallback apiBaseUrl."
-  );
+  throw new Error("PAGES_API_BASE_URL belum di-set dan pages/config.js tidak menyediakan fallback apiBaseUrl.");
 }
 
 const pageSourceArtifacts = new Set([
@@ -52,16 +54,15 @@ copyStaticPagesFiles(sourceDir);
 
 const jsAssets = await buildEntryGroup({
   entryPoints: {
-    public: "pages/public.js",
-    admin: "pages/app.js",
+    public: "src/public/main.jsx",
+    admin: "src/admin/main.jsx",
   },
 });
-const cssAssets = await buildEntryGroup({
-  entryPoints: {
-    public: "pages/public.css",
-    admin: "pages/styles.css",
-  },
-});
+
+const cssAssets = {
+  public: await buildCssAsset("src/styles/public.css", "public"),
+  admin: await buildCssAsset("src/styles/admin.css", "admin"),
+};
 
 const publicHtml = renderPublicHtml({
   cssHref: toOutputHref(resolve(outputDir, "index.html"), cssAssets.public),
@@ -69,11 +70,13 @@ const publicHtml = renderPublicHtml({
   apiBaseUrl,
   turnstileSiteKey,
 });
+
 const adminHtml = renderAdminHtml({
   cssHref: toOutputHref(resolve(outputDir, "admin/index.html"), cssAssets.admin),
   jsHref: toOutputHref(resolve(outputDir, "admin/index.html"), jsAssets.admin),
   adminApiBaseUrl,
 });
+
 const headersFile = renderHeaders({
   publicCsp: buildPublicCsp(apiBaseUrl),
   adminCsp: buildAdminCsp(adminApiBaseUrl),
@@ -86,6 +89,9 @@ writeFileSync(resolve(outputDir, "_headers"), headersFile, "utf8");
 
 if (!configuredApiBaseUrl && fallbackApiBaseUrl) {
   console.log(`[build:pages] using fallback apiBaseUrl from pages/config.js: ${fallbackApiBaseUrl}`);
+}
+if (!configuredAdminApiBaseUrl && fallbackAdminApiBaseUrl) {
+  console.log(`[build:pages] using fallback adminApiBaseUrl from pages/config.js: ${fallbackAdminApiBaseUrl}`);
 }
 if (!configuredTurnstileSiteKey && fallbackTurnstileSiteKey) {
   console.log("[build:pages] using fallback turnstileSiteKey from pages/config.js");
@@ -121,6 +127,7 @@ async function buildEntryGroup({ entryPoints }) {
     bundle: true,
     entryNames: "assets/[name].[hash]",
     entryPoints,
+    jsx: "automatic",
     legalComments: "none",
     logLevel: "silent",
     metafile: true,
@@ -150,43 +157,78 @@ function extractEntryOutputs(outputs) {
 }
 
 function deriveEntryName(entryPoint) {
-  if (entryPoint.endsWith("pages/public.js") || entryPoint.endsWith("pages/public.css")) {
+  if (entryPoint.endsWith("src/public/main.jsx")) {
     return "public";
   }
-  if (entryPoint.endsWith("pages/app.js") || entryPoint.endsWith("pages/styles.css")) {
+  if (entryPoint.endsWith("src/admin/main.jsx")) {
     return "admin";
   }
   return "";
 }
 
+async function buildCssAsset(relativePath, name) {
+  const inputPath = resolve(rootDir, relativePath);
+  const source = readFileSync(inputPath, "utf8");
+  const result = await postcss([tailwind(), autoprefixer]).process(source, {
+    from: inputPath,
+  });
+  const hash = createHash("sha256").update(result.css).digest("hex").slice(0, 8);
+  const outputPath = resolve(outputDir, `assets/${name}.${hash}.css`);
+  mkdirSync(dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, result.css, "utf8");
+  return outputPath;
+}
+
 function renderPublicHtml({ cssHref, jsHref, apiBaseUrl, turnstileSiteKey }) {
-  const template = readFileSync(resolve(sourceDir, "index.html"), "utf8");
   const inlineConfig = `<script id="portal-config" type="application/json">${serializeInlineConfig({
     apiBaseUrl,
     turnstileSiteKey,
   })}</script>`;
-  return template
-    .replace('<link rel="stylesheet" href="./public.css" />', `<link rel="stylesheet" href="${cssHref}" />`)
-    .replace('<script src="./config.js"></script>', inlineConfig)
-    .replace('<script src="./public.js" defer></script>', `<script src="${jsHref}" defer></script>`);
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Autoscript IP Access</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="${cssHref}" />
+    ${inlineConfig}
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="${jsHref}" defer></script>
+  </body>
+</html>`;
 }
 
 function renderAdminHtml({ cssHref, jsHref, adminApiBaseUrl }) {
-  const template = readFileSync(resolve(sourceDir, "admin/index.html"), "utf8");
   const inlineConfig = `<script id="admin-config" type="application/json">${serializeInlineConfig({
     adminApiBaseUrl,
   })}</script>`;
-  return template
-    .replace('<link rel="stylesheet" href="../styles.css" />', `<link rel="stylesheet" href="${cssHref}" />`)
-    .replace("</head>", `    ${inlineConfig}\n  </head>`)
-    .replace('<script src="../app.js"></script>', `<script src="${jsHref}"></script>`);
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Autoscript License Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="${cssHref}" />
+    ${inlineConfig}
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="${jsHref}" defer></script>
+  </body>
+</html>`;
 }
 
 function renderHeaders({ publicCsp, adminCsp }) {
   const template = readFileSync(resolve(sourceDir, "_headers"), "utf8");
-  return template
-    .replaceAll("__PUBLIC_CSP__", publicCsp)
-    .replaceAll("__ADMIN_CSP__", adminCsp);
+  return template.replaceAll("__PUBLIC_CSP__", publicCsp).replaceAll("__ADMIN_CSP__", adminCsp);
 }
 
 function toOutputHref(htmlPath, assetPath) {
@@ -210,7 +252,6 @@ function buildPublicCsp(apiBaseUrl) {
     connectSources.push(apiBaseUrl);
   }
   connectSources.push("https://challenges.cloudflare.com");
-
   return [
     "default-src 'self'",
     "base-uri 'none'",
@@ -258,7 +299,7 @@ function extractFallbackConfig(source) {
 function matchConfigValue(source, key) {
   const matcher = new RegExp(`${key}:\\s*["']([^"']*)["']`);
   const match = source.match(matcher);
-  return match ? match[1].trim() : "";
+  return match ? match[1] : "";
 }
 
 function normalizeUrl(value) {
@@ -269,7 +310,7 @@ function normalizeUrl(value) {
   try {
     return new URL(raw).origin;
   } catch (_error) {
-    return raw;
+    return "";
   }
 }
 
