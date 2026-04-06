@@ -29,42 +29,6 @@ const BACKUP_TABLES = [
       "created_request_ip",
     ],
   },
-  {
-    name: "audit_logs",
-    columns: [
-      "id",
-      "event_type",
-      "ip",
-      "entry_id",
-      "stage",
-      "decision",
-      "actor_email",
-      "request_ip",
-      "user_agent",
-      "payload_json",
-      "created_at",
-    ],
-  },
-  {
-    name: "public_rate_limits",
-    columns: [
-      "endpoint",
-      "client_ip",
-      "window_slot",
-      "request_count",
-      "updated_at",
-    ],
-  },
-  {
-    name: "public_target_rate_limits",
-    columns: [
-      "endpoint",
-      "target_ip",
-      "window_slot",
-      "request_count",
-      "updated_at",
-    ],
-  },
 ];
 
 export default {
@@ -1099,11 +1063,6 @@ async function handleAdminPreviewBackup(env, backupKey) {
           status: row.status || "",
           expires_at: row.expires_at || "",
         })),
-        audit_events: (snapshot.value.tables.audit_logs || []).slice(0, 5).map((row) => ({
-          event_type: row.event_type || "",
-          ip: row.ip || "",
-          created_at: row.created_at || "",
-        })),
       },
     },
   });
@@ -1669,9 +1628,6 @@ function buildBackupObjectMetadata(snapshot, checksumSha256 = "") {
     source: snapshot.source || "r2",
     checksum_sha256: checksumSha256,
     license_entries_count: String(snapshot.row_counts?.license_entries || 0),
-    audit_logs_count: String(snapshot.row_counts?.audit_logs || 0),
-    public_rate_limits_count: String(snapshot.row_counts?.public_rate_limits || 0),
-    public_target_rate_limits_count: String(snapshot.row_counts?.public_target_rate_limits || 0),
   };
 }
 
@@ -1679,9 +1635,6 @@ function serializeBackupObject(object) {
   const metadata = object.customMetadata || {};
   const rowCounts = {
     license_entries: Number(metadata.license_entries_count || 0),
-    audit_logs: Number(metadata.audit_logs_count || 0),
-    public_rate_limits: Number(metadata.public_rate_limits_count || 0),
-    public_target_rate_limits: Number(metadata.public_target_rate_limits_count || 0),
   };
   return {
     key: object.key,

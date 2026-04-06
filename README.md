@@ -264,11 +264,14 @@ Panel admin `Settings` sekarang menyediakan:
 Format snapshot v1:
 - plain JSON
 - `replace only` saat restore
-- mencakup seluruh tabel D1 aktif:
+- hanya mencakup tabel:
   - `license_entries`
-  - `audit_logs`
-  - `public_rate_limits`
-  - `public_target_rate_limits`
+
+Catatan:
+- `audit_logs` tidak ikut snapshot
+- `public_rate_limits` tidak ikut snapshot
+- `public_target_rate_limits` tidak ikut snapshot
+- restore/import hanya mengganti isi `license_entries`
 
 ### Backup otomatis
 

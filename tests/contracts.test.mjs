@@ -619,9 +619,6 @@ test("worker admin backup import replace-only mengganti isi tabel D1", async () 
       source: "browser_import",
       row_counts: {
         license_entries: 1,
-        audit_logs: 1,
-        public_rate_limits: 1,
-        public_target_rate_limits: 1,
       },
       tables: {
         license_entries: [
@@ -644,39 +641,6 @@ test("worker admin backup import replace-only mengganti isi tabel D1", async () 
             created_request_ip: "198.51.100.20",
           },
         ],
-        audit_logs: [
-          {
-            id: "audit-imported",
-            event_type: "admin_create",
-            ip: "198.51.100.20",
-            entry_id: "entry-new",
-            stage: "admin",
-            decision: "mutate",
-            actor_email: "admin@example.com",
-            request_ip: "198.51.100.20",
-            user_agent: "test",
-            payload_json: "{\"from\":\"snapshot\"}",
-            created_at: "2026-04-07T10:00:00.000Z",
-          },
-        ],
-        public_rate_limits: [
-          {
-            endpoint: "public_status",
-            client_ip: "198.51.100.20",
-            window_slot: "2026-04-07T10:00:00.000Z",
-            request_count: 4,
-            updated_at: "2026-04-07T10:00:00.000Z",
-          },
-        ],
-        public_target_rate_limits: [
-          {
-            endpoint: "public_status",
-            target_ip: "198.51.100.20",
-            window_slot: "2026-04-07T10:00:00.000Z",
-            request_count: 4,
-            updated_at: "2026-04-07T10:00:00.000Z",
-          },
-        ],
       },
     };
 
@@ -692,9 +656,6 @@ test("worker admin backup import replace-only mengganti isi tabel D1", async () 
     assert.equal(importPayload.ok, true);
     assert.equal(env.LICENSE_DB._state.license_entries.length, 1);
     assert.equal(env.LICENSE_DB._state.license_entries[0].id, "entry-new");
-    assert.equal(env.LICENSE_DB._state.public_rate_limits.length, 1);
-    assert.equal(env.LICENSE_DB._state.public_target_rate_limits.length, 1);
-    assert.ok(env.LICENSE_DB._state.audit_logs.some((row) => row.id === "audit-imported"));
     assert.ok(env.LICENSE_DB._state.audit_logs.some((row) => row.event_type === "admin_backup_import"));
   } finally {
     bundled.cleanup();
@@ -714,9 +675,6 @@ test("worker admin backup restore dari R2 mengganti isi tabel D1", async () => {
       source: "r2",
       row_counts: {
         license_entries: 1,
-        audit_logs: 0,
-        public_rate_limits: 0,
-        public_target_rate_limits: 0,
       },
       tables: {
         license_entries: [
@@ -739,9 +697,6 @@ test("worker admin backup restore dari R2 mengganti isi tabel D1", async () => {
             created_request_ip: "198.51.100.30",
           },
         ],
-        audit_logs: [],
-        public_rate_limits: [],
-        public_target_rate_limits: [],
       },
     };
 
@@ -780,9 +735,6 @@ test("worker admin backup restore dari R2 mengganti isi tabel D1", async () => {
             schema_version: "1",
             source: "r2",
             license_entries_count: "1",
-            audit_logs_count: "0",
-            public_rate_limits_count: "0",
-            public_target_rate_limits_count: "0",
           },
         },
       }),
@@ -819,9 +771,6 @@ test("worker admin backup restore dry-run tidak menulis D1", async () => {
       source: "r2",
       row_counts: {
         license_entries: 1,
-        audit_logs: 0,
-        public_rate_limits: 0,
-        public_target_rate_limits: 0,
       },
       tables: {
         license_entries: [
@@ -844,9 +793,6 @@ test("worker admin backup restore dry-run tidak menulis D1", async () => {
             created_request_ip: "198.51.100.66",
           },
         ],
-        audit_logs: [],
-        public_rate_limits: [],
-        public_target_rate_limits: [],
       },
     };
 
@@ -885,9 +831,6 @@ test("worker admin backup restore dry-run tidak menulis D1", async () => {
             schema_version: "1",
             source: "r2",
             license_entries_count: "1",
-            audit_logs_count: "0",
-            public_rate_limits_count: "0",
-            public_target_rate_limits_count: "0",
           },
         },
       }),
@@ -925,9 +868,6 @@ test("worker admin backup preview mengembalikan checksum dan sample isi snapshot
       source: "r2",
       row_counts: {
         license_entries: 1,
-        audit_logs: 1,
-        public_rate_limits: 0,
-        public_target_rate_limits: 0,
       },
       tables: {
         license_entries: [
@@ -950,23 +890,6 @@ test("worker admin backup preview mengembalikan checksum dan sample isi snapshot
             created_request_ip: "198.51.100.88",
           },
         ],
-        audit_logs: [
-          {
-            id: "audit-preview",
-            event_type: "admin_create",
-            ip: "198.51.100.88",
-            entry_id: "entry-preview",
-            stage: "admin",
-            decision: "mutate",
-            actor_email: "admin@example.com",
-            request_ip: "198.51.100.88",
-            user_agent: "test",
-            payload_json: "{\"from\":\"preview\"}",
-            created_at: "2026-04-07T12:00:00.000Z",
-          },
-        ],
-        public_rate_limits: [],
-        public_target_rate_limits: [],
       },
     };
     const snapshotBody = JSON.stringify(snapshot);
@@ -984,9 +907,6 @@ test("worker admin backup preview mengembalikan checksum dan sample isi snapshot
             source: "r2",
             checksum_sha256: "abc123",
             license_entries_count: "1",
-            audit_logs_count: "1",
-            public_rate_limits_count: "0",
-            public_target_rate_limits_count: "0",
           },
         },
       }),
@@ -1000,7 +920,6 @@ test("worker admin backup preview mengembalikan checksum dan sample isi snapshot
     assert.equal(previewResponse.status, 200);
     assert.equal(previewPayload.item.checksum_sha256, "abc123");
     assert.equal(previewPayload.item.preview.license_entries[0].ip, "198.51.100.88");
-    assert.equal(previewPayload.item.preview.audit_events[0].event_type, "admin_create");
   } finally {
     bundled.cleanup();
   }
@@ -1024,9 +943,6 @@ test("worker admin backup manifest mengembalikan metadata snapshot tanpa body pe
             source: "r2",
             checksum_sha256: "manifest123",
             license_entries_count: "4",
-            audit_logs_count: "12",
-            public_rate_limits_count: "3",
-            public_target_rate_limits_count: "1",
           },
         },
       }),
@@ -1059,15 +975,9 @@ test("worker admin backup restore menolak checksum metadata yang mismatch", asyn
       source: "r2",
       row_counts: {
         license_entries: 0,
-        audit_logs: 0,
-        public_rate_limits: 0,
-        public_target_rate_limits: 0,
       },
       tables: {
         license_entries: [],
-        audit_logs: [],
-        public_rate_limits: [],
-        public_target_rate_limits: [],
       },
     };
 
@@ -1084,9 +994,6 @@ test("worker admin backup restore menolak checksum metadata yang mismatch", asyn
             source: "r2",
             checksum_sha256: "definitely-wrong",
             license_entries_count: "0",
-            audit_logs_count: "0",
-            public_rate_limits_count: "0",
-            public_target_rate_limits_count: "0",
           },
         },
       }),
@@ -1119,15 +1026,9 @@ test("worker admin backup import menolak checksum header yang mismatch", async (
       source: "browser_import",
       row_counts: {
         license_entries: 0,
-        audit_logs: 0,
-        public_rate_limits: 0,
-        public_target_rate_limits: 0,
       },
       tables: {
         license_entries: [],
-        audit_logs: [],
-        public_rate_limits: [],
-        public_target_rate_limits: [],
       },
     };
 
@@ -1169,9 +1070,6 @@ test("worker admin backup import dry-run tidak menulis D1", async () => {
       source: "browser_import",
       row_counts: {
         license_entries: 1,
-        audit_logs: 0,
-        public_rate_limits: 0,
-        public_target_rate_limits: 0,
       },
       tables: {
         license_entries: [
@@ -1194,9 +1092,6 @@ test("worker admin backup import dry-run tidak menulis D1", async () => {
             created_request_ip: "198.51.100.91",
           },
         ],
-        audit_logs: [],
-        public_rate_limits: [],
-        public_target_rate_limits: [],
       },
     };
     const raw = JSON.stringify(snapshot);
@@ -1287,15 +1182,9 @@ test("worker scheduled maintenance membuat backup otomatis dan prune snapshot la
       source: "scheduled",
       row_counts: {
         license_entries: 0,
-        audit_logs: 0,
-        public_rate_limits: 0,
-        public_target_rate_limits: 0,
       },
       tables: {
         license_entries: [],
-        audit_logs: [],
-        public_rate_limits: [],
-        public_target_rate_limits: [],
       },
     };
     const recentSnapshot = {
@@ -1343,9 +1232,6 @@ test("worker scheduled maintenance membuat backup otomatis dan prune snapshot la
             schema_version: "1",
             source: "scheduled",
             license_entries_count: "0",
-            audit_logs_count: "0",
-            public_rate_limits_count: "0",
-            public_target_rate_limits_count: "0",
           },
         },
         "snapshots/2026/04/06/recent.json": {
@@ -1357,9 +1243,6 @@ test("worker scheduled maintenance membuat backup otomatis dan prune snapshot la
             schema_version: "1",
             source: "scheduled",
             license_entries_count: "0",
-            audit_logs_count: "0",
-            public_rate_limits_count: "0",
-            public_target_rate_limits_count: "0",
           },
         },
         "snapshots/2026/02/15/manual.json": {
@@ -1371,9 +1254,6 @@ test("worker scheduled maintenance membuat backup otomatis dan prune snapshot la
             schema_version: "1",
             source: "r2",
             license_entries_count: "0",
-            audit_logs_count: "0",
-            public_rate_limits_count: "0",
-            public_target_rate_limits_count: "0",
           },
         },
       }),

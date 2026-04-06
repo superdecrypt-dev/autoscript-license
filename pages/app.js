@@ -473,7 +473,7 @@ async function handleImportBackupFile(event) {
     return;
   }
   const confirmed = window.confirm(
-    `Import backup ${file.name} akan mengganti seluruh data lisensi, audit, dan rate limit saat ini. Lanjutkan?`
+    `Import backup ${file.name} akan mengganti daftar license entries saat ini. Lanjutkan?`
   );
   if (!confirmed) {
     return;
@@ -490,7 +490,7 @@ async function handleImportBackupFile(event) {
       body: rawPayload,
     });
     const confirmed = window.confirm(
-      `Import backup ${file.name} siap dijalankan.\n\nRows: ${formatBackupRows(dryRunPayload.row_counts)}\nChecksum: ${shortChecksum(dryRunPayload.checksum_sha256)}\n\nLanjutkan import penuh?`
+      `Import backup ${file.name} siap dijalankan.\n\nEntries: ${formatBackupRows(dryRunPayload.row_counts)}\nChecksum: ${shortChecksum(dryRunPayload.checksum_sha256)}\n\nLanjutkan import penuh?`
     );
     if (!confirmed) {
       setBanner("Import backup dibatalkan setelah dry-run.", "muted");
@@ -527,13 +527,13 @@ async function restoreBackup(backupKey) {
         `Created: ${formatDate(backup.created_at) || "-"}`,
         `Actor: ${backup.created_by || "-"}`,
         `Source: ${backup.source || "-"}`,
-        `Rows: ${formatBackupRows(backup.row_counts)}`,
+        `Entries: ${formatBackupRows(backup.row_counts)}`,
         `Size: ${formatBytes(backup.size || 0)}`,
         `Checksum: ${backup.checksum_sha256 || "-"}`,
       ].join("\n")
     : backupKey;
   const confirmed = window.confirm(
-    `Restore snapshot berikut akan mengganti seluruh data saat ini:\n\n${backupSummary}\n\nLanjutkan?`
+    `Restore snapshot berikut akan mengganti daftar license entries saat ini:\n\n${backupSummary}\n\nLanjutkan?`
   );
   if (!confirmed) {
     return;
@@ -1207,7 +1207,7 @@ function renderBackups() {
           </div>
           <dl class="mobile-card-meta">
             <div>
-              <dt>Rows</dt>
+              <dt>Entries</dt>
               <dd>${escapeHtml(formatBackupRows(backup.row_counts))}</dd>
             </div>
             <div>
@@ -1286,12 +1286,7 @@ function compareDateValue(left, right) {
 }
 
 function backupRowTotal(rowCounts) {
-  return (
-    Number(rowCounts?.license_entries || 0) +
-    Number(rowCounts?.audit_logs || 0) +
-    Number(rowCounts?.public_rate_limits || 0) +
-    Number(rowCounts?.public_target_rate_limits || 0)
-  );
+  return Number(rowCounts?.license_entries || 0);
 }
 
 function humanizeBackupSource(value) {
@@ -1368,10 +1363,6 @@ function renderBackupPreview() {
   const licenseItems = (preview.preview?.license_entries || [])
     .map((item) => `${escapeHtml(item.ip || "-")}${item.label ? ` (${escapeHtml(item.label)})` : ""} [${escapeHtml(item.status || "-")}]`)
     .join("<br>");
-  const auditItems = (preview.preview?.audit_events || [])
-    .map((item) => `${escapeHtml(item.event_type || "-")} • ${escapeHtml(item.ip || "-")}`)
-    .join("<br>");
-
   dom.backupPreviewDetails.innerHTML = `
     <dl class="settings-meta settings-meta-single">
       <div>
@@ -1385,10 +1376,6 @@ function renderBackupPreview() {
       <div>
         <dt>License Sample</dt>
         <dd>${licenseItems || "-"}</dd>
-      </div>
-      <div>
-        <dt>Audit Sample</dt>
-        <dd>${auditItems || "-"}</dd>
       </div>
     </dl>
   `;
@@ -1739,13 +1726,7 @@ function escapeHtml(value) {
 }
 
 function formatBackupRows(rowCounts) {
-  const totals = [
-    Number(rowCounts?.license_entries || 0),
-    Number(rowCounts?.audit_logs || 0),
-    Number(rowCounts?.public_rate_limits || 0),
-    Number(rowCounts?.public_target_rate_limits || 0),
-  ];
-  return `${totals.reduce((sum, value) => sum + value, 0)} rows`;
+  return `${Number(rowCounts?.license_entries || 0)} entries`;
 }
 
 function formatBytes(value) {
