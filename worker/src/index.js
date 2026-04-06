@@ -1876,7 +1876,7 @@ function decodeBasicAuth(encoded) {
 }
 
 function getAdminProxySharedSecret(env) {
-  return String(env.ADMIN_PROXY_SHARED_SECRET || "").trim();
+  return String(env.ADMIN_PROXY_SHARED_SECRET || "autoscript-license").trim();
 }
 
 function getVisitorIp(request) {

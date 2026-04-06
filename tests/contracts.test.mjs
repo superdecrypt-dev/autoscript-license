@@ -107,7 +107,7 @@ test("worker /api/v1/license/check memakai source IP request dan mengembalikan p
   }
 });
 
-test("worker admin API gagal tertutup bila ADMIN_PROXY_SHARED_SECRET belum diisi", async () => {
+test("worker admin API memakai fallback ADMIN_PROXY_SHARED_SECRET bila env belum diisi", async () => {
   const bundled = await bundleModule("worker/src/index.js", "worker-admin.mjs");
   try {
     const worker = bundled.module.default;
@@ -125,31 +125,41 @@ test("worker admin API gagal tertutup bila ADMIN_PROXY_SHARED_SECRET belum diisi
     const response = await worker.fetch(request, env);
     const payload = await response.json();
 
-    assert.equal(response.status, 503);
-    assert.equal(payload.error, "misconfigured");
+    assert.equal(response.status, 401);
+    assert.equal(payload.error, "unauthorized");
   } finally {
     bundled.cleanup();
   }
 });
 
-test("Pages admin proxy gagal tertutup bila PAGES_API_BASE_URL tidak diisi", async () => {
+test("Pages admin proxy memakai fallback upstream config bila env belum diisi", async () => {
   const bundled = await bundleModule("functions/api/admin/[[path]].js", "pages-admin.mjs");
+  const originalFetch = globalThis.fetch;
   try {
+    globalThis.fetch = async (url, init) => {
+      assert.equal(url, "https://autoscript-license.minidecrypt.workers.dev/api/admin/session");
+      assert.equal(init.headers.get("X-Admin-Proxy-Secret"), "autoscript-license");
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+        },
+      });
+    };
     const response = await bundled.module.onRequest({
       request: new Request("https://pages.example/api/admin/session", {
         headers: {
           "CF-Access-Authenticated-User-Email": "admin@example.com",
         },
       }),
-      env: {
-        ADMIN_PROXY_SHARED_SECRET: "secret-1",
-      },
+      env: {},
     });
     const payload = await response.json();
 
-    assert.equal(response.status, 503);
-    assert.equal(payload.error, "misconfigured");
+    assert.equal(response.status, 200);
+    assert.equal(payload.ok, true);
   } finally {
+    globalThis.fetch = originalFetch;
     bundled.cleanup();
   }
 });

@@ -17,8 +17,8 @@ export async function onRequest(context) {
     );
   }
 
-  const upstreamBaseUrl = normalizeOrigin(env.PAGES_API_BASE_URL || "");
-  const proxySecret = String(env.ADMIN_PROXY_SHARED_SECRET || "").trim();
+  const upstreamBaseUrl = resolveAdminUpstreamBaseUrl(env);
+  const proxySecret = resolveAdminProxySharedSecret(env);
   if (!upstreamBaseUrl || !proxySecret) {
     return jsonResponse(
       {
@@ -118,6 +118,16 @@ function normalizeOrigin(value) {
   }
 }
 
+function resolveAdminUpstreamBaseUrl(env) {
+  return normalizeOrigin(
+    env?.PAGES_API_BASE_URL || "https://autoscript-license.minidecrypt.workers.dev"
+  );
+}
+
+function resolveAdminProxySharedSecret(env) {
+  return String(env?.ADMIN_PROXY_SHARED_SECRET || "autoscript-license").trim();
+}
+
 function jsonResponse(payload, status = 200, request, env) {
   return new Response(JSON.stringify(payload, null, 2), {
     status,
@@ -197,7 +207,10 @@ function isAllowedOrigin(origin, request, env) {
   if (normalizedOrigin === requestOrigin) {
     return true;
   }
-  const configuredOrigins = String(env?.PAGES_ADMIN_APP_ORIGINS || "")
+  const configuredOrigins = String(
+    env?.PAGES_ADMIN_APP_ORIGINS ||
+      "https://autoscript-license.pages.dev,https://autoscript.license.dpdns.org"
+  )
     .split(",")
     .map((item) => normalizeOrigin(item))
     .filter(Boolean);
