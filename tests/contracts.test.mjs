@@ -544,7 +544,7 @@ test("worker admin backup create/list/download/delete bekerja dengan R2", async 
     );
     const createPayload = await createResponse.json();
     assert.equal(createResponse.status, 201);
-    assert.ok(createPayload.item.key.startsWith("snapshots/"));
+    assert.match(createPayload.item.key, /^snapshots\/license-entries-\d{8}-\d{6}\.json$/);
     assert.equal(env.LICENSE_BACKUPS._state.size, 1);
 
     const listResponse = await worker.fetch(createAdminRequest("/api/admin/backups"), env);
@@ -1282,7 +1282,7 @@ test("worker scheduled maintenance membuat backup otomatis dan prune snapshot la
     assert.equal(keys.includes("snapshots/2026/03/01/old.json"), false);
     assert.equal(keys.includes("snapshots/2026/04/06/recent.json"), true);
     assert.equal(keys.includes("snapshots/2026/02/15/manual.json"), true);
-    assert.equal(keys.some((key) => key.includes("system.json") || key.includes("system")), true);
+    assert.equal(keys.some((key) => /^snapshots\/license-entries-\d{8}-\d{6}\.json$/.test(key)), true);
   } finally {
     bundled.cleanup();
   }

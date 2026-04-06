@@ -266,6 +266,8 @@ Format snapshot v1:
 - `replace only` saat restore
 - hanya mencakup tabel:
   - `license_entries`
+- nama object R2:
+  - `snapshots/license-entries-YYYYMMDD-HHMMSS.json`
 
 Catatan:
 - `audit_logs` tidak ikut snapshot

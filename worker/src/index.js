@@ -1607,16 +1607,13 @@ function sanitizeBackupRow(row, columns) {
 
 function buildBackupObjectKey(createdAt, actorEmail) {
   const parsed = new Date(createdAt);
-  const year = String(parsed.getUTCFullYear());
+  const year = String(parsed.getUTCFullYear()).padStart(4, "0");
   const month = String(parsed.getUTCMonth() + 1).padStart(2, "0");
   const day = String(parsed.getUTCDate()).padStart(2, "0");
-  const stamp = createdAt.replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
-  const actorSlug = String(actorEmail || "admin")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48) || "admin";
-  return `${BACKUP_PREFIX}${year}/${month}/${day}/${stamp}-${actorSlug}.json`;
+  const hour = String(parsed.getUTCHours()).padStart(2, "0");
+  const minute = String(parsed.getUTCMinutes()).padStart(2, "0");
+  const second = String(parsed.getUTCSeconds()).padStart(2, "0");
+  return `${BACKUP_PREFIX}license-entries-${year}${month}${day}-${hour}${minute}${second}.json`;
 }
 
 function buildBackupObjectMetadata(snapshot, checksumSha256 = "") {
