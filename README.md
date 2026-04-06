@@ -131,7 +131,7 @@ Lihat [wrangler.worker.toml](/root/project/autoscript-license/wrangler.worker.to
 - `ADMIN_PROXY_SHARED_SECRET`
 
 Catatan:
-- `ADMIN_PROXY_SHARED_SECRET` wajib diisi manual dan harus acak
+- `ADMIN_PROXY_SHARED_SECRET` default runtime saat ini adalah `autoscript-license`
 - jika diisi manual, nilainya harus sama antara Pages dan Worker
 - identitas operator diambil dari Cloudflare Access
 - Pages Functions meneruskan identitas itu ke Worker lewat secret internal
@@ -142,16 +142,23 @@ Catatan:
 Env build Pages:
 
 - `PAGES_API_BASE_URL`
+- `PAGES_ADMIN_API_BASE_URL`
+- `PAGES_ADMIN_APP_ORIGINS`
 - `PAGES_TURNSTILE_SITE_KEY`
 - `ADMIN_PROXY_SHARED_SECRET`
 
-Build sekarang fail-fast jika `PAGES_API_BASE_URL` kosong dan `pages/config.js` juga tidak menyediakan fallback yang valid. Nilai default repo saat ini untuk `apiBaseUrl` memang kosong, jadi production build harus mengisi env ini secara eksplisit.
+Build sekarang punya fallback produksi di repo untuk:
+- `PAGES_API_BASE_URL=https://autoscript-license.minidecrypt.workers.dev`
+- `PAGES_ADMIN_API_BASE_URL=https://autoscript-license.pages.dev`
+- `PAGES_ADMIN_APP_ORIGINS=https://autoscript-license.pages.dev,https://autoscript.license.dpdns.org`
 
 Catatan:
-- `PAGES_API_BASE_URL` wajib diisi manual ke origin Worker yang benar untuk deploy production
+- `PAGES_API_BASE_URL` tetap bisa dioverride manual ke origin Worker lain
+- `PAGES_ADMIN_API_BASE_URL` dipakai admin custom-domain untuk relay auth/API lewat hostname `pages.dev`
+- `PAGES_ADMIN_APP_ORIGINS` dipakai Pages Functions untuk allow CORS dari hostname admin yang sah
 - `PAGES_TURNSTILE_SITE_KEY` fallback ke `pages/config.js`
-- `ADMIN_PROXY_SHARED_SECRET` wajib diisi di Pages env
-- dua nilai itu tetap bisa dioverride manual dari Pages project jika diperlukan
+- `ADMIN_PROXY_SHARED_SECRET` tetap bisa dioverride dari env Pages/Worker jika ingin ganti secret
+- semua nilai itu tetap bisa dioverride manual dari Pages project jika diperlukan
 - output build Pages sekarang berupa HTML final + aset hashed di `dist/assets`
 - `config.js` tidak lagi dipublish sebagai file publik terpisah; config publik di-inline saat build sebagai JSON pasif
 - path asset legacy diblok lewat kombinasi `pages/_redirects` dan `functions/[[path]].js`
@@ -538,31 +545,35 @@ Kalau `/admin/` gagal, cek urutan ini:
 - pastikan `/admin*` dan `/api/admin*` keduanya dilindungi
 
 2. **Muncul `Cloudflare Access identity tidak tersedia.`**
-- `/admin/` sudah dilindungi, tapi `/api/admin*` belum
-- perbaiki policy Access untuk `/api/admin*`
+- jika ini muncul saat akses langsung ke custom-domain `/api/admin/*`, itu normal
+- runtime custom-domain admin sekarang memang relay sesi/API ke `autoscript-license.pages.dev`
+- jika ini muncul di browser operator setelah login Access selesai, baru lanjut cek cookie/sesi Access di `pages.dev`
 
 3. **Muncul `Proxy admin belum dikonfigurasi.`**
-- deployment Pages live belum membawa:
+- deployment Pages/Worker live belum memakai fallback runtime terbaru
+- pastikan deployment terbaru aktif
+- jika memakai override env manual, cek:
   - `PAGES_API_BASE_URL`
+  - `PAGES_ADMIN_API_BASE_URL`
+  - `PAGES_ADMIN_APP_ORIGINS`
   - `ADMIN_PROXY_SHARED_SECRET`
-- save env Pages lalu redeploy
 
 4. **Muncul `Admin API hanya menerima request internal dari Pages.`**
 - `ADMIN_PROXY_SHARED_SECRET` di Pages dan Worker tidak sama
 - samakan nilainya lalu redeploy
 
-5. **Domain custom `autoscript.license.dpdns.org` kena `403` / `cf-mitigated: challenge`**
-- ini bukan bug aplikasi `autoscript-license`
-- cek layer security Cloudflare pada zone custom domain
-- pastikan perilaku pembanding sehat:
-  - `autoscript-license.pages.dev/admin/` seharusnya redirect ke login Access
-  - `autoscript-license.pages.dev/api/admin/session` seharusnya redirect ke login Access
-- kalau `pages.dev` sehat tetapi custom domain tetap `403`, audit `Security Events / Rules Trace` untuk host custom itu
+5. **Admin custom domain tidak masuk setelah login**
+- flow yang benar sekarang:
+  1. buka `https://autoscript.license.dpdns.org/admin/`
+  2. frontend admin akan relay login ke `https://autoscript-license.pages.dev/admin/`
+  3. setelah sesi Access aktif, browser kembali ke custom domain
+- jika loop, uji incognito lalu cek cookie/session Access pada `autoscript-license.pages.dev`
 
 6. **Halaman kosong atau data tidak tampil**
 - cek deployment Pages terbaru sukses
 - cek Worker terbaru sudah deploy
 - cek `/api/admin/session` di domain Pages setelah lolos Access
+- cek custom-domain `/admin/` memuat `adminApiBaseUrl=https://autoscript-license.pages.dev`
 
 7. **Masih error setelah config benar**
 - uji lewat incognito
@@ -582,9 +593,10 @@ Kalau `/admin/` gagal, cek urutan ini:
 5. Worker membuat atau memperpanjang lisensi
 
 ### Jalur Operator
-1. operator lolos Cloudflare Access di `/admin/`
-2. Pages Functions meneruskan request `/api/admin/*` ke Worker
-3. operator dapat:
+1. operator membuka `https://autoscript.license.dpdns.org/admin/` atau `https://autoscript-license.pages.dev/admin/`
+2. jika memakai custom domain, frontend admin akan relay sesi/login ke `pages.dev`
+3. Pages Functions meneruskan request `/api/admin/*` ke Worker
+4. operator dapat:
    - create entry
    - edit entry
    - revoke
@@ -636,5 +648,6 @@ Sebelum dipakai production, pastikan:
 - `PUBLIC_TURNSTILE_SECRET_KEY` hanya boleh ada di Worker, bukan frontend
 - `ADMIN_PROXY_SHARED_SECRET` hanya boleh ada di Pages dan Worker
 - browser operator tidak perlu lagi memanggil `workers.dev` langsung untuk `/api/admin/*`
-- Cloudflare Access harus melindungi `/admin*` dan `/api/admin*`
+- admin custom-domain sekarang boleh merelay auth/API ke `autoscript-license.pages.dev`
+- Cloudflare Access tetap melindungi `pages.dev` admin path sebagai source sesi operator
 - kalau dua hostname aktif bersamaan, pastikan CORS Worker dan policy Access keduanya mengizinkan dua origin itu
