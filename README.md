@@ -52,7 +52,8 @@ https://autoscript-license.minidecrypt.workers.dev/api/v1/license/check
 - `functions/[[path]].js`: blokir path asset legacy agar tetap `404`
 - `scripts/build-pages.mjs`: build HTML final + aset minified hashed ke `dist/assets`
 - `dist/`: output build Pages
-- `wrangler.toml`: config Worker dan binding D1
+- `wrangler.toml`: config Pages
+- `wrangler.worker.toml`: config Worker, vars, cron, dan binding D1
 
 ## Endpoint
 
@@ -104,7 +105,7 @@ Kalau deploy lokal:
 
 ### Vars Worker
 
-Lihat [wrangler.toml](/root/project/autoscript-license/wrangler.toml). Vars utama:
+Lihat [wrangler.worker.toml](/root/project/autoscript-license/wrangler.worker.toml). Vars utama:
 
 - `CACHE_TTL_SEC_DEFAULT`
 - `PUBLIC_LICENSE_DURATION_DAYS`
@@ -144,14 +145,10 @@ Env build Pages:
 - `PAGES_TURNSTILE_SITE_KEY`
 - `ADMIN_PROXY_SHARED_SECRET`
 
-Kalau env ini tidak diisi, build akan fallback ke default di `pages/config.js`, yang saat ini bernilai:
-
-```text
-(kosong untuk `apiBaseUrl`)
-```
+Build sekarang fail-fast jika `PAGES_API_BASE_URL` kosong dan `pages/config.js` juga tidak menyediakan fallback yang valid. Nilai default repo saat ini untuk `apiBaseUrl` memang kosong, jadi production build harus mengisi env ini secara eksplisit.
 
 Catatan:
-- `PAGES_API_BASE_URL` sebaiknya selalu diisi manual ke origin Worker yang benar
+- `PAGES_API_BASE_URL` wajib diisi manual ke origin Worker yang benar untuk deploy production
 - `PAGES_TURNSTILE_SITE_KEY` fallback ke `pages/config.js`
 - `ADMIN_PROXY_SHARED_SECRET` wajib diisi di Pages env
 - dua nilai itu tetap bisa dioverride manual dari Pages project jika diperlukan
@@ -447,6 +444,14 @@ Migrasi D1:
 npm run d1:migrate:remote
 ```
 
+Catatan CLI:
+- `wrangler.toml` sekarang khusus Pages
+- `wrangler.worker.toml` dipakai otomatis oleh script:
+  - `npm run dev:worker`
+  - `npm run deploy:worker`
+  - `npm run d1:migrate:*`
+- `npm test` sekarang menjalankan contract test yang sama dengan `npm run test:contracts`
+
 ## Verifikasi Setelah Deploy
 
 ### Worker
@@ -546,12 +551,20 @@ Kalau `/admin/` gagal, cek urutan ini:
 - `ADMIN_PROXY_SHARED_SECRET` di Pages dan Worker tidak sama
 - samakan nilainya lalu redeploy
 
-5. **Halaman kosong atau data tidak tampil**
+5. **Domain custom `autoscript.license.dpdns.org` kena `403` / `cf-mitigated: challenge`**
+- ini bukan bug aplikasi `autoscript-license`
+- cek layer security Cloudflare pada zone custom domain
+- pastikan perilaku pembanding sehat:
+  - `autoscript-license.pages.dev/admin/` seharusnya redirect ke login Access
+  - `autoscript-license.pages.dev/api/admin/session` seharusnya redirect ke login Access
+- kalau `pages.dev` sehat tetapi custom domain tetap `403`, audit `Security Events / Rules Trace` untuk host custom itu
+
+6. **Halaman kosong atau data tidak tampil**
 - cek deployment Pages terbaru sukses
 - cek Worker terbaru sudah deploy
 - cek `/api/admin/session` di domain Pages setelah lolos Access
 
-6. **Masih error setelah config benar**
+7. **Masih error setelah config benar**
 - uji lewat incognito
 - login ulang Access
 - hard refresh browser
@@ -616,6 +629,7 @@ Sebelum dipakai production, pastikan:
 9. halaman `/` di `autoscript.license.dpdns.org` bisa aktivasi
 10. halaman `/admin/` di hostname yang Anda lindungi bisa terbuka setelah lolos Cloudflare Access
 11. `healthz` Worker normal
+12. `/admin/` dan `/api/admin/session` pada hostname operator tidak tertahan challenge browser-level Cloudflare
 
 ## Catatan Keamanan
 
