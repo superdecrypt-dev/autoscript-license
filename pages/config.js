@@ -1,5 +1,6 @@
 // Local fallback for static preview without the GitHub build step.
 window.AUTOSCRIPT_PORTAL_CONFIG = {
-  apiBaseUrl: "",
+  apiBaseUrl: "https://autoscript-license.minidecrypt.workers.dev",
+  adminApiBaseUrl: "https://autoscript-license.pages.dev",
   turnstileSiteKey: "0x4AAAAAACyuCecga_IsHlm8",
 };

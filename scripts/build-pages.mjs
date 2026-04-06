@@ -22,9 +22,10 @@ const configuredApiBaseUrl = normalizeUrl(process.env.PAGES_API_BASE_URL);
 const configuredAdminApiBaseUrl = normalizeUrl(process.env.PAGES_ADMIN_API_BASE_URL);
 const configuredTurnstileSiteKey = normalizeText(process.env.PAGES_TURNSTILE_SITE_KEY);
 const fallbackApiBaseUrl = normalizeUrl(fallbackValues.apiBaseUrl);
+const fallbackAdminApiBaseUrl = normalizeUrl(fallbackValues.adminApiBaseUrl);
 const fallbackTurnstileSiteKey = normalizeText(fallbackValues.turnstileSiteKey);
 const apiBaseUrl = configuredApiBaseUrl || fallbackApiBaseUrl;
-const adminApiBaseUrl = configuredAdminApiBaseUrl;
+const adminApiBaseUrl = configuredAdminApiBaseUrl || fallbackAdminApiBaseUrl;
 const turnstileSiteKey = configuredTurnstileSiteKey || fallbackTurnstileSiteKey;
 
 if (!apiBaseUrl) {
@@ -249,6 +250,7 @@ function buildAdminCsp(adminApiBaseUrl) {
 function extractFallbackConfig(source) {
   return {
     apiBaseUrl: matchConfigValue(source, "apiBaseUrl"),
+    adminApiBaseUrl: matchConfigValue(source, "adminApiBaseUrl"),
     turnstileSiteKey: matchConfigValue(source, "turnstileSiteKey"),
   };
 }
