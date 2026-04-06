@@ -969,17 +969,28 @@ function handleMetricsWindowChange() {
 }
 
 async function apiFetch(path, options = {}) {
+  const intendedMethod = String(options.method || "GET").toUpperCase();
+  const requestUrl = new URL(path, adminApiOrigin);
   const headers = {
-    "Content-Type": "application/json",
     ...(options.headers || {}),
   };
-  const requestUrl = new URL(path, adminApiOrigin);
+  let requestMethod = intendedMethod;
+  let requestBody = options.body;
+
+  if (usesCrossOriginAdminApi && !["GET", "HEAD"].includes(intendedMethod)) {
+    requestMethod = "POST";
+    requestUrl.searchParams.set("__proxy_method", intendedMethod);
+    headers["Content-Type"] = "text/plain;charset=UTF-8";
+  } else if (!["GET", "HEAD"].includes(requestMethod)) {
+    headers["Content-Type"] = "application/json";
+  }
+
   let response;
   try {
     response = await fetch(requestUrl.toString(), {
-      method: options.method || "GET",
+      method: requestMethod,
       headers,
-      body: options.body,
+      body: requestBody,
       credentials: "include",
     });
   } catch (_error) {

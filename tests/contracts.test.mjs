@@ -222,6 +222,51 @@ test("Pages admin proxy menjawab preflight CORS untuk origin yang diizinkan", as
   }
 });
 
+test("Pages admin proxy mendukung method override untuk simple cross-origin POST", async () => {
+  const bundled = await bundleModule("functions/api/admin/[[path]].js", "pages-admin-method-override.mjs");
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async (url, init) => {
+      assert.equal(url, "https://worker.example/api/admin/license-entries/entry-1");
+      assert.equal(init.method, "PATCH");
+      assert.equal(init.headers.get("X-Admin-Actor-Email"), "admin@example.com");
+      assert.equal(init.headers.get("Content-Type"), "text/plain;charset=UTF-8");
+      assert.equal(init.body, "{\"status\":\"revoked\"}");
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+        },
+      });
+    };
+
+    const response = await bundled.module.onRequest({
+      request: new Request("https://pages.example/api/admin/license-entries/entry-1?__proxy_method=PATCH", {
+        method: "POST",
+        headers: {
+          "CF-Access-Authenticated-User-Email": "admin@example.com",
+          Origin: "https://autoscript.license.dpdns.org",
+          "Content-Type": "text/plain;charset=UTF-8",
+        },
+        body: "{\"status\":\"revoked\"}",
+      }),
+      env: {
+        ADMIN_PROXY_SHARED_SECRET: "secret-4",
+        PAGES_API_BASE_URL: "https://worker.example",
+        PAGES_ADMIN_APP_ORIGINS: "https://autoscript.license.dpdns.org",
+      },
+    });
+    const payload = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(payload.ok, true);
+    assert.equal(response.headers.get("Access-Control-Allow-Origin"), "https://autoscript.license.dpdns.org");
+  } finally {
+    globalThis.fetch = originalFetch;
+    bundled.cleanup();
+  }
+});
+
 test("Pages admin proxy mengembalikan 502 JSON saat upstream fetch gagal", async () => {
   const bundled = await bundleModule("functions/api/admin/[[path]].js", "pages-admin-upstream-error.mjs");
   const originalFetch = globalThis.fetch;

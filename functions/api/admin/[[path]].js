@@ -1,5 +1,6 @@
 export async function onRequest(context) {
   const { request, env } = context;
+  const requestUrl = new URL(request.url);
   if (request.method === "OPTIONS") {
     return buildPreflightResponse(request, env);
   }
@@ -30,7 +31,8 @@ export async function onRequest(context) {
     );
   }
 
-  const requestUrl = new URL(request.url);
+  const upstreamMethod = resolveUpstreamMethod(request, requestUrl);
+  requestUrl.searchParams.delete("__proxy_method");
   const upstreamUrl = new URL(`${requestUrl.pathname}${requestUrl.search}`, upstreamBaseUrl);
   const headers = new Headers();
   const contentType = request.headers.get("Content-Type");
@@ -49,10 +51,10 @@ export async function onRequest(context) {
   headers.set("X-Admin-Proxy-Secret", proxySecret);
 
   const init = {
-    method: request.method,
+    method: upstreamMethod,
     headers,
   };
-  if (!["GET", "HEAD"].includes(request.method)) {
+  if (!["GET", "HEAD"].includes(upstreamMethod)) {
     init.body = await request.text();
   }
 
@@ -161,6 +163,19 @@ function buildPreflightResponse(request, env) {
     status: 204,
     headers,
   });
+}
+
+function resolveUpstreamMethod(request, requestUrl) {
+  if (request.method !== "POST") {
+    return request.method;
+  }
+  const override = String(requestUrl.searchParams.get("__proxy_method") || "")
+    .trim()
+    .toUpperCase();
+  if (["POST", "PATCH", "DELETE", "PUT"].includes(override)) {
+    return override;
+  }
+  return request.method;
 }
 
 function applyCorsHeaders(headers, request, env) {
