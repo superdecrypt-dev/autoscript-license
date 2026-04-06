@@ -805,3 +805,114 @@ test("worker admin backup restore dari R2 mengganti isi tabel D1", async () => {
     bundled.cleanup();
   }
 });
+
+test("worker scheduled maintenance membuat backup otomatis dan prune snapshot lama", async () => {
+  const bundled = await bundleModule("worker/src/index.js", "worker-scheduled-backup.mjs");
+  try {
+    const worker = bundled.module.default;
+    const oldSnapshot = {
+      format: "autoscript-license-backup",
+      schema_version: 1,
+      created_at: "2026-03-01T00:00:00.000Z",
+      created_by: "system",
+      source: "scheduled",
+      row_counts: {
+        license_entries: 0,
+        audit_logs: 0,
+        public_rate_limits: 0,
+        public_target_rate_limits: 0,
+      },
+      tables: {
+        license_entries: [],
+        audit_logs: [],
+        public_rate_limits: [],
+        public_target_rate_limits: [],
+      },
+    };
+    const recentSnapshot = {
+      ...oldSnapshot,
+      created_at: "2026-04-06T00:00:00.000Z",
+    };
+
+    const env = {
+      LICENSE_DB: createD1Stub({
+        tables: {
+          license_entries: [
+            {
+              id: "entry-1",
+              ip: "198.51.100.10",
+              label: "scheduled",
+              owner: "",
+              notes: "",
+              status: "active",
+              expires_at: "2026-06-01T00:00:00.000Z",
+              created_at: "2026-04-07T00:00:00.000Z",
+              updated_at: "2026-04-07T00:00:00.000Z",
+              created_by: "admin@example.com",
+              updated_by: "admin@example.com",
+              revoked_at: null,
+              entry_source: "admin",
+              renewal_token_hash: "",
+              last_renewed_at: null,
+              created_request_ip: "198.51.100.10",
+            },
+          ],
+        },
+      }),
+      LICENSE_BACKUPS: createR2BucketStub({
+        "snapshots/2026/03/01/old.json": {
+          body: JSON.stringify(oldSnapshot),
+          uploaded: new Date("2026-03-01T00:00:00.000Z"),
+          customMetadata: {
+            created_at: oldSnapshot.created_at,
+            created_by: "system",
+            schema_version: "1",
+            source: "scheduled",
+            license_entries_count: "0",
+            audit_logs_count: "0",
+            public_rate_limits_count: "0",
+            public_target_rate_limits_count: "0",
+          },
+        },
+        "snapshots/2026/04/06/recent.json": {
+          body: JSON.stringify(recentSnapshot),
+          uploaded: new Date("2026-04-06T00:00:00.000Z"),
+          customMetadata: {
+            created_at: recentSnapshot.created_at,
+            created_by: "system",
+            schema_version: "1",
+            source: "scheduled",
+            license_entries_count: "0",
+            audit_logs_count: "0",
+            public_rate_limits_count: "0",
+            public_target_rate_limits_count: "0",
+          },
+        },
+      }),
+      AUDIT_LOG_RETENTION_DAYS: "30",
+      PUBLIC_RATE_LIMIT_RETENTION_DAYS: "7",
+      BACKUP_RETENTION_DAYS: "30",
+      BACKUP_AUTO_ENABLED: "true",
+      BACKUP_AUTO_MIN_INTERVAL_HOURS: "24",
+    };
+
+    const waiters = [];
+    await worker.scheduled(
+      { scheduledTime: Date.parse("2026-04-07T17:00:00.000Z") },
+      env,
+      {
+        waitUntil(promise) {
+          waiters.push(promise);
+        },
+      }
+    );
+    await Promise.all(waiters);
+
+    const keys = Array.from(env.LICENSE_BACKUPS._state.keys()).sort();
+    assert.equal(keys.includes("snapshots/2026/03/01/old.json"), false);
+    assert.equal(keys.includes("snapshots/2026/04/06/recent.json"), true);
+    assert.equal(keys.some((key) => key.includes("system.json") || key.includes("system")), true);
+  } finally {
+    bundled.cleanup();
+  }
+});

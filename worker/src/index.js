@@ -6,6 +6,7 @@ const BACKUP_FORMAT = "autoscript-license-backup";
 const BACKUP_SCHEMA_VERSION = 1;
 const BACKUP_PREFIX = "snapshots/";
 const BACKUP_IMPORT_MAX_BYTES = 20 * 1024 * 1024;
+const BACKUP_AUTO_ACTOR = "system";
 const BACKUP_TABLES = [
   {
     name: "license_entries",
@@ -2156,8 +2157,12 @@ async function runScheduledMaintenance(env, scheduledTimeMs) {
   const nowIso = new Date(scheduledTimeMs || Date.now()).toISOString();
   const auditRetentionDays = parseIntSafe(env.AUDIT_LOG_RETENTION_DAYS, 30);
   const rateLimitRetentionDays = parseIntSafe(env.PUBLIC_RATE_LIMIT_RETENTION_DAYS, 7);
+  const backupRetentionDays = parseIntSafe(env.BACKUP_RETENTION_DAYS, 30);
+  const backupAutoEnabled = String(env.BACKUP_AUTO_ENABLED || "true").trim().toLowerCase() !== "false";
+  const backupAutoMinIntervalHours = Math.max(1, parseIntSafe(env.BACKUP_AUTO_MIN_INTERVAL_HOURS, 24));
   const auditCutoffIso = addDaysIso(nowIso, -auditRetentionDays);
   const rateLimitCutoffIso = addDaysIso(nowIso, -rateLimitRetentionDays);
+  const backupCutoffIso = addDaysIso(nowIso, -backupRetentionDays);
 
   const auditResult = await runStatement(
     env,
@@ -2184,10 +2189,21 @@ async function runScheduledMaintenance(env, scheduledTimeMs) {
     [rateLimitCutoffIso]
   );
 
+  const backupMaintenance = await maintainBackupSnapshots(env, {
+    nowIso,
+    backupCutoffIso,
+    backupAutoEnabled,
+    backupAutoMinIntervalHours,
+  });
+
   console.log(
     JSON.stringify({
       audit_cutoff_iso: auditCutoffIso,
       audit_deleted: statementChanges(auditResult),
+      backup_auto_created: backupMaintenance.created ? backupMaintenance.created.key : "",
+      backup_auto_enabled: backupAutoEnabled,
+      backup_cutoff_iso: backupCutoffIso,
+      backup_deleted: backupMaintenance.deletedCount,
       event: "scheduled_maintenance",
       now_iso: nowIso,
       rate_limit_cutoff_iso: rateLimitCutoffIso,
@@ -2195,6 +2211,76 @@ async function runScheduledMaintenance(env, scheduledTimeMs) {
       target_rate_limit_deleted: statementChanges(targetRateLimitResult),
     })
   );
+}
+
+async function maintainBackupSnapshots(env, options = {}) {
+  const bucket = getLicenseBackupBucket(env);
+  if (!bucket) {
+    return {
+      created: null,
+      deletedCount: 0,
+    };
+  }
+
+  const listed = await bucket.list({
+    prefix: BACKUP_PREFIX,
+    limit: 1000,
+  });
+  const objects = Array.isArray(listed.objects) ? listed.objects : [];
+  const backupCutoffMs = Date.parse(String(options.backupCutoffIso || ""));
+  let deletedCount = 0;
+
+  for (const object of objects) {
+    const createdAt = object.customMetadata?.created_at || object.uploaded?.toISOString?.() || "";
+    const createdMs = Date.parse(createdAt);
+    if (Number.isFinite(backupCutoffMs) && Number.isFinite(createdMs) && createdMs < backupCutoffMs) {
+      await bucket.delete(object.key);
+      deletedCount += 1;
+    }
+  }
+
+  let created = null;
+  if (options.backupAutoEnabled) {
+    const latestObject = objects
+      .filter((object) => {
+        const createdAt = object.customMetadata?.created_at || object.uploaded?.toISOString?.() || "";
+        const createdMs = Date.parse(createdAt);
+        return Number.isFinite(createdMs) && !(Number.isFinite(backupCutoffMs) && createdMs < backupCutoffMs);
+      })
+      .sort((left, right) => {
+        const leftMs = Date.parse(left.customMetadata?.created_at || left.uploaded?.toISOString?.() || "");
+        const rightMs = Date.parse(right.customMetadata?.created_at || right.uploaded?.toISOString?.() || "");
+        return rightMs - leftMs;
+      })[0];
+
+    const latestCreatedMs = latestObject
+      ? Date.parse(latestObject.customMetadata?.created_at || latestObject.uploaded?.toISOString?.() || "")
+      : NaN;
+    const nowMs = Date.parse(String(options.nowIso || ""));
+    const minIntervalMs = Math.max(1, Number(options.backupAutoMinIntervalHours || 24)) * 3600 * 1000;
+    const shouldCreate = !Number.isFinite(latestCreatedMs) || !Number.isFinite(nowMs) || nowMs - latestCreatedMs >= minIntervalMs;
+
+    if (shouldCreate) {
+      const snapshot = await buildBackupSnapshot(env, BACKUP_AUTO_ACTOR, "scheduled");
+      const key = buildBackupObjectKey(snapshot.created_at, BACKUP_AUTO_ACTOR);
+      const metadata = buildBackupObjectMetadata(snapshot);
+      await bucket.put(key, JSON.stringify(snapshot, null, 2), {
+        httpMetadata: {
+          contentType: "application/json; charset=utf-8",
+        },
+        customMetadata: metadata,
+      });
+      created = {
+        key,
+        created_at: snapshot.created_at,
+      };
+    }
+  }
+
+  return {
+    created,
+    deletedCount,
+  };
 }
 
 function buildPublicCorsResponse(request, env) {

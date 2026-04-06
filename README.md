@@ -3,6 +3,7 @@
 Sistem lisensi IP untuk `autoscript` yang terdiri dari:
 - `Cloudflare Worker` untuk API lisensi
 - `Cloudflare D1` untuk database lisensi, audit, dan rate limit
+- `Cloudflare R2` untuk snapshot backup/restore admin
 - `Cloudflare Pages` untuk website
 
 Repo ini adalah project standalone. Semua file Worker, Pages, dan migrasi ada langsung di repo ini.
@@ -16,6 +17,7 @@ Hostname publik saat ini:
 Fitur utama:
 - halaman `/` untuk aktivasi, perpanjang, dan cek status IP VPS
 - halaman `/admin/` untuk operator
+- backup/restore admin ke `Cloudflare R2`
 - validasi lisensi VPS lewat `POST /api/v1/license/check`
 - durasi lisensi default `14 hari`
 - anti-abuse publik:
@@ -77,6 +79,12 @@ https://autoscript-license.minidecrypt.workers.dev/api/v1/license/check
 - `POST /api/admin/license-entries/:id/reactivate`
 - `GET /api/admin/audit-logs`
 - `GET /api/admin/metrics`
+- `GET /api/admin/backups`
+- `POST /api/admin/backups`
+- `POST /api/admin/backups/import`
+- `GET /api/admin/backups/:key/download`
+- `POST /api/admin/backups/:key/restore`
+- `DELETE /api/admin/backups/:key`
 
 ## Aturan Lisensi
 
@@ -93,6 +101,7 @@ Minimal yang perlu Anda siapkan:
 - repo GitHub `superdecrypt-dev/autoscript-license`
 - satu project `Cloudflare Worker`
 - satu `D1 database`
+- satu bucket `R2`
 - satu project `Cloudflare Pages`
 - satu widget `Cloudflare Turnstile`
 
@@ -124,6 +133,14 @@ Lihat [wrangler.worker.toml](/root/project/autoscript-license/wrangler.worker.to
 - `PUBLIC_RENEW_TARGET_WINDOW_SEC`
 - `AUDIT_LOG_RETENTION_DAYS`
 - `PUBLIC_RATE_LIMIT_RETENTION_DAYS`
+- `BACKUP_RETENTION_DAYS`
+- `BACKUP_AUTO_ENABLED`
+- `BACKUP_AUTO_MIN_INTERVAL_HOURS`
+
+### Binding Worker
+
+- `LICENSE_DB` -> D1 database utama
+- `LICENSE_BACKUPS` -> bucket R2 snapshot backup
 
 ### Secret Worker
 
@@ -204,6 +221,22 @@ Hasilnya akan membuat tabel:
 - `public_rate_limits`
 - `public_target_rate_limits`
 
+### 2b. Buat bucket R2
+
+Nama bucket produksi saat ini:
+
+```text
+autoscript-license-backups
+```
+
+Binding Worker:
+
+```toml
+[[r2_buckets]]
+binding = "LICENSE_BACKUPS"
+bucket_name = "autoscript-license-backups"
+```
+
 ### 3. Buat Worker
 
 Di Cloudflare Dashboard:
@@ -217,6 +250,38 @@ Lalu:
 2. hapus isi default
 3. paste isi [index.js](/root/project/autoscript-license/worker/src/index.js)
 4. deploy
+
+## Backup & Restore
+
+Panel admin `Settings` sekarang menyediakan:
+- `Create Backup`
+- `Import Backup`
+- daftar snapshot R2
+- aksi `Download`
+- aksi `Restore`
+- aksi `Delete`
+
+Format snapshot v1:
+- plain JSON
+- `replace only` saat restore
+- mencakup seluruh tabel D1 aktif:
+  - `license_entries`
+  - `audit_logs`
+  - `public_rate_limits`
+  - `public_target_rate_limits`
+
+### Backup otomatis
+
+Worker cron maintenance sekarang juga:
+- membersihkan `audit_logs`
+- membersihkan tabel rate limit lama
+- membuat snapshot backup otomatis ke R2
+- menghapus snapshot R2 yang melewati retention
+
+Default produksi:
+- retention snapshot: `30 hari`
+- auto backup: `aktif`
+- interval minimum snapshot: `24 jam`
 
 ### 4. Tambahkan binding D1
 
