@@ -531,6 +531,25 @@ async function restoreBackup(backupKey) {
   }
 }
 
+async function validateBackupRestore(backupKey) {
+  if (!ensureAuthenticated()) {
+    return;
+  }
+  try {
+    const payload = await apiFetch(`/api/admin/backups/${encodeURIComponent(backupKey)}/restore?dry_run=1`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    const backup = state.backups.find((item) => item.key === backupKey) || {};
+    setBanner(
+      `Dry-run OK: ${formatBackupRows(payload.row_counts)} • ${backup.created_by || "-"} • ${shortChecksum(payload.checksum_sha256)}`,
+      "ok"
+    );
+  } catch (error) {
+    handleAuthFailure(error, "Gagal validasi snapshot backup.");
+  }
+}
+
 async function deleteBackup(backupKey) {
   if (!ensureAuthenticated()) {
     return;
@@ -1139,6 +1158,7 @@ function renderBackups() {
           <td>
             <div class="action-stack">
               <button class="action-btn" type="button" data-backup-action="preview" data-backup-key="${escapeHtml(backup.key)}">Preview</button>
+              <button class="action-btn" type="button" data-backup-action="validate" data-backup-key="${escapeHtml(backup.key)}">Validate</button>
               <button class="action-btn" type="button" data-backup-action="manifest" data-backup-key="${escapeHtml(backup.key)}">Manifest</button>
               <button class="action-btn action-btn-edit" type="button" data-backup-action="download" data-backup-key="${escapeHtml(backup.key)}">Download</button>
               <button class="action-btn action-btn-reactivate" type="button" data-backup-action="restore" data-backup-key="${escapeHtml(backup.key)}">Restore</button>
@@ -1177,6 +1197,7 @@ function renderBackups() {
           </dl>
           <div class="mobile-action-row">
             <button class="action-btn" type="button" data-backup-action="preview" data-backup-key="${escapeHtml(backup.key)}">Preview</button>
+            <button class="action-btn" type="button" data-backup-action="validate" data-backup-key="${escapeHtml(backup.key)}">Validate</button>
             <button class="action-btn" type="button" data-backup-action="manifest" data-backup-key="${escapeHtml(backup.key)}">Manifest</button>
             <button class="action-btn action-btn-edit" type="button" data-backup-action="download" data-backup-key="${escapeHtml(backup.key)}">Download</button>
             <button class="action-btn action-btn-reactivate" type="button" data-backup-action="restore" data-backup-key="${escapeHtml(backup.key)}">Restore</button>
@@ -1223,6 +1244,8 @@ function bindBackupActionButtons(container) {
       }
       if (action === "preview") {
         await loadBackupPreview(backupKey);
+      } else if (action === "validate") {
+        await validateBackupRestore(backupKey);
       } else if (action === "manifest") {
         await downloadBackupManifest(backupKey);
       } else if (action === "download") {

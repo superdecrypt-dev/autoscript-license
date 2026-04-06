@@ -755,7 +755,7 @@ async function routeAdminRequest(request, env, pathname) {
 
   const restoreMatch = pathname.match(/^\/api\/admin\/backups\/(.+)\/restore$/);
   if (request.method === "POST" && restoreMatch) {
-    return handleAdminRestoreBackup(env, actorEmail, decodeURIComponent(restoreMatch[1]));
+    return handleAdminRestoreBackup(request, env, actorEmail, decodeURIComponent(restoreMatch[1]));
   }
 
   const deleteBackupMatch = pathname.match(/^\/api\/admin\/backups\/(.+)$/);
@@ -1145,7 +1145,7 @@ async function handleAdminBackupManifest(env, backupKey) {
   });
 }
 
-async function handleAdminRestoreBackup(env, actorEmail, backupKey) {
+async function handleAdminRestoreBackup(request, env, actorEmail, backupKey) {
   const bucket = getLicenseBackupBucket(env);
   if (!bucket) {
     return jsonResponse(
@@ -1168,6 +1168,33 @@ async function handleAdminRestoreBackup(env, actorEmail, backupKey) {
   const snapshot = parseAndValidateBackupSnapshot(rawPayload);
   if (snapshot.error) {
     return jsonResponse(snapshot.error, 400);
+  }
+  const dryRun = isTruthyQueryValue(new URL(request.url).searchParams.get("dry_run"));
+
+  if (dryRun) {
+    await insertAuditLog(env, {
+      eventType: "admin_backup_restore_dry_run",
+      ip: "",
+      entryId: null,
+      stage: "admin",
+      decision: "inspect",
+      actorEmail,
+      requestIp: "",
+      userAgent: "",
+      payload: {
+        backup_key: backupKey,
+        checksum_sha256: checksumValidation.checksumSha256,
+        row_counts: snapshot.value.row_counts,
+        source: "r2",
+      },
+    });
+    return jsonResponse({
+      ok: true,
+      dry_run: true,
+      restored_key: backupKey,
+      checksum_sha256: checksumValidation.checksumSha256,
+      row_counts: snapshot.value.row_counts,
+    });
   }
 
   await restoreBackupSnapshot(env, snapshot.value);
@@ -1962,6 +1989,11 @@ function normalizeOptionalIsoDate(value) {
   return parsed.toISOString();
 }
 
+function isTruthyQueryValue(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes";
+}
+
 function startOfUtcDayIso(daysAgo = 0) {
   const base = new Date();
   base.setUTCHours(0, 0, 0, 0);
@@ -2296,11 +2328,15 @@ async function runScheduledMaintenance(env, scheduledTimeMs) {
   const auditRetentionDays = parseIntSafe(env.AUDIT_LOG_RETENTION_DAYS, 30);
   const rateLimitRetentionDays = parseIntSafe(env.PUBLIC_RATE_LIMIT_RETENTION_DAYS, 7);
   const backupRetentionDays = parseIntSafe(env.BACKUP_RETENTION_DAYS, 30);
+  const backupRetentionDaysManual = parseIntSafe(env.BACKUP_RETENTION_DAYS_MANUAL, 90);
+  const backupRetentionDaysScheduled = parseIntSafe(env.BACKUP_RETENTION_DAYS_SCHEDULED, backupRetentionDays);
   const backupAutoEnabled = String(env.BACKUP_AUTO_ENABLED || "true").trim().toLowerCase() !== "false";
   const backupAutoMinIntervalHours = Math.max(1, parseIntSafe(env.BACKUP_AUTO_MIN_INTERVAL_HOURS, 24));
   const auditCutoffIso = addDaysIso(nowIso, -auditRetentionDays);
   const rateLimitCutoffIso = addDaysIso(nowIso, -rateLimitRetentionDays);
   const backupCutoffIso = addDaysIso(nowIso, -backupRetentionDays);
+  const backupCutoffIsoManual = addDaysIso(nowIso, -backupRetentionDaysManual);
+  const backupCutoffIsoScheduled = addDaysIso(nowIso, -backupRetentionDaysScheduled);
 
   const auditResult = await runStatement(
     env,
@@ -2330,6 +2366,8 @@ async function runScheduledMaintenance(env, scheduledTimeMs) {
   const backupMaintenance = await maintainBackupSnapshots(env, {
     nowIso,
     backupCutoffIso,
+    backupCutoffIsoManual,
+    backupCutoffIsoScheduled,
     backupAutoEnabled,
     backupAutoMinIntervalHours,
   });
@@ -2341,6 +2379,8 @@ async function runScheduledMaintenance(env, scheduledTimeMs) {
       backup_auto_created: backupMaintenance.created ? backupMaintenance.created.key : "",
       backup_auto_enabled: backupAutoEnabled,
       backup_cutoff_iso: backupCutoffIso,
+      backup_cutoff_iso_manual: backupCutoffIsoManual,
+      backup_cutoff_iso_scheduled: backupCutoffIsoScheduled,
       backup_deleted: backupMaintenance.deletedCount,
       event: "scheduled_maintenance",
       now_iso: nowIso,
@@ -2366,12 +2406,21 @@ async function maintainBackupSnapshots(env, options = {}) {
   });
   const objects = Array.isArray(listed.objects) ? listed.objects : [];
   const backupCutoffMs = Date.parse(String(options.backupCutoffIso || ""));
+  const backupCutoffMsManual = Date.parse(String(options.backupCutoffIsoManual || options.backupCutoffIso || ""));
+  const backupCutoffMsScheduled = Date.parse(String(options.backupCutoffIsoScheduled || options.backupCutoffIso || ""));
   let deletedCount = 0;
 
   for (const object of objects) {
+    const source = String(object.customMetadata?.source || "").trim().toLowerCase();
     const createdAt = object.customMetadata?.created_at || object.uploaded?.toISOString?.() || "";
     const createdMs = Date.parse(createdAt);
-    if (Number.isFinite(backupCutoffMs) && Number.isFinite(createdMs) && createdMs < backupCutoffMs) {
+    const effectiveCutoffMs =
+      source === "scheduled"
+        ? backupCutoffMsScheduled
+        : source === "r2" || source === "manual"
+          ? backupCutoffMsManual
+          : backupCutoffMs;
+    if (Number.isFinite(effectiveCutoffMs) && Number.isFinite(createdMs) && createdMs < effectiveCutoffMs) {
       await bucket.delete(object.key);
       deletedCount += 1;
     }

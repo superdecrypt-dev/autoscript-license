@@ -806,6 +806,112 @@ test("worker admin backup restore dari R2 mengganti isi tabel D1", async () => {
   }
 });
 
+test("worker admin backup restore dry-run tidak menulis D1", async () => {
+  const bundled = await bundleModule("worker/src/index.js", "worker-backup-restore-dry-run.mjs");
+  try {
+    const worker = bundled.module.default;
+    const backupKey = "snapshots/2026/04/07/20260407T120000Z-admin.json";
+    const snapshot = {
+      format: "autoscript-license-backup",
+      schema_version: 1,
+      created_at: "2026-04-07T12:00:00.000Z",
+      created_by: "admin@example.com",
+      source: "r2",
+      row_counts: {
+        license_entries: 1,
+        audit_logs: 0,
+        public_rate_limits: 0,
+        public_target_rate_limits: 0,
+      },
+      tables: {
+        license_entries: [
+          {
+            id: "entry-dry-run",
+            ip: "198.51.100.66",
+            label: "dry-run",
+            owner: "",
+            notes: "",
+            status: "active",
+            expires_at: "2026-06-01T00:00:00.000Z",
+            created_at: "2026-04-07T12:00:00.000Z",
+            updated_at: "2026-04-07T12:00:00.000Z",
+            created_by: "admin@example.com",
+            updated_by: "admin@example.com",
+            revoked_at: null,
+            entry_source: "admin",
+            renewal_token_hash: "",
+            last_renewed_at: null,
+            created_request_ip: "198.51.100.66",
+          },
+        ],
+        audit_logs: [],
+        public_rate_limits: [],
+        public_target_rate_limits: [],
+      },
+    };
+
+    const env = {
+      ADMIN_PROXY_SHARED_SECRET: "secret-backup",
+      LICENSE_DB: createD1Stub({
+        tables: {
+          license_entries: [
+            {
+              id: "entry-before",
+              ip: "198.51.100.67",
+              label: "before",
+              owner: "",
+              notes: "",
+              status: "active",
+              expires_at: "2026-06-02T00:00:00.000Z",
+              created_at: "2026-04-07T12:00:00.000Z",
+              updated_at: "2026-04-07T12:00:00.000Z",
+              created_by: "admin@example.com",
+              updated_by: "admin@example.com",
+              revoked_at: null,
+              entry_source: "admin",
+              renewal_token_hash: "",
+              last_renewed_at: null,
+              created_request_ip: "198.51.100.67",
+            },
+          ],
+        },
+      }),
+      LICENSE_BACKUPS: createR2BucketStub({
+        [backupKey]: {
+          body: JSON.stringify(snapshot),
+          customMetadata: {
+            created_at: snapshot.created_at,
+            created_by: snapshot.created_by,
+            schema_version: "1",
+            source: "r2",
+            license_entries_count: "1",
+            audit_logs_count: "0",
+            public_rate_limits_count: "0",
+            public_target_rate_limits_count: "0",
+          },
+        },
+      }),
+    };
+
+    const response = await worker.fetch(
+      createAdminRequest(`/api/admin/backups/${encodeURIComponent(backupKey)}/restore?dry_run=1`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
+      env
+    );
+    const payload = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(payload.dry_run, true);
+    assert.equal(env.LICENSE_DB._state.license_entries.length, 1);
+    assert.equal(env.LICENSE_DB._state.license_entries[0].id, "entry-before");
+    assert.ok(env.LICENSE_DB._state.audit_logs.some((row) => row.event_type === "admin_backup_restore_dry_run"));
+    assert.equal(env.LICENSE_DB._state.audit_logs.some((row) => row.event_type === "admin_backup_restore"), false);
+  } finally {
+    bundled.cleanup();
+  }
+});
+
 test("worker admin backup preview mengembalikan checksum dan sample isi snapshot", async () => {
   const bundled = await bundleModule("worker/src/index.js", "worker-backup-preview.mjs");
   try {
@@ -1078,6 +1184,11 @@ test("worker scheduled maintenance membuat backup otomatis dan prune snapshot la
       ...oldSnapshot,
       created_at: "2026-04-06T00:00:00.000Z",
     };
+    const oldManualSnapshot = {
+      ...oldSnapshot,
+      created_at: "2026-02-15T00:00:00.000Z",
+      source: "r2",
+    };
 
     const env = {
       LICENSE_DB: createD1Stub({
@@ -1133,10 +1244,26 @@ test("worker scheduled maintenance membuat backup otomatis dan prune snapshot la
             public_target_rate_limits_count: "0",
           },
         },
+        "snapshots/2026/02/15/manual.json": {
+          body: JSON.stringify(oldManualSnapshot),
+          uploaded: new Date("2026-02-15T00:00:00.000Z"),
+          customMetadata: {
+            created_at: oldManualSnapshot.created_at,
+            created_by: "admin@example.com",
+            schema_version: "1",
+            source: "r2",
+            license_entries_count: "0",
+            audit_logs_count: "0",
+            public_rate_limits_count: "0",
+            public_target_rate_limits_count: "0",
+          },
+        },
       }),
       AUDIT_LOG_RETENTION_DAYS: "30",
       PUBLIC_RATE_LIMIT_RETENTION_DAYS: "7",
       BACKUP_RETENTION_DAYS: "30",
+      BACKUP_RETENTION_DAYS_MANUAL: "90",
+      BACKUP_RETENTION_DAYS_SCHEDULED: "30",
       BACKUP_AUTO_ENABLED: "true",
       BACKUP_AUTO_MIN_INTERVAL_HOURS: "24",
     };
@@ -1156,6 +1283,7 @@ test("worker scheduled maintenance membuat backup otomatis dan prune snapshot la
     const keys = Array.from(env.LICENSE_BACKUPS._state.keys()).sort();
     assert.equal(keys.includes("snapshots/2026/03/01/old.json"), false);
     assert.equal(keys.includes("snapshots/2026/04/06/recent.json"), true);
+    assert.equal(keys.includes("snapshots/2026/02/15/manual.json"), true);
     assert.equal(keys.some((key) => key.includes("system.json") || key.includes("system")), true);
   } finally {
     bundled.cleanup();
