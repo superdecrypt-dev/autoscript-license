@@ -121,7 +121,12 @@ function PublicApp() {
     setStatusLoading(true);
     setStatusResult(null);
     try {
-      const payload = await publicApiFetch(config.apiBaseUrl, `/api/public/license/status?ip=${encodeURIComponent(ip)}`);
+      const payload = await publicApiFetch(config.apiBaseUrl, "/api/public/license/status", {
+        method: "POST",
+        body: JSON.stringify({
+          ip,
+        }),
+      });
       setBanner({ tone: "ok", message: `Status ${ip} berhasil diambil.` });
       setStatusResult({
         tone: statusTone(payload?.status),
