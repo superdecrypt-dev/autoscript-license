@@ -693,6 +693,15 @@ function AdminApp() {
                 <TopEventsCard items={topEvents} />
                 <SourceSplitCard summary={summary} />
               </div>
+              <div className="grid gap-5 xl:grid-cols-[1.15fr,0.85fr]">
+                <OperationalHealthCard
+                  latestChecks={latestChecks}
+                  latestMutations={latestMutations}
+                  summary={summary}
+                  metricsWindowDays={metricsWindowDays}
+                />
+                <RecentRecoveryCard backups={filteredBackups} onOpenSettings={() => setActiveView("settings")} />
+              </div>
             </div>
           ) : null}
 
@@ -918,9 +927,12 @@ function AdminApp() {
                   <CardTitle className="mt-3">Environment</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <StatBox label="Admin" value={session?.admin_email || "-"} />
-                  <StatBox label="Metrics Window" value={`${metricsWindowDays} days`} />
-                  <StatBox label="Session" value="Protected by Access" />
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                    <StatBox label="Admin" value={session?.admin_email || "-"} />
+                    <StatBox label="Metrics Window" value={`${metricsWindowDays} days`} />
+                    <StatBox label="Session" value="Protected by Access" />
+                    <StatBox label="Last Sync" value={lastSyncedAt ? formatDate(lastSyncedAt) : "Belum pernah refresh"} />
+                  </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Button variant="secondary" onClick={refreshBackups}><RefreshCw className="size-4" />Refresh Backups</Button>
                     <Button onClick={createBackup}><ShieldCheck className="size-4" />Create Backup</Button>
@@ -966,6 +978,13 @@ function AdminApp() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {!backupsLoading && filteredBackups.length ? (
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <StatBox label="Visible" value={filteredBackups.length} />
+                      <StatBox label="Latest Source" value={humanizeBackupSource(filteredBackups[0]?.source)} />
+                      <StatBox label="Latest Size" value={formatBytes(filteredBackups[0]?.size || 0)} />
+                    </div>
+                  ) : null}
                   {backupsLoading ? (
                     <LoadingState message="Memuat snapshot backup..." />
                   ) : filteredBackups.length ? (
@@ -1099,6 +1118,103 @@ function QuickSignal({ icon: Icon, label, value, meta }) {
       <div className="mt-3 text-2xl font-semibold leading-none">{value}</div>
       <div className="mt-2 text-sm text-[var(--muted)]">{meta}</div>
     </div>
+  );
+}
+
+function MiniToneCard({ label, value, meta, tone = "slate" }) {
+  const borderTone = tone === "emerald"
+    ? "border-emerald-300/60"
+    : tone === "amber"
+      ? "border-amber-300/60"
+      : tone === "accent"
+        ? "border-[var(--accent)]/35"
+        : "border-[var(--line)]";
+  return (
+    <div className={`rounded-2xl border bg-white/72 p-4 ${borderTone}`}>
+      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
+      <div className="mt-3 text-2xl font-semibold leading-none">{value}</div>
+      <div className="mt-2 text-sm text-[var(--muted)]">{meta}</div>
+    </div>
+  );
+}
+
+function OperationalHealthCard({ latestChecks, latestMutations, summary, metricsWindowDays }) {
+  const allow = Number(latestChecks.allow || 0);
+  const deny = Number(latestChecks.deny || 0);
+  const totalChecks = allow + deny;
+  const adminMutations = Number(latestMutations.admin_mutations || 0);
+  const publicActivations = Number(latestMutations.public_activations || 0);
+  const publicRenewals = Number(latestMutations.public_renewals || 0);
+  const publicEntries = Number(summary.public_entries || 0);
+  const manualEntries = Number(summary.admin_entries || 0);
+  return (
+    <Card>
+      <CardHeader>
+        <Badge variant="accent">Health</Badge>
+        <CardTitle className="mt-3">Operational Health</CardTitle>
+        <CardDescription className="mt-2">Ringkasan kualitas traffic publik dan intensitas perubahan pada window {metricsWindowDays} hari.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <MiniToneCard
+            label="Allow Ratio"
+            value={totalChecks ? `${Math.round((allow / totalChecks) * 100)}%` : "0%"}
+            meta={`${allow} allow / ${deny} deny`}
+            tone="emerald"
+          />
+          <MiniToneCard
+            label="Mutation Mix"
+            value={adminMutations + publicActivations + publicRenewals}
+            meta={`${adminMutations} admin • ${publicActivations} create • ${publicRenewals} renew`}
+            tone="amber"
+          />
+          <MiniToneCard
+            label="Public Surface"
+            value={publicEntries}
+            meta="Entry dari jalur publik"
+            tone="slate"
+          />
+          <MiniToneCard
+            label="Manual Surface"
+            value={manualEntries}
+            meta="Entry/operator manual"
+            tone="accent"
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RecentRecoveryCard({ backups, onOpenSettings }) {
+  const recent = backups.slice(0, 3);
+  return (
+    <Card className="bg-[var(--panel-strong)]">
+      <CardHeader>
+        <Badge variant="accent">Recovery</Badge>
+        <CardTitle className="mt-3">Recent Backup Activity</CardTitle>
+        <CardDescription className="mt-2">Snapshot terbaru yang paling relevan untuk restore cepat atau audit operator.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {recent.length ? recent.map((backup) => (
+          <div key={backup.key} className="rounded-2xl border border-[var(--line)] bg-white/75 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <Badge variant={backup.source === "scheduled" ? "amber" : "emerald"}>{humanizeBackupSource(backup.source)}</Badge>
+              <div className="text-xs text-[var(--muted)]">{formatRelativeTime(backup.created_at)}</div>
+            </div>
+            <div className="mt-3 font-medium">{backup.created_by || "-"}</div>
+            <div className="mt-1 text-xs text-[var(--muted)]">{backup.key}</div>
+            <div className="mt-3 flex flex-wrap gap-3 text-sm text-[var(--muted)]">
+              <span>{formatBackupRows(backup.row_counts)}</span>
+              <span>{formatBytes(backup.size || 0)}</span>
+            </div>
+          </div>
+        )) : (
+          <LoadingState message="Belum ada snapshot terbaru." copy="Buat backup dari Settings untuk mengisi panel ini." />
+        )}
+        <Button variant="outline" className="w-full" onClick={onOpenSettings}>Open Backup & Restore</Button>
+      </CardContent>
+    </Card>
   );
 }
 
