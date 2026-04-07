@@ -12,6 +12,21 @@ export function formatDate(value, locale = "id-ID") {
   return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(parsed);
 }
 
+export function formatRelativeTime(value, locale = "id-ID") {
+  if (!value) return "Belum sync";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  const diffMs = parsed.getTime() - Date.now();
+  const diffMinutes = Math.round(diffMs / 60000);
+  const formatter = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+  if (Math.abs(diffMinutes) < 1) return "Baru saja";
+  if (Math.abs(diffMinutes) < 60) return formatter.format(diffMinutes, "minute");
+  const diffHours = Math.round(diffMinutes / 60);
+  if (Math.abs(diffHours) < 24) return formatter.format(diffHours, "hour");
+  const diffDays = Math.round(diffHours / 24);
+  return formatter.format(diffDays, "day");
+}
+
 export function formatShortDay(value, locale = "en-GB") {
   if (!value) return "-";
   const parsed = new Date(`${value}T00:00:00Z`);

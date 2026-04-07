@@ -26,9 +26,6 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  Tabs,
-  TabsList,
-  TabsTrigger,
   Textarea,
 } from "../shared/ui.jsx";
 import { getAdminConfig } from "../shared/config.js";
@@ -40,11 +37,28 @@ import {
   formatDate,
   formatForDateTimeLocal,
   formatShortDay,
+  formatRelativeTime,
   shortChecksum,
   statusLabel,
   statusTone,
 } from "../shared/utils.js";
-import { Download, Eye, FileJson, LayoutDashboard, Plus, RefreshCw, Search, Settings, ShieldCheck, Trash2 } from "lucide-react";
+import {
+  Activity,
+  Clock3,
+  Database,
+  Download,
+  Eye,
+  FileJson,
+  Globe,
+  HardDriveUpload,
+  LayoutDashboard,
+  Plus,
+  RefreshCw,
+  Search,
+  Settings,
+  ShieldCheck,
+  Trash2,
+} from "lucide-react";
 
 const VIEW_META = {
   dashboard: { title: "Dashboard", description: "Ringkasan lisensi, aktivitas, dan backup terbaru." },
@@ -81,6 +95,7 @@ function AdminApp() {
   const [formState, setFormState] = useState(emptyEntryForm());
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editFormState, setEditFormState] = useState(emptyEntryForm());
+  const [lastSyncedAt, setLastSyncedAt] = useState("");
 
   useEffect(() => {
     localStorage.setItem("autoscriptLicenseAdminActiveView", activeView);
@@ -160,6 +175,7 @@ function AdminApp() {
       setAuditLogs(auditPayload.items || []);
       setMetrics(metricsPayload || null);
       setBackups(backupsPayload.items || []);
+      setLastSyncedAt(new Date().toISOString());
       setBanner({ tone: "ok", message: `Terhubung: ${currentSession.admin_email || "-"}` });
     } catch (error) {
       handleAuthFailure(error);
@@ -177,6 +193,7 @@ function AdminApp() {
     try {
       const payload = await fetchEntries();
       setEntries(payload.items || []);
+      setLastSyncedAt(new Date().toISOString());
     } catch (error) {
       handleAuthFailure(error, "Gagal refresh daftar IP.");
     } finally {
@@ -190,6 +207,7 @@ function AdminApp() {
     try {
       const payload = await fetchAuditLogs();
       setAuditLogs(payload.items || []);
+      setLastSyncedAt(new Date().toISOString());
     } catch (error) {
       handleAuthFailure(error, "Gagal refresh audit log.");
     } finally {
@@ -203,6 +221,7 @@ function AdminApp() {
     try {
       const payload = await fetchMetrics();
       setMetrics(payload || null);
+      setLastSyncedAt(new Date().toISOString());
     } catch (error) {
       handleAuthFailure(error, "Gagal refresh metrics.");
     } finally {
@@ -216,6 +235,7 @@ function AdminApp() {
     try {
       const payload = await fetchBackups();
       setBackups(payload.items || []);
+      setLastSyncedAt(new Date().toISOString());
     } catch (error) {
       handleAuthFailure(error, "Gagal refresh backup snapshot.");
     } finally {
@@ -556,6 +576,13 @@ function AdminApp() {
   const checksTrend = metrics?.daily_checks || [];
   const mutationsTrend = metrics?.daily_mutations || [];
   const filteredBackups = getFilteredBackups(backups, backupSearch, backupSourceFilter, backupSort);
+  const latestChecks = checksTrend.at(-1) || {};
+  const latestMutations = mutationsTrend.at(-1) || {};
+  const activeEntryRatio = Math.max(Number(summary.active_entries || 0), 0);
+  const totalEntries = Math.max(
+    Number(summary.active_entries || 0) + Number(summary.expired_entries || 0) + Number(summary.revoked_entries || 0),
+    1
+  );
 
   if (authStatus !== "authenticated") {
     return (
@@ -577,22 +604,29 @@ function AdminApp() {
   return (
     <div className="min-h-screen">
       <div className="mx-auto grid min-h-screen max-w-[1600px] gap-5 p-4 lg:grid-cols-[280px,1fr] lg:p-6">
-        <aside className="rounded-[2rem] border border-white/10 bg-gradient-to-b from-[var(--sidebar-2)] to-[var(--sidebar)] p-5 text-white shadow-[var(--shadow)]">
+        <aside className="rounded-[2rem] border border-white/10 bg-gradient-to-b from-[var(--sidebar-2)] to-[var(--sidebar)] p-4 text-white shadow-[var(--shadow)] lg:p-5">
           <Badge variant="accent">Ops Console</Badge>
           <div className="mt-4">
             <h1 className="text-2xl font-semibold">Autoscript License</h1>
             <p className="mt-2 text-sm leading-6 text-white/65">Kelola lisensi, audit, metrics, dan recovery dengan stack React modern.</p>
           </div>
-          <nav className="mt-8 hidden flex-col gap-2 lg:flex">
+          <nav className="mt-6 flex gap-2 overflow-x-auto pb-1 lg:mt-8 lg:flex-col lg:overflow-visible lg:pb-0">
             <SidebarButton icon={LayoutDashboard} active={activeView === "dashboard"} onClick={() => setActiveView("dashboard")}>Dashboard</SidebarButton>
             <SidebarButton icon={ShieldCheck} active={activeView === "entries"} onClick={() => setActiveView("entries")}>Entries</SidebarButton>
             <SidebarButton icon={RefreshCw} active={activeView === "audit"} onClick={() => setActiveView("audit")}>Audit Log</SidebarButton>
             <SidebarButton icon={Settings} active={activeView === "settings"} onClick={() => setActiveView("settings")}>Settings</SidebarButton>
           </nav>
-          <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="mt-6 grid gap-3 lg:mt-8">
+            <CompactSidebarStat label="Live Entries" value={`${activeEntryRatio}/${totalEntries}`} />
+            <CompactSidebarStat label="Last Sync" value={formatRelativeTime(lastSyncedAt)} />
+          </div>
+          <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 lg:mt-8">
             <div className="text-xs uppercase tracking-[0.16em] text-white/55">Access Identity</div>
             <div className="mt-3">
               <Badge variant="emerald">{session?.admin_email || "Not Connected"}</Badge>
+            </div>
+            <div className="mt-3 text-xs leading-5 text-white/55">
+              API origin: <span className="font-mono text-white/80">{adminApiOrigin}</span>
             </div>
           </div>
         </aside>
@@ -604,21 +638,16 @@ function AdminApp() {
                 <Badge variant="accent">Professional Ops</Badge>
                 <h2 className="mt-3 text-3xl font-semibold">{VIEW_META[activeView].title}</h2>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">{VIEW_META[activeView].description}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Badge variant="emerald">Access Protected</Badge>
+                  <Badge variant="slate">{usesCrossOriginAdminApi ? "Relay via pages.dev" : "Same Origin"}</Badge>
+                  <Badge variant="amber">{formatRelativeTime(lastSyncedAt)}</Badge>
+                </div>
               </div>
               <div className="flex flex-wrap gap-3">
                 <Button variant="secondary" onClick={refreshDashboard}><RefreshCw className="size-4" />Refresh</Button>
                 <Button variant="outline" onClick={logoutAccess}>Logout Access</Button>
               </div>
-            </div>
-            <div className="mt-5 lg:hidden">
-              <Tabs value={activeView} onValueChange={setActiveView}>
-                <TabsList className="w-full justify-start overflow-auto">
-                  <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-                  <TabsTrigger value="entries">Entries</TabsTrigger>
-                  <TabsTrigger value="audit">Audit</TabsTrigger>
-                  <TabsTrigger value="settings">Settings</TabsTrigger>
-                </TabsList>
-              </Tabs>
             </div>
           </div>
 
@@ -626,11 +655,37 @@ function AdminApp() {
 
           {activeView === "dashboard" ? (
             <div className="space-y-5">
+              <Card className="bg-[var(--panel-strong)]">
+                <CardContent className="p-5">
+                  <div className="grid gap-3 lg:grid-cols-[1fr,auto] lg:items-center">
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                      <QuickSignal icon={Activity} label="Checks Today" value={`${Number(latestChecks.allow || 0) + Number(latestChecks.deny || 0)}`} meta={`${latestChecks.allow || 0} allow / ${latestChecks.deny || 0} deny`} />
+                      <QuickSignal icon={RefreshCw} label="Mutations Today" value={`${Number(latestMutations.admin_mutations || 0) + Number(latestMutations.public_activations || 0) + Number(latestMutations.public_renewals || 0)}`} meta={`${latestMutations.admin_mutations || 0} admin / ${latestMutations.public_activations || 0} activate`} />
+                      <QuickSignal icon={Database} label="Backups" value={backups.length} meta={`${filteredBackups.length} visible snapshots`} />
+                      <QuickSignal icon={Clock3} label="Last Sync" value={formatRelativeTime(lastSyncedAt)} meta={lastSyncedAt ? formatDate(lastSyncedAt) : "Belum pernah refresh"} />
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-[200px,1fr] lg:w-[360px]">
+                      <Select value={metricsWindowDays} onValueChange={setMetricsWindowDays}>
+                        <SelectTrigger><SelectValue placeholder="Metrics Window" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="7">Last 7 days</SelectItem>
+                          <SelectItem value="14">Last 14 days</SelectItem>
+                          <SelectItem value="30">Last 30 days</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Button variant="secondary" onClick={refreshMetrics}>Refresh Metrics</Button>
+                        <Button variant="outline" onClick={() => setActiveView("settings")}>Open Recovery</Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <MetricCard title="Active" value={summary.active_entries || 0} tone="emerald" />
-                <MetricCard title="Expired" value={summary.expired_entries || 0} tone="amber" />
-                <MetricCard title="Revoked" value={summary.revoked_entries || 0} tone="rose" />
-                <MetricCard title="Audit Rows" value={summary.audit_rows_window || 0} tone="slate" />
+                <MetricCard title="Active" value={summary.active_entries || 0} tone="emerald" meta={`${Math.round((activeEntryRatio / totalEntries) * 100)}% dari total entry`} />
+                <MetricCard title="Expired" value={summary.expired_entries || 0} tone="amber" meta="Perlu review atau renew" />
+                <MetricCard title="Revoked" value={summary.revoked_entries || 0} tone="rose" meta="Sedang diblokir dari alur publik" />
+                <MetricCard title="Audit Rows" value={summary.audit_rows_window || 0} tone="slate" meta={`Window ${metricsWindowDays} hari`} />
               </div>
               <div className="grid gap-5 xl:grid-cols-2">
                 <TrendCard title="License Check Trend" caption={`Last ${metricsWindowDays} days`} loading={metricsLoading} points={checksTrend} series={[{ key: "allow", label: "Allow", tone: "emerald" }, { key: "deny", label: "Deny", tone: "rose" }]} />
@@ -670,6 +725,11 @@ function AdminApp() {
                   </div>
                 </CardHeader>
                 <CardContent>
+                  <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                    <StatBox label="Visible" value={entries.length} />
+                    <StatBox label="Filter Status" value={statusFilter === "all" ? "All" : statusLabel(statusFilter)} />
+                    <StatBox label="Query" value={search.trim() || "No filter"} mono={Boolean(search.trim())} />
+                  </div>
                   {entriesLoading ? (
                     <LoadingState message="Memuat entry lisensi..." />
                   ) : (
@@ -775,6 +835,11 @@ function AdminApp() {
                 </div>
               </CardHeader>
               <CardContent>
+                <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                  <StatBox label="Rows" value={auditLogs.length} />
+                  <StatBox label="IP Filter" value={auditIp.trim() || "All"} mono={Boolean(auditIp.trim())} />
+                  <StatBox label="Event Filter" value={auditEvent.trim() || "All"} mono={Boolean(auditEvent.trim())} />
+                </div>
                 {auditLoading ? (
                   <LoadingState message="Memuat audit log..." />
                 ) : (
@@ -970,14 +1035,14 @@ function AdminApp() {
 
 function SidebarButton({ icon: Icon, active, children, ...props }) {
   return (
-    <button className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm transition ${active ? "bg-white/12 text-white" : "text-white/70 hover:bg-white/8 hover:text-white"}`} {...props}>
+    <button className={`flex min-w-max items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm transition lg:min-w-0 ${active ? "bg-white/12 text-white" : "text-white/70 hover:bg-white/8 hover:text-white"}`} {...props}>
       <Icon className="size-4" />
       <span>{children}</span>
     </button>
   );
 }
 
-function MetricCard({ title, value, tone }) {
+function MetricCard({ title, value, tone, meta }) {
   return (
     <Card className="bg-[var(--panel-strong)]">
       <CardContent className="p-5">
@@ -986,8 +1051,22 @@ function MetricCard({ title, value, tone }) {
           <div className="text-4xl font-semibold">{value}</div>
           <Badge variant={tone}>{title}</Badge>
         </div>
+        <div className="mt-3 text-sm text-[var(--muted)]">{meta || "Operational snapshot"}</div>
       </CardContent>
     </Card>
+  );
+}
+
+function QuickSignal({ icon: Icon, label, value, meta }) {
+  return (
+    <div className="rounded-2xl border border-[var(--line)] bg-white/72 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
+        <Icon className="size-4 text-[var(--accent-strong)]" />
+      </div>
+      <div className="mt-3 text-2xl font-semibold leading-none">{value}</div>
+      <div className="mt-2 text-sm text-[var(--muted)]">{meta}</div>
+    </div>
   );
 }
 
@@ -1105,6 +1184,15 @@ function StatBox({ label, value, mono = false }) {
     <div className="rounded-2xl border border-[var(--line)] bg-white/70 p-4">
       <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
       <div className={`mt-2 text-sm ${mono ? "font-mono break-all" : "font-medium"}`}>{String(value ?? "-")}</div>
+    </div>
+  );
+}
+
+function CompactSidebarStat({ label, value }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+      <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">{label}</div>
+      <div className="mt-2 text-sm font-medium text-white">{value}</div>
     </div>
   );
 }
