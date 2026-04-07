@@ -1,6 +1,6 @@
 # Autoscript License
 
-Sistem lisensi IP untuk `autoscript` yang terdiri dari:
+Sistem lisensi IP untuk repo `autoscript` dan `autoscript-lite` yang terdiri dari:
 - `Cloudflare Worker` untuk API lisensi
 - `Cloudflare D1` untuk database lisensi, audit, dan rate limit
 - `Cloudflare R2` untuk snapshot backup/restore admin
@@ -31,7 +31,7 @@ Endpoint produksi bawaan:
 https://autoscript-license.minidecrypt.workers.dev
 ```
 
-Endpoint check untuk `autoscript`:
+Endpoint check untuk client `autoscript` dan `autoscript-lite`:
 
 ```text
 https://autoscript-license.minidecrypt.workers.dev/api/v1/license/check
@@ -66,7 +66,7 @@ https://autoscript-license.minidecrypt.workers.dev/api/v1/license/check
 - `POST /api/public/license/renew`
 - `POST /api/public/license/status`
 
-### Autoscript Client
+### Client `autoscript` & `autoscript-lite`
 - `POST /api/v1/license/check`
 
 ### Admin
@@ -689,7 +689,7 @@ Cleanup terjadwal menghapus data lama:
 
 ## Integrasi Dengan Autoscript
 
-`autoscript` sekarang memakai URL bawaan ini:
+Repo `autoscript` dan `autoscript-lite` sekarang memakai URL bawaan ini:
 
 ```bash
 export AUTOSCRIPT_LICENSE_DEFAULT_API_URL="https://autoscript-license.minidecrypt.workers.dev/api/v1/license/check"
