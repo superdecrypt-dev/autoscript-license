@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input } from "../shared/ui.jsx";
 import { getPublicConfig } from "../shared/config.js";
 import { formatDate, formatDaysRemaining, statusLabel, statusTone } from "../shared/utils.js";
-import { Clock3, Signal } from "lucide-react";
+import { ArrowRight, Clock3, RotateCcw, Signal } from "lucide-react";
 
 function PublicApp() {
   const config = useMemo(() => getPublicConfig(), []);
@@ -20,6 +20,7 @@ function PublicApp() {
   const [statusLoading, setStatusLoading] = useState(false);
   const [createResult, setCreateResult] = useState(null);
   const [statusResult, setStatusResult] = useState(null);
+  const [processMode, setProcessMode] = useState("activate");
 
   useEffect(() => {
     let active = true;
@@ -84,7 +85,8 @@ function PublicApp() {
     setCreateLoading(true);
     setCreateResult(null);
     try {
-      const payload = await publicApiFetch(config.apiBaseUrl, "/api/public/license/activate", {
+      const endpoint = processMode === "renew" ? "/api/public/license/renew" : "/api/public/license/activate";
+      const payload = await publicApiFetch(config.apiBaseUrl, endpoint, {
         method: "POST",
         body: JSON.stringify({
           ip,
@@ -94,9 +96,10 @@ function PublicApp() {
       setBanner({ tone: "ok", message: `IP ${ip} berhasil diproses.` });
       setCreateResult({
         tone: statusTone(payload?.item?.status || "active"),
-        title: payload.message || "IP berhasil diproses.",
+        title: payload.message || (processMode === "renew" ? "IP berhasil diperpanjang." : "IP berhasil diproses."),
         body: payload,
       });
+      setProcessMode("activate");
       setTurnstileToken("");
       if (window.turnstile?.reset && turnstileWidgetIdRef.current !== null) {
         window.turnstile.reset(turnstileWidgetIdRef.current);
@@ -126,6 +129,7 @@ function PublicApp() {
       });
       setBanner({ tone: "ok", message: `Status ${ip} berhasil diambil.` });
       setStatusResult({
+        kind: "status",
         tone: statusTone(payload?.status),
         title: describeStatus(payload),
         body: payload,
@@ -135,6 +139,19 @@ function PublicApp() {
     } finally {
       setStatusLoading(false);
     }
+  }
+
+  function applyStatusAction(payload) {
+    const item = payload || {};
+    const nextAction = item.next_action || {};
+    if (!nextAction.kind || nextAction.kind === "none") return;
+    if (nextAction.kind === "contact_support" && nextAction.href) {
+      window.location.href = nextAction.href;
+      return;
+    }
+    setCreateIp(String(item.ip || "").trim());
+    setProcessMode(nextAction.kind === "renew" ? "renew" : "activate");
+    document.getElementById("process-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   return (
@@ -170,12 +187,25 @@ function PublicApp() {
               <div>
                 <Badge variant="accent">Proses</Badge>
                 <CardTitle className="mt-3 text-2xl">Proses IP</CardTitle>
-                <CardDescription className="mt-2">Untuk IP baru, IP yang expired, atau renew saat jendela perpanjangan sudah dibuka.</CardDescription>
+                <CardDescription className="mt-2">
+                  {processMode === "renew"
+                    ? "Mode renew publik aktif. Gunakan untuk IP yang masih aktif dan sudah masuk jendela perpanjangan."
+                    : "Untuk IP baru atau IP yang sudah expired."}
+                </CardDescription>
               </div>
-              <Badge variant="emerald">Aktivasi</Badge>
+              <Badge variant={processMode === "renew" ? "amber" : "emerald"}>{processMode === "renew" ? "Renew" : "Aktivasi"}</Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-5">
+            {processMode === "renew" ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--line)] bg-white/60 px-4 py-3 text-sm text-[var(--muted)]">
+                <span>Mode sekarang: renew publik.</span>
+                <Button type="button" size="sm" variant="ghost" onClick={() => setProcessMode("activate")}>
+                  <RotateCcw className="size-4" />
+                  Pakai Aktivasi
+                </Button>
+              </div>
+            ) : null}
             <form className="space-y-4" onSubmit={handleCreateSubmit}>
               <Field label="IPv4 VPS" help="Masukkan public IPv4 VPS yang dipakai server.">
                 <Input value={createIp} onChange={(event) => setCreateIp(event.target.value)} placeholder="123.45.67.89" />
@@ -192,7 +222,7 @@ function PublicApp() {
                 </p>
               </div>
               <Button className="w-full" disabled={createLoading || !turnstileToken}>
-                {createLoading ? "Memproses..." : "Proses IP"}
+                {createLoading ? "Memproses..." : processMode === "renew" ? "Renew IP" : "Proses IP"}
               </Button>
             </form>
             <ResultPanel result={createResult} />
@@ -219,7 +249,7 @@ function PublicApp() {
                 {statusLoading ? "Memeriksa..." : "Cek Status"}
               </Button>
             </form>
-            <ResultPanel result={statusResult} />
+            <StatusResultPanel result={statusResult} onAction={applyStatusAction} />
           </CardContent>
         </Card>
       </div>
@@ -303,6 +333,55 @@ function ResultPanel({ result }) {
   );
 }
 
+function StatusResultPanel({ result, onAction }) {
+  if (!result) return null;
+  const item = result.body || {};
+  const nextAction = item.next_action || {};
+  const statusBadgeLabel = statusLabel(item.status || result.tone);
+  return (
+    <div className="space-y-4 rounded-2xl border border-[var(--line)] bg-white/70 p-4 shadow-[var(--shadow-sm)]">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">Status</div>
+          <h3 className="mt-2 text-lg font-semibold">{result.title}</h3>
+        </div>
+        <Badge variant={result.tone}>{statusBadgeLabel}</Badge>
+      </div>
+
+      {item.detail_message ? (
+        <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-2 text-sm text-[var(--muted)]">
+          {item.detail_message}
+        </div>
+      ) : null}
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <Stat label="IP Dicek" value={item.ip} mono />
+        <Stat label="Akses Publik" value={item.allowed ? "Diizinkan" : "Tidak"} />
+        <Stat label="Aktif Sampai" value={formatDate(item.expires_at)} />
+        <Stat label="Sisa Waktu" value={formatDaysRemaining(item.days_remaining)} />
+        <Stat label="Bisa Renew" value={item.renewable ? "Ya" : "Tidak"} />
+        <Stat label="Jendela Renew" value={`${item.renew_open_before_days || 0} hari`} />
+        {Number(item.renew_opens_in_days || 0) > 0 ? (
+          <Stat label="Renew Dibuka Dalam" value={formatDaysRemaining(item.renew_opens_in_days)} />
+        ) : null}
+      </div>
+
+      <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4">
+        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">Tindakan Berikutnya</div>
+        <div className="mt-2 text-sm text-[var(--muted)]">{nextAction.help || "Tidak ada tindakan lanjutan."}</div>
+        {nextAction.kind && nextAction.kind !== "none" ? (
+          <div className="mt-4">
+            <Button type="button" onClick={() => onAction?.(item)}>
+              {nextAction.kind === "renew" ? <RotateCcw className="size-4" /> : <ArrowRight className="size-4" />}
+              {nextAction.label || "Lanjut"}
+            </Button>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function Stat({ label, value, mono = false }) {
   return (
     <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-2">
@@ -314,9 +393,10 @@ function Stat({ label, value, mono = false }) {
 
 function describeStatus(payload) {
   const status = String(payload?.status || "").toLowerCase();
-  if (status === "active") return "IP aktif dan siap dipakai untuk validasi lisensi.";
-  if (status === "expired") return "IP sudah expired dan bisa diproses ulang.";
-  if (status === "revoked") return "IP revoked dan tidak diizinkan untuk akses.";
+  if (status === "active") return "IP aktif.";
+  if (status === "expired") return "IP expired.";
+  if (status === "revoked") return "IP revoked.";
+  if (status === "not_found") return "IP belum terdaftar.";
   return "Status lisensi berhasil diambil.";
 }
 

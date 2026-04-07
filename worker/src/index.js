@@ -640,7 +640,7 @@ async function handlePublicStatus(request, env) {
   }
 
   const entry = await getLicenseEntryByIp(env, publicIp);
-  const statusPayload = serializePublicLookupStatusEntry(entry, nowIsoString(), env);
+  const statusPayload = serializePublicLookupStatusEntry(entry, nowIsoString(), env, publicIp);
 
   await insertAuditLog(env, {
     eventType: "public_status",
@@ -1831,48 +1831,117 @@ function serializePublicStatusEntry(row, nowIso = nowIsoString(), env = {}) {
     return {
       status: "not_found",
       allowed: false,
-      entry_id: "",
       ip: "",
       expires_at: "",
       days_remaining: 0,
       renewable: false,
       renew_open_before_days: getPublicRenewOpenBeforeDays(env),
+      renew_opens_in_days: 0,
+      detail_message: "IP ini belum terdaftar. Lanjutkan aktivasi untuk membuat lisensi baru.",
+      next_action: buildPublicStatusAction("not_found", false, env, 0),
     };
   }
   const effectiveStatus = effectiveStatusForRow(row, nowIso);
   const daysRemaining = calculateDaysRemaining(row.expires_at || "", nowIso);
+  const renewable = effectiveStatus === "active" && daysRemaining <= getPublicRenewOpenBeforeDays(env);
+  const renewOpensInDays = effectiveStatus === "active" && !renewable
+    ? Math.max(daysRemaining - getPublicRenewOpenBeforeDays(env), 0)
+    : 0;
   return {
     status: effectiveStatus,
     allowed: effectiveStatus === "active",
-    entry_id: row.id,
     ip: row.ip,
     expires_at: row.expires_at || "",
     days_remaining: daysRemaining,
-    renewable: effectiveStatus === "active" && daysRemaining <= getPublicRenewOpenBeforeDays(env),
+    renewable,
     renew_open_before_days: getPublicRenewOpenBeforeDays(env),
+    renew_opens_in_days: renewOpensInDays,
+    detail_message: buildPublicStatusMessage(effectiveStatus, daysRemaining, getPublicRenewOpenBeforeDays(env)),
+    next_action: buildPublicStatusAction(effectiveStatus, renewable, env, renewOpensInDays),
   };
 }
 
-function serializePublicLookupStatusEntry(row, nowIso = nowIsoString(), env = {}) {
+function serializePublicLookupStatusEntry(row, nowIso = nowIsoString(), env = {}, requestedIp = "") {
   if (!row) {
     return {
+      ip: requestedIp,
       status: "not_found",
       allowed: false,
       renewable: false,
       expires_at: "",
       days_remaining: 0,
       renew_open_before_days: getPublicRenewOpenBeforeDays(env),
+      renew_opens_in_days: 0,
+      detail_message: "IP ini belum terdaftar. Lanjutkan aktivasi untuk membuat lisensi baru.",
+      next_action: buildPublicStatusAction("not_found", false, env, 0),
     };
   }
   const effectiveStatus = effectiveStatusForRow(row, nowIso);
   const daysRemaining = calculateDaysRemaining(row.expires_at || "", nowIso);
+  const renewable = effectiveStatus === "active" && daysRemaining <= getPublicRenewOpenBeforeDays(env);
+  const renewOpensInDays = effectiveStatus === "active" && !renewable
+    ? Math.max(daysRemaining - getPublicRenewOpenBeforeDays(env), 0)
+    : 0;
   return {
+    ip: row.ip || requestedIp,
     status: effectiveStatus,
     allowed: effectiveStatus === "active",
-    renewable: effectiveStatus === "active" && daysRemaining <= getPublicRenewOpenBeforeDays(env),
+    renewable,
     expires_at: row.expires_at || "",
     days_remaining: daysRemaining,
     renew_open_before_days: getPublicRenewOpenBeforeDays(env),
+    renew_opens_in_days: renewOpensInDays,
+    detail_message: buildPublicStatusMessage(effectiveStatus, daysRemaining, getPublicRenewOpenBeforeDays(env)),
+    next_action: buildPublicStatusAction(effectiveStatus, renewable, env, renewOpensInDays),
+  };
+}
+
+function buildPublicStatusMessage(status, daysRemaining, renewOpenBeforeDays) {
+  if (status === "active" && daysRemaining <= renewOpenBeforeDays) {
+    return `IP aktif. Renew publik sudah dibuka karena sisa aktif ${daysRemaining} hari.`;
+  }
+  if (status === "active") {
+    return `IP aktif. Renew publik dibuka saat sisa aktif ${renewOpenBeforeDays} hari atau kurang.`;
+  }
+  if (status === "expired") {
+    return "IP sudah expired. Lakukan aktivasi ulang untuk memperpanjang masa aktif.";
+  }
+  if (status === "revoked") {
+    return `IP ini sedang diblokir. Hubungi ${PUBLIC_LICENSE_SUPPORT_EMAIL} untuk bantuan lebih lanjut.`;
+  }
+  return "IP ini belum terdaftar. Lanjutkan aktivasi untuk membuat lisensi baru.";
+}
+
+function buildPublicStatusAction(status, renewable, _env = {}, renewOpensInDays = 0) {
+  if (status === "revoked") {
+    return {
+      kind: "contact_support",
+      label: "Hubungi Support",
+      help: `Status diblokir. Hubungi ${PUBLIC_LICENSE_SUPPORT_EMAIL}.`,
+      href: `mailto:${PUBLIC_LICENSE_SUPPORT_EMAIL}`,
+    };
+  }
+  if (status === "expired" || status === "not_found") {
+    return {
+      kind: "activate",
+      label: "Lanjut Proses IP",
+      help: status === "expired" ? "IP sudah expired dan perlu aktivasi ulang." : "IP belum terdaftar dan perlu aktivasi baru.",
+      href: "",
+    };
+  }
+  if (status === "active" && renewable) {
+    return {
+      kind: "renew",
+      label: "Lanjut Renew",
+      help: "IP aktif dan sudah masuk jendela perpanjangan publik.",
+      href: "",
+    };
+  }
+  return {
+    kind: "none",
+    label: "",
+    help: renewOpensInDays > 0 ? `Belum perlu tindakan. Renew publik dibuka sekitar ${renewOpensInDays} hari lagi.` : "Belum perlu tindakan.",
+    href: "",
   };
 }
 

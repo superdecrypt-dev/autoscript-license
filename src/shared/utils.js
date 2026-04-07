@@ -58,6 +58,7 @@ export function statusLabel(value) {
   if (raw === "active") return "Active";
   if (raw === "expired") return "Expired";
   if (raw === "revoked") return "Revoked";
+  if (raw === "not_found") return "Belum Ada";
   return raw || "-";
 }
 
@@ -72,9 +73,9 @@ export function statusTone(value) {
 export function formatDaysRemaining(value) {
   const total = Number(value);
   if (!Number.isFinite(total)) return "-";
-  if (total <= 0) return "0 days";
-  if (total === 1) return "1 day";
-  return `${total} days`;
+  if (total <= 0) return "0 hari";
+  if (total === 1) return "1 hari";
+  return `${total} hari`;
 }
 
 export async function computeSha256Hex(input) {

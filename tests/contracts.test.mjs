@@ -262,6 +262,100 @@ test("worker /api/v1/license/check memakai source IP request dan mengembalikan p
   }
 });
 
+test("worker public status mengembalikan detail aman dan next action yang tepat", async () => {
+  const bundled = await bundleModule("worker/src/index.js", "worker.mjs");
+  try {
+    const worker = bundled.module.default;
+    const now = Date.now();
+    const env = {
+      PUBLIC_RENEW_OPEN_BEFORE_DAYS: "3",
+      LICENSE_DB: createD1Stub({
+        tables: {
+          license_entries: [
+            {
+              id: "entry-active",
+              ip: "198.51.100.10",
+              status: "active",
+              expires_at: new Date(now + 10 * 86400000).toISOString(),
+            },
+            {
+              id: "entry-renew",
+              ip: "198.51.100.11",
+              status: "active",
+              expires_at: new Date(now + 1 * 86400000).toISOString(),
+            },
+            {
+              id: "entry-revoked",
+              ip: "198.51.100.12",
+              status: "revoked",
+              expires_at: new Date(now + 10 * 86400000).toISOString(),
+            },
+            {
+              id: "entry-expired",
+              ip: "198.51.100.13",
+              status: "active",
+              expires_at: new Date(now - 1 * 86400000).toISOString(),
+            },
+          ],
+        },
+      }),
+    };
+
+    const cases = [
+      {
+        ip: "198.51.100.10",
+        expectedStatus: "active",
+        expectedAction: "none",
+      },
+      {
+        ip: "198.51.100.11",
+        expectedStatus: "active",
+        expectedAction: "renew",
+      },
+      {
+        ip: "198.51.100.12",
+        expectedStatus: "revoked",
+        expectedAction: "contact_support",
+      },
+      {
+        ip: "198.51.100.13",
+        expectedStatus: "expired",
+        expectedAction: "activate",
+      },
+      {
+        ip: "198.51.100.99",
+        expectedStatus: "not_found",
+        expectedAction: "activate",
+      },
+    ];
+
+    for (const scenario of cases) {
+      const request = new Request("https://license.example/api/public/license/status", {
+        method: "POST",
+        headers: {
+          "CF-Connecting-IP": "203.0.113.55",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ ip: scenario.ip }),
+      });
+
+      const response = await worker.fetch(request, env);
+      const payload = await response.json();
+
+      assert.equal(response.status, 200);
+      assert.equal(payload.ip, scenario.ip);
+      assert.equal(payload.status, scenario.expectedStatus);
+      assert.equal(payload.next_action?.kind, scenario.expectedAction);
+      assert.equal("entry_id" in payload, false);
+      assert.equal(typeof payload.detail_message, "string");
+      assert.equal(typeof payload.renew_open_before_days, "number");
+      assert.equal(typeof payload.renew_opens_in_days, "number");
+    }
+  } finally {
+    bundled.cleanup();
+  }
+});
+
 test("worker admin API memakai fallback ADMIN_PROXY_SHARED_SECRET bila env belum diisi", async () => {
   const bundled = await bundleModule("worker/src/index.js", "worker-admin.mjs");
   try {
