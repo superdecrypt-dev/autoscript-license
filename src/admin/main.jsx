@@ -627,10 +627,6 @@ function AdminApp() {
             <SidebarButton icon={RefreshCw} active={activeView === "audit"} onClick={() => setActiveView("audit")}>Audit Log</SidebarButton>
             <SidebarButton icon={Settings} active={activeView === "settings"} onClick={() => setActiveView("settings")}>Settings</SidebarButton>
           </nav>
-          <div className="mt-6 grid gap-3 lg:mt-8">
-            <CompactSidebarStat label="Live Entries" value={`${activeEntryRatio}/${totalEntries}`} />
-            <CompactSidebarStat label="Last Sync" value={formatRelativeTime(lastSyncedAt)} />
-          </div>
           <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 lg:mt-8">
             <div className="text-xs uppercase tracking-[0.16em] text-white/55">Access Identity</div>
             <div className="mt-3">
@@ -646,14 +642,8 @@ function AdminApp() {
           <div className="rounded-[2rem] border border-[var(--line)] bg-[var(--panel)] p-5 shadow-[var(--shadow)] page-enter stagger-1">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <Badge variant="accent">Professional Ops</Badge>
-                <h2 className="mt-3 text-3xl font-semibold">{VIEW_META[activeView].title}</h2>
+                <h2 className="text-3xl font-semibold">{VIEW_META[activeView].title}</h2>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">{VIEW_META[activeView].description}</p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Badge variant="emerald">Access Protected</Badge>
-                  <Badge variant="slate">{usesCrossOriginAdminApi ? "Relay via pages.dev" : "Same Origin"}</Badge>
-                  <Badge variant="amber">{formatRelativeTime(lastSyncedAt)}</Badge>
-                </div>
               </div>
               <div className="flex flex-wrap gap-3">
                 <Button variant="secondary" onClick={refreshDashboard}><RefreshCw className="size-4" />Refresh</Button>
@@ -673,7 +663,7 @@ function AdminApp() {
                       <QuickSignal icon={Activity} label="Checks Today" value={`${Number(latestChecks.allow || 0) + Number(latestChecks.deny || 0)}`} meta={`${latestChecks.allow || 0} allow / ${latestChecks.deny || 0} deny`} />
                       <QuickSignal icon={RefreshCw} label="Mutations Today" value={`${Number(latestMutations.admin_mutations || 0) + Number(latestMutations.public_activations || 0) + Number(latestMutations.public_renewals || 0)}`} meta={`${latestMutations.admin_mutations || 0} admin / ${latestMutations.public_activations || 0} activate`} />
                       <QuickSignal icon={Database} label="Backups" value={backups.length} meta={`${filteredBackups.length} visible snapshots`} />
-                      <QuickSignal icon={Clock3} label="Last Sync" value={formatRelativeTime(lastSyncedAt)} meta={lastSyncedAt ? formatDate(lastSyncedAt) : "Belum pernah refresh"} />
+                      <QuickSignal icon={Clock3} label="Live Entries" value={`${activeEntryRatio}/${totalEntries}`} meta={lastSyncedAt ? `Updated ${formatRelativeTime(lastSyncedAt)}` : "Belum pernah refresh"} />
                     </div>
                     <div className="grid gap-3 sm:grid-cols-[200px,1fr] lg:w-[360px]">
                       <Select value={metricsWindowDays} onValueChange={setMetricsWindowDays}>
@@ -748,7 +738,7 @@ function AdminApp() {
                   <div className="mb-4 grid gap-3 sm:grid-cols-3">
                     <StatBox label="Visible" value={entries.length} />
                     <StatBox label="Filter Status" value={statusFilter === "all" ? "All" : statusLabel(statusFilter)} />
-                    <StatBox label="Query" value={search.trim() || "No filter"} mono={Boolean(search.trim())} />
+                    <StatBox label="Query" value={search.trim() || "Semua"} mono={Boolean(search.trim())} />
                   </div>
                 {entriesLoading ? (
                   <LoadingState message="Memuat entry lisensi..." />
@@ -953,15 +943,12 @@ function AdminApp() {
             <div className="grid gap-5 xl:grid-cols-[0.75fr,1.25fr]">
               <Card>
                 <CardHeader>
-                  <Badge variant="accent">Session</Badge>
-                  <CardTitle className="mt-3">Environment</CardTitle>
+                  <Badge variant="accent">Admin</Badge>
+                  <CardTitle className="mt-3">Panel</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                  <div className="grid gap-3">
                     <StatBox label="Admin" value={session?.admin_email || "-"} />
-                    <StatBox label="Metrics Window" value={`${metricsWindowDays} days`} />
-                    <StatBox label="Session" value="Protected by Access" />
-                    <StatBox label="Last Sync" value={lastSyncedAt ? formatDate(lastSyncedAt) : "Belum pernah refresh"} />
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Button variant="secondary" onClick={refreshBackups}><RefreshCw className="size-4" />Refresh Backups</Button>
@@ -1036,8 +1023,8 @@ function AdminApp() {
                               </div>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                              <Button size="sm" variant="secondary" onClick={() => loadBackupPreview(backup.key)}><Eye className="size-4" />Preview</Button>
-                              <Button size="sm" variant="ghost" onClick={() => openBackupPreviewDialog(backup.key)}>Open</Button>
+                              <Button size="sm" variant="secondary" onClick={() => loadBackupPreview(backup.key)}><Eye className="size-4" />Quick Preview</Button>
+                              <Button size="sm" variant="ghost" onClick={() => openBackupPreviewDialog(backup.key)}>Details</Button>
                               <Button size="sm" variant="secondary" onClick={() => validateBackupRestore(backup.key)}>Validate</Button>
                               <Button size="sm" variant="outline" onClick={() => downloadBackupManifest(backup.key)}><FileJson className="size-4" />Manifest</Button>
                               <Button size="sm" variant="outline" onClick={() => downloadBackup(backup.key)}><Download className="size-4" />Download</Button>

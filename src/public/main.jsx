@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input } from "../shared/ui.jsx";
 import { getPublicConfig } from "../shared/config.js";
 import { formatDate, formatDaysRemaining, statusLabel, statusTone } from "../shared/utils.js";
-import { CheckCircle2, Clock3, LifeBuoy, ShieldCheck, Signal } from "lucide-react";
+import { Clock3, Signal } from "lucide-react";
 
 function PublicApp() {
   const config = useMemo(() => getPublicConfig(), []);
@@ -20,7 +20,6 @@ function PublicApp() {
   const [statusLoading, setStatusLoading] = useState(false);
   const [createResult, setCreateResult] = useState(null);
   const [statusResult, setStatusResult] = useState(null);
-  const [lastActionAt, setLastActionAt] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -32,7 +31,6 @@ function PublicApp() {
         setRenewOpenBeforeDays(Number(payload.renew_open_before_days || 3));
         setBanner({ tone: "ok", message: "Konfigurasi Worker siap digunakan." });
         setStatusBadge({ tone: "emerald", message: "Worker Ready" });
-        setLastActionAt(new Date().toISOString());
       } catch (error) {
         if (!active) return;
         setBanner({ tone: "error", message: error.message || "Gagal mengambil konfigurasi." });
@@ -99,7 +97,6 @@ function PublicApp() {
         title: payload.message || "IP berhasil diproses.",
         body: payload,
       });
-      setLastActionAt(new Date().toISOString());
       setTurnstileToken("");
       if (window.turnstile?.reset && turnstileWidgetIdRef.current !== null) {
         window.turnstile.reset(turnstileWidgetIdRef.current);
@@ -133,7 +130,6 @@ function PublicApp() {
         title: describeStatus(payload),
         body: payload,
       });
-      setLastActionAt(new Date().toISOString());
     } catch (error) {
       setStatusResult({ tone: "error", title: error.message || "Check status gagal.", body: null });
     } finally {
@@ -157,39 +153,15 @@ function PublicApp() {
               <Button onClick={() => document.getElementById("process-card")?.scrollIntoView({ behavior: "smooth" })}>Proses IP</Button>
               <Button variant="secondary" onClick={() => document.getElementById("status-card")?.scrollIntoView({ behavior: "smooth" })}>Cek Status</Button>
             </div>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <HeroStat label="Worker" value={statusBadge.message} icon={Signal} />
               <HeroStat label="Renew Window" value={`${renewOpenBeforeDays} hari`} icon={Clock3} />
-              <HeroStat label="Last Sync" value={lastActionAt ? formatDate(lastActionAt) : "Bootstrapping"} icon={ShieldCheck} />
             </div>
           </div>
         </div>
       </section>
 
       <Alert className="page-enter stagger-1" tone={banner.tone}>{banner.message}</Alert>
-
-      <section className="page-enter stagger-2 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <ServiceHighlight
-          icon={ShieldCheck}
-          title="Single Surface"
-          copy="Aktivasi, renew, dan status check berjalan di satu halaman publik yang sama."
-        />
-        <ServiceHighlight
-          icon={CheckCircle2}
-          title="Result Clarity"
-          copy="Output status dan expiry tampil langsung setelah submit tanpa pindah halaman."
-        />
-        <ServiceHighlight
-          icon={Clock3}
-          title="Renew Control"
-          copy={`Jendela renew publik baru dibuka saat sisa aktif ${renewOpenBeforeDays} hari atau kurang.`}
-        />
-        <ServiceHighlight
-          icon={LifeBuoy}
-          title="Operator Ready"
-          copy="Jika flow publik gagal, operator bisa tindak lanjut langsung dari panel admin."
-        />
-      </section>
 
       <div className="page-enter stagger-3 grid gap-6 lg:grid-cols-2">
         <Card id="process-card" className="bg-[var(--panel-strong)]">
@@ -204,14 +176,6 @@ function PublicApp() {
             </div>
           </CardHeader>
           <CardContent className="space-y-5">
-            <QuickActionSummary
-              title="Action Summary"
-              items={[
-                { label: "Mode", value: "Activate or Renew" },
-                { label: "Duration", value: `${licenseDurationDays} hari` },
-                { label: "Guard", value: turnstileToken ? "Turnstile Verified" : "Waiting Turnstile" },
-              ]}
-            />
             <form className="space-y-4" onSubmit={handleCreateSubmit}>
               <Field label="IPv4 VPS" help="Masukkan public IPv4 VPS yang dipakai server.">
                 <Input value={createIp} onChange={(event) => setCreateIp(event.target.value)} placeholder="123.45.67.89" />
@@ -247,14 +211,6 @@ function PublicApp() {
             </div>
           </CardHeader>
           <CardContent className="space-y-5">
-            <QuickActionSummary
-              title="Lookup Summary"
-              items={[
-                { label: "Mode", value: "Read Only" },
-                { label: "Checks", value: "No state mutation" },
-                { label: "Target", value: statusIp.trim() || "Belum diisi" },
-              ]}
-            />
             <form className="space-y-4" onSubmit={handleStatusSubmit}>
               <Field label="IPv4 VPS" help="Gunakan IP yang sama dengan yang ingin dicek.">
                 <Input value={statusIp} onChange={(event) => setStatusIp(event.target.value)} placeholder="123.45.67.89" />
@@ -277,7 +233,6 @@ function PublicApp() {
           <RuleItem>Aktivasi ulang ditolak jika IP masih aktif.</RuleItem>
           <RuleItem>Renew publik baru dibuka saat sisa aktif {renewOpenBeforeDays} hari atau kurang.</RuleItem>
           <RuleItem>Jika VPS pindah IP, aktifkan ulang dengan IP baru.</RuleItem>
-          <RuleItem>Kontak support: autoscript@atomicmail.io</RuleItem>
         </CardContent>
       </Card>
     </div>
@@ -306,34 +261,6 @@ function HeroStat({ label, value, icon: Icon }) {
         <Icon className="size-4 text-[var(--accent-strong)]" />
       </div>
       <div className="mt-2 text-sm font-medium">{value}</div>
-    </div>
-  );
-}
-
-function ServiceHighlight({ icon: Icon, title, copy }) {
-  return (
-    <div className="rounded-[1.5rem] border border-[var(--line)] bg-white/72 p-5 shadow-[var(--shadow-sm)] transition hover:-translate-y-0.5">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-sm font-semibold">{title}</div>
-        <Icon className="size-4 text-[var(--accent-strong)]" />
-      </div>
-      <div className="mt-3 text-sm leading-6 text-[var(--muted)]">{copy}</div>
-    </div>
-  );
-}
-
-function QuickActionSummary({ title, items }) {
-  return (
-    <div className="rounded-2xl border border-[var(--line)] bg-white/68 p-4">
-      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">{title}</div>
-      <div className="mt-3 grid gap-3 sm:grid-cols-3">
-        {items.map((item) => (
-          <div key={item.label} className="rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-2">
-            <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--muted)]">{item.label}</div>
-            <div className="mt-1 text-sm font-medium">{item.value}</div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
