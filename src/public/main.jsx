@@ -233,6 +233,7 @@ function PublicApp() {
           <RuleItem>Aktivasi ulang ditolak jika IP masih aktif.</RuleItem>
           <RuleItem>Renew publik baru dibuka saat sisa aktif {renewOpenBeforeDays} hari atau kurang.</RuleItem>
           <RuleItem>Jika VPS pindah IP, aktifkan ulang dengan IP baru.</RuleItem>
+          <RuleItem>Support: autoscript@atomicmail.io</RuleItem>
         </CardContent>
       </Card>
     </div>
