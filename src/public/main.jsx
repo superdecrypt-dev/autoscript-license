@@ -144,7 +144,7 @@ function PublicApp() {
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
       <section className="page-enter overflow-hidden rounded-[2rem] border border-[var(--line)] bg-[var(--panel)] shadow-[var(--shadow)]">
-        <div className="grid gap-8 px-6 py-8 md:px-10 md:py-12 lg:grid-cols-[1.2fr,0.8fr]">
+        <div className="px-6 py-8 md:px-10 md:py-12">
           <div className="space-y-5">
             <Badge variant="accent">IP Access</Badge>
             <div className="space-y-4">
@@ -162,11 +162,6 @@ function PublicApp() {
               <HeroStat label="Renew Window" value={`${renewOpenBeforeDays} hari`} icon={Clock3} />
               <HeroStat label="Last Sync" value={lastActionAt ? formatDate(lastActionAt) : "Bootstrapping"} icon={ShieldCheck} />
             </div>
-          </div>
-          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-1">
-            <InfoPill label="Support" value="autoscript@atomicmail.io" tone="slate" />
-            <InfoPill label="Create Flow" value="Turnstile Protected" tone="emerald" />
-            <InfoPill label="Read Flow" value="Status Lookup Ready" tone={statusBadge.tone} />
           </div>
         </div>
       </section>
@@ -311,17 +306,6 @@ function HeroStat({ label, value, icon: Icon }) {
         <Icon className="size-4 text-[var(--accent-strong)]" />
       </div>
       <div className="mt-2 text-sm font-medium">{value}</div>
-    </div>
-  );
-}
-
-function InfoPill({ label, value, tone = "slate" }) {
-  return (
-    <div className="rounded-2xl border border-[var(--line)] bg-white/70 p-4 shadow-[var(--shadow-sm)]">
-      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
-      <div className="mt-2">
-        <Badge variant={tone}>{value}</Badge>
-      </div>
     </div>
   );
 }
