@@ -93,6 +93,9 @@ function AdminApp() {
   const [formState, setFormState] = useState(emptyEntryForm());
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editFormState, setEditFormState] = useState(emptyEntryForm());
+  const [entryDetailOpen, setEntryDetailOpen] = useState(false);
+  const [entryDetail, setEntryDetail] = useState(null);
+  const [backupPreviewOpen, setBackupPreviewOpen] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState("");
 
   useEffect(() => {
@@ -329,6 +332,16 @@ function AdminApp() {
       if (!silent) handleAuthFailure(error, "Gagal memuat preview snapshot backup.");
       throw error;
     }
+  }
+
+  function openEntryDetail(entry) {
+    setEntryDetail(entry);
+    setEntryDetailOpen(true);
+  }
+
+  async function openBackupPreviewDialog(backupKey) {
+    const preview = await loadBackupPreview(backupKey);
+    if (preview) setBackupPreviewOpen(true);
   }
 
   async function validateBackupRestore(backupKey) {
@@ -746,6 +759,7 @@ function AdminApp() {
                         <EntryMobileCard
                           key={entry.id}
                           entry={entry}
+                          onInspect={() => openEntryDetail(entry)}
                           onEdit={() => {
                             setEditFormState({
                               id: entry.id,
@@ -796,6 +810,7 @@ function AdminApp() {
                               <TableCell>{formatDate(entry.updated_at)}</TableCell>
                               <TableCell>
                                 <div className="flex flex-wrap gap-2">
+                                  <Button size="sm" variant="ghost" onClick={() => openEntryDetail(entry)}>Details</Button>
                                   <Button size="sm" variant="secondary" onClick={() => {
                                     setEditFormState({
                                       id: entry.id,
@@ -1022,6 +1037,7 @@ function AdminApp() {
                             </div>
                             <div className="flex flex-wrap gap-2">
                               <Button size="sm" variant="secondary" onClick={() => loadBackupPreview(backup.key)}><Eye className="size-4" />Preview</Button>
+                              <Button size="sm" variant="ghost" onClick={() => openBackupPreviewDialog(backup.key)}>Open</Button>
                               <Button size="sm" variant="secondary" onClick={() => validateBackupRestore(backup.key)}>Validate</Button>
                               <Button size="sm" variant="outline" onClick={() => downloadBackupManifest(backup.key)}><FileJson className="size-4" />Manifest</Button>
                               <Button size="sm" variant="outline" onClick={() => downloadBackup(backup.key)}><Download className="size-4" />Download</Button>
@@ -1062,6 +1078,9 @@ function AdminApp() {
                                 <div className="text-[var(--muted)]">Tidak ada sample.</div>
                               )}
                             </div>
+                          </div>
+                          <div className="md:col-span-2">
+                            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setBackupPreviewOpen(true)}>Open Full Preview</Button>
                           </div>
                         </div>
                       ) : (
@@ -1108,6 +1127,91 @@ function AdminApp() {
               <Button>Update Entry</Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={entryDetailOpen} onOpenChange={setEntryDetailOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Entry Detail</DialogTitle>
+            <DialogDescription>Inspeksi lengkap entry tanpa membuka mode edit.</DialogDescription>
+          </DialogHeader>
+          {entryDetail ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              <StatBox label="IP" value={entryDetail.ip || "-"} mono />
+              <StatBox label="Status" value={statusLabel(entryDetail.effective_status)} />
+              <StatBox label="Label" value={entryDetail.label || "-"} />
+              <StatBox label="Owner" value={entryDetail.owner || "-"} />
+              <StatBox label="Expires" value={formatDate(entryDetail.expires_at)} />
+              <StatBox label="Updated" value={formatDate(entryDetail.updated_at)} />
+              <div className="md:col-span-2 rounded-2xl border border-[var(--line)] bg-white/70 p-4">
+                <div className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">Notes</div>
+                <div className="mt-2 text-sm leading-6 text-[var(--fg)]">{entryDetail.notes || "Tidak ada catatan operator."}</div>
+              </div>
+              <div className="md:col-span-2 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setEditFormState({
+                      id: entryDetail.id,
+                      ip: entryDetail.ip || "",
+                      label: entryDetail.label || "",
+                      owner: entryDetail.owner || "",
+                      notes: entryDetail.notes || "",
+                      expires_at: formatForDateTimeLocal(entryDetail.expires_at || ""),
+                    });
+                    setEntryDetailOpen(false);
+                    setEditDialogOpen(true);
+                  }}
+                >
+                  Edit Entry
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setEntryDetailOpen(false)}>Close</Button>
+              </div>
+            </div>
+          ) : (
+            <LoadingState message="Belum ada entry yang dipilih." />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={backupPreviewOpen} onOpenChange={setBackupPreviewOpen}>
+        <DialogContent className="max-h-[88vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Backup Preview</DialogTitle>
+            <DialogDescription>Metadata dan sample snapshot untuk validasi cepat sebelum restore.</DialogDescription>
+          </DialogHeader>
+          {backupPreview ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              <StatBox label="Key" value={backupPreview.key} mono />
+              <StatBox label="Checksum" value={backupPreview.checksum_sha256 || "-"} mono />
+              <StatBox label="Created" value={formatDate(backupPreview.created_at)} />
+              <StatBox label="Actor" value={backupPreview.created_by || "-"} />
+              <StatBox label="Source" value={humanizeBackupSource(backupPreview.source)} />
+              <StatBox label="Rows" value={formatBackupRows(backupPreview.row_counts)} />
+              <StatBox label="Size" value={formatBytes(backupPreview.size || 0)} />
+              <StatBox label="Latest Status Sample" value={backupPreview.preview?.license_entries?.[0]?.status || "-"} />
+              <div className="md:col-span-2 rounded-2xl border border-[var(--line)] bg-white/70 p-4">
+                <div className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">License Sample</div>
+                <div className="mt-3 space-y-2 text-sm">
+                  {(backupPreview.preview?.license_entries || []).length ? (
+                    backupPreview.preview.license_entries.map((item) => (
+                      <div key={`${item.id}-${item.ip}`} className="rounded-xl border border-[var(--line)] px-3 py-2">
+                        <div className="font-medium">{item.ip || "-"}</div>
+                        <div className="text-xs text-[var(--muted)]">
+                          {item.label || "-"} • {item.status || "-"} • {formatDate(item.expires_at)}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-[var(--muted)]">Tidak ada sample.</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <LoadingState message="Belum ada preview snapshot yang dipilih." />
+          )}
         </DialogContent>
       </Dialog>
     </div>
@@ -1405,7 +1509,7 @@ function LoadingState({ message, copy = "Tunggu sebentar." }) {
   );
 }
 
-function EntryMobileCard({ entry, onEdit, onToggle, onDelete }) {
+function EntryMobileCard({ entry, onInspect, onEdit, onToggle, onDelete }) {
   const toggleLabel = entry.effective_status === "revoked" ? "Reactivate" : "Revoke";
   return (
     <div className="rounded-2xl border border-[var(--line)] bg-white/75 p-4">
@@ -1423,6 +1527,7 @@ function EntryMobileCard({ entry, onEdit, onToggle, onDelete }) {
         <MiniMeta label="Notes" value={entry.notes || "-"} />
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2">
+        <Button size="sm" variant="ghost" onClick={onInspect}>Details</Button>
         <Button size="sm" variant="secondary" onClick={onEdit}>Edit</Button>
         <Button size="sm" variant="outline" onClick={onToggle}>{toggleLabel}</Button>
         <Button size="sm" variant="destructive" className="col-span-2" onClick={onDelete}>Delete Entry</Button>
