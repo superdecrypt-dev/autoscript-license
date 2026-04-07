@@ -723,9 +723,9 @@ function AdminApp() {
                         <Input className="pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari IP, label, owner, notes" />
                       </div>
                       <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-full md:w-48"><SelectValue placeholder="All Status" /></SelectTrigger>
+                        <SelectTrigger className="w-full md:w-48"><SelectValue placeholder="Semua Status" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All Status</SelectItem>
+                          <SelectItem value="all">Semua Status</SelectItem>
                           <SelectItem value="active">Active</SelectItem>
                           <SelectItem value="expired">Expired</SelectItem>
                           <SelectItem value="revoked">Revoked</SelectItem>
@@ -737,7 +737,7 @@ function AdminApp() {
                 <CardContent>
                   <div className="mb-4 grid gap-3 sm:grid-cols-3">
                     <StatBox label="Visible" value={entries.length} />
-                    <StatBox label="Filter Status" value={statusFilter === "all" ? "All" : statusLabel(statusFilter)} />
+                    <StatBox label="Filter Status" value={statusFilter === "all" ? "Semua" : statusLabel(statusFilter)} />
                     <StatBox label="Query" value={search.trim() || "Semua"} mono={Boolean(search.trim())} />
                   </div>
                 {entriesLoading ? (
@@ -800,7 +800,7 @@ function AdminApp() {
                               <TableCell>{formatDate(entry.updated_at)}</TableCell>
                               <TableCell>
                                 <div className="flex flex-wrap gap-2">
-                                  <Button size="sm" variant="ghost" onClick={() => openEntryDetail(entry)}>Details</Button>
+                                  <Button size="sm" variant="ghost" onClick={() => openEntryDetail(entry)}>Detail</Button>
                                   <Button size="sm" variant="secondary" onClick={() => {
                                     setEditFormState({
                                       id: entry.id,
@@ -836,9 +836,9 @@ function AdminApp() {
 
               <Card className="bg-[var(--panel-strong)]">
                 <CardHeader>
-                  <Badge variant="accent">Create Entry</Badge>
-                  <CardTitle className="mt-3">Create IP Entry</CardTitle>
-                  <CardDescription className="mt-2">Masukkan IP, masa aktif, dan catatan operator. Form ini tetap menulis ke backend yang sama, tetapi sekarang memberi ringkasan sebelum submit.</CardDescription>
+                  <Badge variant="accent">Buat Entry</Badge>
+                  <CardTitle className="mt-3">Buat IP Entry</CardTitle>
+                  <CardDescription className="mt-2">Masukkan IP, masa aktif, dan catatan operator.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <EntryFormSummary formState={formState} mode="create" />
@@ -856,14 +856,14 @@ function AdminApp() {
                         <Input value={formState.label} onChange={(event) => setFormState((state) => ({ ...state, label: event.target.value }))} placeholder="Server SG-01" />
                       </Field>
                       <Field label="Owner" hint="Nama operator, client, atau penyedia host.">
-                        <Input value={formState.owner} onChange={(event) => setFormState((state) => ({ ...state, owner: event.target.value }))} placeholder="Atomic Host" />
+                        <Input value={formState.owner} onChange={(event) => setFormState((state) => ({ ...state, owner: event.target.value }))} placeholder="Nama owner" />
                       </Field>
                     </div>
                     <Field label="Notes" hint="Catatan internal. Tidak untuk jalur publik.">
                       <Textarea value={formState.notes} onChange={(event) => setFormState((state) => ({ ...state, notes: event.target.value }))} placeholder="Keterangan operator" />
                     </Field>
                     <div className="flex flex-col gap-3 sm:flex-row">
-                      <Button className="flex-1"><Plus className="size-4" />Create Entry</Button>
+                      <Button className="flex-1"><Plus className="size-4" />Buat Entry</Button>
                       <Button type="button" variant="secondary" onClick={() => setFormState(emptyEntryForm())}>Reset</Button>
                     </div>
                   </form>
@@ -975,9 +975,9 @@ function AdminApp() {
                         <Input className="pl-9" value={backupSearch} onChange={(event) => setBackupSearch(event.target.value)} placeholder="Cari backup berdasarkan waktu, actor, atau key" />
                       </div>
                       <Select value={backupSourceFilter} onValueChange={setBackupSourceFilter}>
-                        <SelectTrigger><SelectValue placeholder="All Sources" /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder="Semua Sumber" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All Sources</SelectItem>
+                          <SelectItem value="all">Semua Sumber</SelectItem>
                           <SelectItem value="r2">Manual</SelectItem>
                           <SelectItem value="scheduled">Scheduled</SelectItem>
                         </SelectContent>
@@ -1023,8 +1023,8 @@ function AdminApp() {
                               </div>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                              <Button size="sm" variant="secondary" onClick={() => loadBackupPreview(backup.key)}><Eye className="size-4" />Quick Preview</Button>
-                              <Button size="sm" variant="ghost" onClick={() => openBackupPreviewDialog(backup.key)}>Details</Button>
+                              <Button size="sm" variant="secondary" onClick={() => loadBackupPreview(backup.key)}><Eye className="size-4" />Preview</Button>
+                              <Button size="sm" variant="ghost" onClick={() => openBackupPreviewDialog(backup.key)}>Detail</Button>
                               <Button size="sm" variant="secondary" onClick={() => validateBackupRestore(backup.key)}>Validate</Button>
                               <Button size="sm" variant="outline" onClick={() => downloadBackupManifest(backup.key)}><FileJson className="size-4" />Manifest</Button>
                               <Button size="sm" variant="outline" onClick={() => downloadBackup(backup.key)}><Download className="size-4" />Download</Button>
@@ -1272,7 +1272,7 @@ function OperationalHealthCard({ latestChecks, latestMutations, summary, metrics
     <Card>
       <CardHeader>
         <Badge variant="accent">Health</Badge>
-        <CardTitle className="mt-3">Operational Health</CardTitle>
+        <CardTitle className="mt-3">Health</CardTitle>
         <CardDescription className="mt-2">Ringkasan kualitas traffic publik dan intensitas perubahan pada window {metricsWindowDays} hari.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -1333,7 +1333,7 @@ function RecentRecoveryCard({ backups, onOpenSettings }) {
         )) : (
           <LoadingState message="Belum ada snapshot terbaru." copy="Buat backup dari Settings untuk mengisi panel ini." />
         )}
-        <Button variant="outline" className="w-full" onClick={onOpenSettings}>Open Backup & Restore</Button>
+        <Button variant="outline" className="w-full" onClick={onOpenSettings}>Buka Backup</Button>
       </CardContent>
     </Card>
   );
@@ -1514,7 +1514,7 @@ function EntryMobileCard({ entry, onInspect, onEdit, onToggle, onDelete }) {
         <MiniMeta label="Notes" value={entry.notes || "-"} />
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2">
-        <Button size="sm" variant="ghost" onClick={onInspect}>Details</Button>
+        <Button size="sm" variant="ghost" onClick={onInspect}>Detail</Button>
         <Button size="sm" variant="secondary" onClick={onEdit}>Edit</Button>
         <Button size="sm" variant="outline" onClick={onToggle}>{toggleLabel}</Button>
         <Button size="sm" variant="destructive" className="col-span-2" onClick={onDelete}>Delete Entry</Button>

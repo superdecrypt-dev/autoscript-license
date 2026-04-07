@@ -10,7 +10,7 @@ function PublicApp() {
   const turnstileSlotRef = useRef(null);
   const turnstileWidgetIdRef = useRef(null);
   const [banner, setBanner] = useState({ tone: "muted", message: "Mengambil konfigurasi..." });
-  const [statusBadge, setStatusBadge] = useState({ tone: "slate", message: "Waiting for Worker config" });
+  const [statusBadge, setStatusBadge] = useState({ tone: "slate", message: "Memuat" });
   const [licenseDurationDays, setLicenseDurationDays] = useState(14);
   const [renewOpenBeforeDays, setRenewOpenBeforeDays] = useState(3);
   const [turnstileToken, setTurnstileToken] = useState("");
@@ -30,11 +30,11 @@ function PublicApp() {
         setLicenseDurationDays(Number(payload.license_duration_days || 14));
         setRenewOpenBeforeDays(Number(payload.renew_open_before_days || 3));
         setBanner({ tone: "ok", message: "Konfigurasi Worker siap digunakan." });
-        setStatusBadge({ tone: "emerald", message: "Worker Ready" });
+        setStatusBadge({ tone: "emerald", message: "Siap" });
       } catch (error) {
         if (!active) return;
         setBanner({ tone: "error", message: error.message || "Gagal mengambil konfigurasi." });
-        setStatusBadge({ tone: "rose", message: "Worker Unavailable" });
+        setStatusBadge({ tone: "rose", message: "Gangguan" });
       }
     }
     bootstrap();
@@ -168,11 +168,11 @@ function PublicApp() {
           <CardHeader>
             <div className="flex items-start justify-between gap-4">
               <div>
-                <Badge variant="accent">Process</Badge>
+                <Badge variant="accent">Proses</Badge>
                 <CardTitle className="mt-3 text-2xl">Proses IP</CardTitle>
                 <CardDescription className="mt-2">Untuk IP baru, IP yang expired, atau renew saat jendela perpanjangan sudah dibuka.</CardDescription>
               </div>
-              <Badge variant="emerald">Activate / Renew</Badge>
+              <Badge variant="emerald">Aktivasi</Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -207,7 +207,7 @@ function PublicApp() {
                 <CardTitle className="mt-3 text-2xl">Cek Status</CardTitle>
                 <CardDescription className="mt-2">Lihat apakah IP aktif, expired, atau revoked tanpa mengubah state lisensi.</CardDescription>
               </div>
-              <Badge variant="slate">Read Only</Badge>
+              <Badge variant="slate">Cek Saja</Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -227,7 +227,7 @@ function PublicApp() {
       <Card className="page-enter stagger-3">
         <CardHeader>
           <Badge variant="slate">Aturan Singkat</Badge>
-          <CardTitle className="mt-3">Rules</CardTitle>
+          <CardTitle className="mt-3">Aturan</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
           <RuleItem>Aktivasi ulang ditolak jika IP masih aktif.</RuleItem>
