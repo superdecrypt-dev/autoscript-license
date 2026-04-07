@@ -49,8 +49,6 @@ import {
   Download,
   Eye,
   FileJson,
-  Globe,
-  HardDriveUpload,
   LayoutDashboard,
   Plus,
   RefreshCw,
@@ -730,10 +728,34 @@ function AdminApp() {
                     <StatBox label="Filter Status" value={statusFilter === "all" ? "All" : statusLabel(statusFilter)} />
                     <StatBox label="Query" value={search.trim() || "No filter"} mono={Boolean(search.trim())} />
                   </div>
-                  {entriesLoading ? (
-                    <LoadingState message="Memuat entry lisensi..." />
-                  ) : (
-                    <div className="overflow-x-auto">
+                {entriesLoading ? (
+                  <LoadingState message="Memuat entry lisensi..." />
+                ) : (
+                    <>
+                    <div className="space-y-3 md:hidden">
+                      {entries.length ? entries.map((entry) => (
+                        <EntryMobileCard
+                          key={entry.id}
+                          entry={entry}
+                          onEdit={() => {
+                            setEditFormState({
+                              id: entry.id,
+                              ip: entry.ip || "",
+                              label: entry.label || "",
+                              owner: entry.owner || "",
+                              notes: entry.notes || "",
+                              expires_at: formatForDateTimeLocal(entry.expires_at || ""),
+                            });
+                            setEditDialogOpen(true);
+                          }}
+                          onToggle={() => toggleEntry(entry, entry.effective_status === "revoked" ? "reactivate" : "revoke")}
+                          onDelete={() => deleteEntry(entry)}
+                        />
+                      )) : (
+                        <LoadingState message="Belum ada entry IP." copy="Coba ubah filter atau buat entry baru." />
+                      )}
+                    </div>
+                    <div className="hidden overflow-x-auto md:block">
                       <Table>
                         <TableHeader>
                           <TableRow>
@@ -793,6 +815,7 @@ function AdminApp() {
                         </TableBody>
                       </Table>
                     </div>
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -843,7 +866,15 @@ function AdminApp() {
                 {auditLoading ? (
                   <LoadingState message="Memuat audit log..." />
                 ) : (
-                  <div className="overflow-x-auto">
+                  <>
+                  <div className="space-y-3 md:hidden">
+                    {auditLogs.length ? auditLogs.map((log) => (
+                      <AuditMobileCard key={log.id} log={log} />
+                    )) : (
+                      <LoadingState message="Belum ada audit log." copy="Activity akan muncul setelah ada check atau perubahan." />
+                    )}
+                  </div>
+                  <div className="hidden overflow-x-auto md:block">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -873,6 +904,7 @@ function AdminApp() {
                       </TableBody>
                     </Table>
                   </div>
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -1215,6 +1247,63 @@ function LoadingState({ message, copy = "Tunggu sebentar." }) {
   );
 }
 
+function EntryMobileCard({ entry, onEdit, onToggle, onDelete }) {
+  const toggleLabel = entry.effective_status === "revoked" ? "Reactivate" : "Revoke";
+  return (
+    <div className="rounded-2xl border border-[var(--line)] bg-white/75 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="font-semibold">{entry.ip}</div>
+          <div className="mt-1 text-sm text-[var(--muted)]">{entry.label || "Tanpa label"}</div>
+        </div>
+        <Badge variant={statusTone(entry.effective_status)}>{statusLabel(entry.effective_status)}</Badge>
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <MiniMeta label="Owner" value={entry.owner || "-"} />
+        <MiniMeta label="Expires" value={formatDate(entry.expires_at)} />
+        <MiniMeta label="Updated" value={formatDate(entry.updated_at)} />
+        <MiniMeta label="Notes" value={entry.notes || "-"} />
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <Button size="sm" variant="secondary" onClick={onEdit}>Edit</Button>
+        <Button size="sm" variant="outline" onClick={onToggle}>{toggleLabel}</Button>
+        <Button size="sm" variant="destructive" className="col-span-2" onClick={onDelete}>Delete Entry</Button>
+      </div>
+    </div>
+  );
+}
+
+function AuditMobileCard({ log }) {
+  return (
+    <div className="rounded-2xl border border-[var(--line)] bg-white/75 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="text-sm font-medium">{log.event_type || "-"}</div>
+        <Badge variant={statusTone(log.decision)}>{log.stage || "log"}</Badge>
+      </div>
+      <div className="mt-2 text-sm text-[var(--muted)]">{formatDate(log.created_at)}</div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <MiniMeta label="IP" value={log.ip || "-"} mono />
+        <MiniMeta label="Actor" value={log.actor_email || "worker"} />
+      </div>
+      <div className="mt-4 rounded-2xl border border-[var(--line)] bg-white/70 p-3">
+        <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--muted)]">Payload</div>
+        <div className="mt-2 break-all font-mono text-xs leading-5 text-[var(--muted)]">
+          {formatPayloadSummary(log.payload_json)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MiniMeta({ label, value, mono = false }) {
+  return (
+    <div className="rounded-2xl border border-[var(--line)] bg-white/70 px-3 py-2">
+      <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
+      <div className={`mt-1 text-sm ${mono ? "break-all font-mono" : "font-medium"}`}>{String(value ?? "-")}</div>
+    </div>
+  );
+}
+
 function emptyEntryForm() {
   return { id: "", ip: "", label: "", owner: "", notes: "", expires_at: "" };
 }
@@ -1260,6 +1349,14 @@ function triggerDownload(blob, fileName) {
   link.click();
   link.remove();
   URL.revokeObjectURL(downloadUrl);
+}
+
+function formatPayloadSummary(payload) {
+  try {
+    return JSON.stringify(payload || {}, null, 2);
+  } catch (_error) {
+    return "{}";
+  }
 }
 
 createRoot(document.getElementById("root")).render(<AdminApp />);
