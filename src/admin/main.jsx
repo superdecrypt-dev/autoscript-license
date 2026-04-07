@@ -613,7 +613,7 @@ function AdminApp() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen page-enter">
       <div className="mx-auto grid min-h-screen max-w-[1600px] gap-5 p-4 lg:grid-cols-[280px,1fr] lg:p-6">
         <aside className="rounded-[2rem] border border-white/10 bg-gradient-to-b from-[var(--sidebar-2)] to-[var(--sidebar)] p-4 text-white shadow-[var(--shadow)] lg:p-5">
           <Badge variant="accent">Ops Console</Badge>
@@ -643,7 +643,7 @@ function AdminApp() {
         </aside>
 
         <main className="space-y-5">
-          <div className="rounded-[2rem] border border-[var(--line)] bg-[var(--panel)] p-5 shadow-[var(--shadow)]">
+          <div className="rounded-[2rem] border border-[var(--line)] bg-[var(--panel)] p-5 shadow-[var(--shadow)] page-enter stagger-1">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <Badge variant="accent">Professional Ops</Badge>
@@ -662,7 +662,7 @@ function AdminApp() {
             </div>
           </div>
 
-          <Alert tone={banner.tone}>{banner.message}</Alert>
+          <Alert className="page-enter stagger-1" tone={banner.tone}>{banner.message}</Alert>
 
           {activeView === "dashboard" ? (
             <div className="space-y-5">

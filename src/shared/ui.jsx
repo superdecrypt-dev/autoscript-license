@@ -30,11 +30,11 @@ const buttonVariants = cva(
 );
 
 export function Button({ className, variant, size, ...props }) {
-  return <button className={cn(buttonVariants({ variant, size }), className)} {...props} />;
+  return <button className={cn(buttonVariants({ variant, size }), "transform-gpu duration-200 hover:-translate-y-0.5 active:translate-y-0", className)} {...props} />;
 }
 
 export function Card({ className, ...props }) {
-  return <div className={cn("rounded-3xl border border-[var(--line)] bg-[var(--panel)] shadow-[var(--shadow)] backdrop-blur", className)} {...props} />;
+  return <div className={cn("rounded-3xl border border-[var(--line)] bg-[var(--panel)] shadow-[var(--shadow)] backdrop-blur transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_32px_80px_rgba(53,33,18,0.14)]", className)} {...props} />;
 }
 export function CardHeader({ className, ...props }) {
   return <div className={cn("flex flex-col gap-2 p-6", className)} {...props} />;
@@ -89,8 +89,8 @@ export const Dialog = DialogPrimitive.Root;
 export function DialogContent({ className, children, ...props }) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-slate-950/45 backdrop-blur-sm" />
-      <DialogPrimitive.Content className={cn("fixed left-1/2 top-1/2 z-50 w-[min(92vw,720px)] -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-[var(--line)] bg-[var(--panel)] p-6 shadow-2xl", className)} {...props}>
+      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-slate-950/45 backdrop-blur-sm data-[state=open]:animate-[fadeIn_180ms_ease-out]" />
+      <DialogPrimitive.Content className={cn("fixed left-1/2 top-1/2 z-50 w-[min(92vw,720px)] -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-[var(--line)] bg-[var(--panel)] p-6 shadow-2xl data-[state=open]:animate-[panelIn_220ms_cubic-bezier(0.22,1,0.36,1)]", className)} {...props}>
         {children}
         <DialogPrimitive.Close className="absolute right-4 top-4 rounded-lg p-2 text-[var(--muted)] hover:bg-black/5">
           <X className="size-4" />

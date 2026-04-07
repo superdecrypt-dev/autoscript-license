@@ -138,7 +138,7 @@ function PublicApp() {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
-      <section className="overflow-hidden rounded-[2rem] border border-[var(--line)] bg-[var(--panel)] shadow-[var(--shadow)]">
+      <section className="page-enter overflow-hidden rounded-[2rem] border border-[var(--line)] bg-[var(--panel)] shadow-[var(--shadow)]">
         <div className="grid gap-8 px-6 py-8 md:px-10 md:py-12 lg:grid-cols-[1.2fr,0.8fr]">
           <div className="space-y-5">
             <Badge variant="accent">IP Access</Badge>
@@ -166,9 +166,9 @@ function PublicApp() {
         </div>
       </section>
 
-      <Alert tone={banner.tone}>{banner.message}</Alert>
+      <Alert className="page-enter stagger-1" tone={banner.tone}>{banner.message}</Alert>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="page-enter stagger-2 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <ServiceHighlight
           icon={ShieldCheck}
           title="Single Surface"
@@ -191,7 +191,7 @@ function PublicApp() {
         />
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="page-enter stagger-3 grid gap-6 lg:grid-cols-2">
         <Card id="process-card" className="bg-[var(--panel-strong)]">
           <CardHeader>
             <div className="flex items-start justify-between gap-4">
@@ -268,7 +268,7 @@ function PublicApp() {
         </Card>
       </div>
 
-      <Card>
+      <Card className="page-enter stagger-3">
         <CardHeader>
           <Badge variant="slate">Aturan Singkat</Badge>
           <CardTitle className="mt-3">Rules</CardTitle>
