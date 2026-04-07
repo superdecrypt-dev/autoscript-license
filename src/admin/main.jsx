@@ -833,16 +833,31 @@ function AdminApp() {
                 <CardHeader>
                   <Badge variant="accent">Create Entry</Badge>
                   <CardTitle className="mt-3">Create IP Entry</CardTitle>
-                  <CardDescription className="mt-2">Masukkan IP, masa aktif, dan catatan operator.</CardDescription>
+                  <CardDescription className="mt-2">Masukkan IP, masa aktif, dan catatan operator. Form ini tetap menulis ke backend yang sama, tetapi sekarang memberi ringkasan sebelum submit.</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
+                  <EntryFormSummary formState={formState} mode="create" />
                   <form className="space-y-4" onSubmit={handleCreateEntry}>
-                    <Field label="IPv4 VPS"><Input value={formState.ip} onChange={(event) => setFormState((state) => ({ ...state, ip: event.target.value }))} placeholder="123.45.67.89" required /></Field>
-                    <Field label="Label"><Input value={formState.label} onChange={(event) => setFormState((state) => ({ ...state, label: event.target.value }))} placeholder="Server SG-01" /></Field>
-                    <Field label="Owner"><Input value={formState.owner} onChange={(event) => setFormState((state) => ({ ...state, owner: event.target.value }))} placeholder="Atomic Host" /></Field>
-                    <Field label="Expires At"><Input type="datetime-local" value={formState.expires_at} onChange={(event) => setFormState((state) => ({ ...state, expires_at: event.target.value }))} /></Field>
-                    <Field label="Notes"><Textarea value={formState.notes} onChange={(event) => setFormState((state) => ({ ...state, notes: event.target.value }))} placeholder="Keterangan operator" /></Field>
-                    <div className="flex gap-3">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <Field label="IPv4 VPS" hint="Wajib. Gunakan IP publik final yang akan dicek oleh autoscript client.">
+                        <Input value={formState.ip} onChange={(event) => setFormState((state) => ({ ...state, ip: event.target.value }))} placeholder="123.45.67.89" required />
+                      </Field>
+                      <Field label="Expires At" hint="Opsional. Kosongkan jika ingin mengikuti perilaku default backend.">
+                        <Input type="datetime-local" value={formState.expires_at} onChange={(event) => setFormState((state) => ({ ...state, expires_at: event.target.value }))} />
+                      </Field>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <Field label="Label" hint="Nama singkat server atau cluster.">
+                        <Input value={formState.label} onChange={(event) => setFormState((state) => ({ ...state, label: event.target.value }))} placeholder="Server SG-01" />
+                      </Field>
+                      <Field label="Owner" hint="Nama operator, client, atau penyedia host.">
+                        <Input value={formState.owner} onChange={(event) => setFormState((state) => ({ ...state, owner: event.target.value }))} placeholder="Atomic Host" />
+                      </Field>
+                    </div>
+                    <Field label="Notes" hint="Catatan internal. Tidak untuk jalur publik.">
+                      <Textarea value={formState.notes} onChange={(event) => setFormState((state) => ({ ...state, notes: event.target.value }))} placeholder="Keterangan operator" />
+                    </Field>
+                    <div className="flex flex-col gap-3 sm:flex-row">
                       <Button className="flex-1"><Plus className="size-4" />Create Entry</Button>
                       <Button type="button" variant="secondary" onClick={() => setFormState(emptyEntryForm())}>Reset</Button>
                     </div>
@@ -1067,13 +1082,28 @@ function AdminApp() {
             <DialogTitle>Edit Entry</DialogTitle>
             <DialogDescription>Perbarui IP, masa aktif, dan catatan tanpa mengubah alur backend.</DialogDescription>
           </DialogHeader>
+          <EntryFormSummary formState={editFormState} mode="edit" />
           <form className="space-y-4" onSubmit={handleUpdateEntry}>
-            <Field label="IPv4 VPS"><Input value={editFormState.ip} onChange={(event) => setEditFormState((state) => ({ ...state, ip: event.target.value }))} required /></Field>
-            <Field label="Label"><Input value={editFormState.label} onChange={(event) => setEditFormState((state) => ({ ...state, label: event.target.value }))} /></Field>
-            <Field label="Owner"><Input value={editFormState.owner} onChange={(event) => setEditFormState((state) => ({ ...state, owner: event.target.value }))} /></Field>
-            <Field label="Expires At"><Input type="datetime-local" value={editFormState.expires_at} onChange={(event) => setEditFormState((state) => ({ ...state, expires_at: event.target.value }))} /></Field>
-            <Field label="Notes"><Textarea value={editFormState.notes} onChange={(event) => setEditFormState((state) => ({ ...state, notes: event.target.value }))} /></Field>
-            <div className="flex justify-end gap-3">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="IPv4 VPS" hint="Perubahan IP akan langsung memengaruhi entry yang sedang dipilih.">
+                <Input value={editFormState.ip} onChange={(event) => setEditFormState((state) => ({ ...state, ip: event.target.value }))} required />
+              </Field>
+              <Field label="Expires At" hint="Gunakan tanggal lokal operator untuk update cepat.">
+                <Input type="datetime-local" value={editFormState.expires_at} onChange={(event) => setEditFormState((state) => ({ ...state, expires_at: event.target.value }))} />
+              </Field>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Label" hint="Nama singkat entri untuk lookup cepat.">
+                <Input value={editFormState.label} onChange={(event) => setEditFormState((state) => ({ ...state, label: event.target.value }))} />
+              </Field>
+              <Field label="Owner" hint="Gunakan agar handoff operator lebih jelas.">
+                <Input value={editFormState.owner} onChange={(event) => setEditFormState((state) => ({ ...state, owner: event.target.value }))} />
+              </Field>
+            </div>
+            <Field label="Notes" hint="Catatan internal terbaru akan menggantikan isi lama.">
+              <Textarea value={editFormState.notes} onChange={(event) => setEditFormState((state) => ({ ...state, notes: event.target.value }))} />
+            </Field>
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
               <Button type="button" variant="secondary" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
               <Button>Update Entry</Button>
             </div>
@@ -1345,11 +1375,23 @@ function CompactSidebarStat({ label, value }) {
   );
 }
 
-function Field({ label, children }) {
+function EntryFormSummary({ formState, mode }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <StatBox label="Mode" value={mode === "edit" ? "Update Existing Entry" : "Create New Entry"} />
+      <StatBox label="Target IP" value={formState.ip?.trim() || "Belum diisi"} mono={Boolean(formState.ip?.trim())} />
+      <StatBox label="Label / Owner" value={buildFormIdentity(formState)} />
+      <StatBox label="Expiry Preview" value={formState.expires_at ? formatDate(formState.expires_at) : "Default backend behavior"} />
+    </div>
+  );
+}
+
+function Field({ label, hint = "", children }) {
   return (
     <label className="block space-y-2">
       <div className="text-sm font-medium">{label}</div>
       {children}
+      {hint ? <div className="text-xs leading-5 text-[var(--muted)]">{hint}</div> : null}
     </label>
   );
 }
@@ -1473,6 +1515,11 @@ function formatPayloadSummary(payload) {
   } catch (_error) {
     return "{}";
   }
+}
+
+function buildFormIdentity(formState) {
+  const parts = [formState.label, formState.owner].map((value) => String(value || "").trim()).filter(Boolean);
+  return parts.length ? parts.join(" / ") : "Belum ada identitas tambahan";
 }
 
 createRoot(document.getElementById("root")).render(<AdminApp />);
