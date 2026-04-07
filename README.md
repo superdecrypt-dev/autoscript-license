@@ -41,10 +41,10 @@ https://autoscript-license.minidecrypt.workers.dev/api/v1/license/check
 
 - `worker/src/index.js`: API Worker
 - `migrations/`: schema D1
-- `pages/index.html`: halaman publik
-- `pages/admin/index.html`: halaman operator
-- `pages/public.js` dan `pages/public.css`: frontend publik
-- `pages/app.js` dan `pages/styles.css`: frontend operator
+- `src/public/main.jsx`: entry React untuk halaman publik
+- `src/admin/main.jsx`: entry React untuk halaman operator
+- `src/shared/`: shared config, util, dan primitive UI
+- `src/styles/public.css` dan `src/styles/admin.css`: Tailwind entry untuk publik dan admin
 - `pages/config.js`: fallback config lokal untuk build, tidak dipublish langsung
 - `pages/_redirects`: blok path legacy asset di Pages
 - `pages/_headers`: template security headers dan cache policy untuk Pages
@@ -52,7 +52,7 @@ https://autoscript-license.minidecrypt.workers.dev/api/v1/license/check
 - `pages/robots.txt`: larangan indexing untuk seluruh portal
 - `functions/api/admin/[[path]].js`: proxy admin internal dari Pages ke Worker
 - `functions/[[path]].js`: blokir path asset legacy agar tetap `404`
-- `scripts/build-pages.mjs`: build HTML final + aset minified hashed ke `dist/assets`
+- `scripts/build-pages.mjs`: build React/Tailwind ke HTML final + aset hashed di `dist/assets`
 - `dist/`: output build Pages
 - `wrangler.toml`: config Pages
 - `wrangler.worker.toml`: config Worker, vars, cron, dan binding D1

@@ -38,12 +38,6 @@ if (!apiBaseUrl) {
 
 const pageSourceArtifacts = new Set([
   "_headers",
-  "index.html",
-  "admin/index.html",
-  "public.js",
-  "public.css",
-  "app.js",
-  "styles.css",
   "config.js",
 ]);
 
