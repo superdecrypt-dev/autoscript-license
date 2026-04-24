@@ -1,70 +1,45 @@
-import React, { useEffect, useMemo, useState } from "react";
+import fs from 'fs';
+
+const content = \`import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  Textarea,
-  ThemeToggle,
+  Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+  Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, ThemeToggle
 } from "../shared/ui.jsx";
 import { getAdminConfig } from "../shared/config.js";
 import {
-  buildSparklinePath,
-  computeSha256Hex,
-  formatBackupRows,
-  formatBytes,
-  formatDate,
-  formatForDateTimeLocal,
-  formatShortDay,
-  formatRelativeTime,
-  shortChecksum,
-  statusLabel,
-  statusTone,
+  buildSparklinePath, computeSha256Hex, formatBackupRows, formatBytes,
+  formatDate, formatForDateTimeLocal, formatShortDay, formatRelativeTime,
+  shortChecksum, statusLabel, statusTone,
 } from "../shared/utils.js";
 import {
-  Activity,
-  Clock3,
-  Database,
-  Download,
-  Eye,
-  FileJson,
-  LayoutDashboard,
-  LogOut,
-  Plus,
-  RefreshCw,
-  Search,
-  Settings,
-  ShieldCheck,
-  Trash2,
+  Activity, Clock3, Database, Download, Eye, FileJson, LayoutDashboard,
+  Plus, RefreshCw, Search, Settings, ShieldCheck, Trash2, LogOut, ChevronRight
 } from "lucide-react";
 
 const VIEW_META = {
-  dashboard: { title: "Dashboard", description: "Ringkasan lisensi, aktivitas, dan backup terbaru." },
-  entries: { title: "Entries", description: "Kelola IP, masa aktif, dan tindakan admin." },
-  audit: { title: "Audit Log", description: "Pantau jejak perubahan dan akses publik." },
-  settings: { title: "Settings", description: "Kelola sesi dan snapshot backup/restore." },
+  dashboard: {
+    title: "Dashboard",
+    icon: LayoutDashboard,
+    description: "Ringkasan lisensi, aktivitas, dan backup terbaru.",
+  },
+  entries: {
+    title: "Entries",
+    icon: Database,
+    description: "Kelola IP, masa aktif, dan tindakan admin.",
+  },
+  audit: {
+    title: "Audit Log",
+    icon: Activity,
+    description: "Pantau jejak perubahan dan akses publik.",
+  },
+  settings: {
+    title: "Settings",
+    icon: Settings,
+    description: "Kelola sesi dan snapshot backup/restore.",
+  },
 };
 
 function AdminApp() {
@@ -102,6 +77,16 @@ function AdminApp() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme");
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, []);
 
   const filteredEntries = useMemo(() => {
     let data = entries;
@@ -166,7 +151,7 @@ function AdminApp() {
       maybeCompleteAccessRelay();
       setSession(currentSession);
       setAuthStatus("authenticated");
-      setBanner({ tone: "ok", message: `Terhubung: ${currentSession.admin_email || "-"}` });
+      setBanner({ tone: "ok", message: \`Terhubung: \${currentSession.admin_email || "-"}\` });
       await refreshDashboard();
     } catch (error) {
       setSession(null);
@@ -208,7 +193,7 @@ function AdminApp() {
       setMetrics(metricsPayload || null);
       setBackups(backupsPayload.items || []);
       setLastSyncedAt(new Date().toISOString());
-      setBanner({ tone: "ok", message: `Terhubung: ${currentSession.admin_email || "-"}` });
+      setBanner({ tone: "ok", message: \`Terhubung: \${currentSession.admin_email || "-"}\` });
     } catch (error) {
       handleAuthFailure(error);
     } finally {
@@ -247,20 +232,6 @@ function AdminApp() {
     }
   }
 
-  async function refreshMetrics() {
-    if (!ensureAuthenticated()) return;
-    setMetricsLoading(true);
-    try {
-      const payload = await fetchMetrics();
-      setMetrics(payload || null);
-      setLastSyncedAt(new Date().toISOString());
-    } catch (error) {
-      handleAuthFailure(error, "Gagal refresh metrics.");
-    } finally {
-      setMetricsLoading(false);
-    }
-  }
-
   async function refreshBackups() {
     if (!ensureAuthenticated()) return;
     setBackupsLoading(true);
@@ -279,181 +250,32 @@ function AdminApp() {
     const params = new URLSearchParams();
     if (search.trim()) params.set("search", search.trim());
     if (statusFilter !== "all") params.set("status", statusFilter);
-    const suffix = params.toString() ? `?${params.toString()}` : "";
-    return apiFetch(`/api/admin/license-entries${suffix}`);
+    return apiFetch(\`/api/admin/license-entries?\${params.toString()}\`);
   }
 
   async function fetchAuditLogs() {
-    const params = new URLSearchParams({ limit: "120" });
+    const params = new URLSearchParams();
     if (auditIp.trim()) params.set("ip", auditIp.trim());
     if (auditEvent.trim()) params.set("event", auditEvent.trim());
-    return apiFetch(`/api/admin/audit-logs?${params.toString()}`);
+    return apiFetch(\`/api/admin/audit-logs?\${params.toString()}\`);
   }
 
   async function fetchMetrics() {
-    const params = new URLSearchParams({ days: metricsWindowDays });
-    return apiFetch(`/api/admin/metrics?${params.toString()}`);
+    return apiFetch(\`/api/admin/metrics?days=\${metricsWindowDays}\`);
   }
 
   async function fetchBackups() {
     return apiFetch("/api/admin/backups");
   }
 
-  async function createBackup() {
-    try {
-      await apiFetch("/api/admin/backups", { method: "POST", body: JSON.stringify({}) });
-      setBanner({ tone: "ok", message: "Snapshot backup berhasil dibuat." });
-      await refreshBackups();
-    } catch (error) {
-      handleAuthFailure(error, "Gagal membuat snapshot backup.");
-    }
-  }
-
-  async function handleImportBackupFile(event) {
-    const [file] = Array.from(event.target.files || []);
-    event.target.value = "";
-    if (!file) return;
-    const accepted = window.confirm(`Import backup ${file.name} akan mengganti daftar license entries saat ini. Lanjutkan?`);
-    if (!accepted) return;
-    try {
-      const rawPayload = await file.text();
-      const checksumSha256 = await computeSha256Hex(rawPayload);
-      const dryRunPayload = await apiFetch("/api/admin/backups/import?dry_run=1", {
-        method: "POST",
-        headers: {
-          "X-Backup-SHA256": checksumSha256,
-        },
-        body: rawPayload,
-      });
-      const confirmed = window.confirm(
-        `Import backup ${file.name} siap dijalankan.\n\nEntries: ${formatBackupRows(dryRunPayload.row_counts)}\nChecksum: ${shortChecksum(dryRunPayload.checksum_sha256)}\n\nLanjutkan import penuh?`
-      );
-      if (!confirmed) {
-        setBanner({ tone: "muted", message: "Import backup dibatalkan setelah dry-run." });
-        return;
-      }
-      await apiFetch("/api/admin/backups/import", {
-        method: "POST",
-        headers: {
-          "X-Backup-SHA256": checksumSha256,
-        },
-        body: rawPayload,
-      });
-      setBanner({ tone: "ok", message: `Backup ${file.name} berhasil di-import.` });
-      await refreshDashboard();
-    } catch (error) {
-      handleAuthFailure(error, "Gagal import file backup.");
-    }
-  }
-
-  async function loadBackupPreview(backupKey, silent = false) {
-    try {
-      const payload = await apiFetch(`/api/admin/backups/${encodeURIComponent(backupKey)}/preview`);
-      setBackupPreview(payload.item || null);
-      setBackups((current) =>
-        current.map((item) =>
-          item.key === payload.item?.key
-            ? { ...item, checksum_sha256: payload.item?.checksum_sha256 || item.checksum_sha256 || "" }
-            : item
-        )
-      );
-      if (!silent) setBanner({ tone: "ok", message: "Preview snapshot berhasil dimuat." });
-      return payload.item || null;
-    } catch (error) {
-      if (!silent) handleAuthFailure(error, "Gagal memuat preview snapshot backup.");
-      throw error;
-    }
-  }
-
-  function openEntryDetail(entry) {
-    setEntryDetail(entry);
-    setEntryDetailOpen(true);
-  }
-
-  async function openBackupPreviewDialog(backupKey) {
-    const preview = await loadBackupPreview(backupKey);
-    if (preview) setBackupPreviewOpen(true);
-  }
-
-  async function validateBackupRestore(backupKey) {
-    try {
-      const payload = await apiFetch(`/api/admin/backups/${encodeURIComponent(backupKey)}/restore?dry_run=1`, {
-        method: "POST",
-        body: JSON.stringify({}),
-      });
-      const backup = backups.find((item) => item.key === backupKey) || {};
-      setBanner({ tone: "ok", message: `Dry-run OK: ${formatBackupRows(payload.row_counts)} • ${backup.created_by || "-"} • ${shortChecksum(payload.checksum_sha256)}` });
-    } catch (error) {
-      handleAuthFailure(error, "Gagal validasi snapshot backup.");
-    }
-  }
-
-  async function restoreBackup(backupKey) {
-    let backup = backups.find((item) => item.key === backupKey);
-    if (!backup || !backup.checksum_sha256) {
-      backup = await loadBackupPreview(backupKey, true);
-    }
-    const summary = [
-      `Created: ${formatDate(backup?.created_at)}`,
-      `Actor: ${backup?.created_by || "-"}`,
-      `Source: ${backup?.source || "-"}`,
-      `Entries: ${formatBackupRows(backup?.row_counts)}`,
-      `Size: ${formatBytes(backup?.size || 0)}`,
-      `Checksum: ${backup?.checksum_sha256 || "-"}`,
-    ].join("\n");
-    if (!window.confirm(`Restore snapshot berikut akan mengganti daftar license entries saat ini:\n\n${summary}\n\nLanjutkan?`)) return;
-    try {
-      await apiFetch(`/api/admin/backups/${encodeURIComponent(backupKey)}/restore`, {
-        method: "POST",
-        body: JSON.stringify({}),
-      });
-      setBanner({ tone: "ok", message: "Restore snapshot berhasil." });
-      await refreshDashboard();
-    } catch (error) {
-      handleAuthFailure(error, "Gagal restore snapshot backup.");
-    }
-  }
-
-  async function deleteBackup(backupKey) {
-    if (!window.confirm(`Hapus snapshot ${backupKey}?`)) return;
-    try {
-      await apiFetch(`/api/admin/backups/${encodeURIComponent(backupKey)}`, { method: "DELETE" });
-      setBanner({ tone: "ok", message: "Snapshot backup berhasil dihapus." });
-      await refreshBackups();
-    } catch (error) {
-      handleAuthFailure(error, "Gagal menghapus snapshot backup.");
-    }
-  }
-
-  async function downloadBackup(backupKey) {
-    try {
-      const response = await fetchAdminBlob(`/api/admin/backups/${encodeURIComponent(backupKey)}/download`);
-      const blob = await response.blob();
-      triggerDownload(blob, backupKey.split("/").at(-1) || "autoscript-license-backup.json");
-      setBanner({ tone: "ok", message: "Snapshot backup berhasil diunduh." });
-    } catch (error) {
-      handleAuthFailure(error, "Gagal mengunduh snapshot backup.");
-    }
-  }
-
-  async function downloadBackupManifest(backupKey) {
-    try {
-      const response = await fetchAdminBlob(`/api/admin/backups/${encodeURIComponent(backupKey)}/manifest`);
-      const blob = await response.blob();
-      triggerDownload(blob, `${backupKey.split("/").at(-1) || "autoscript-license-backup"}.manifest.json`);
-      setBanner({ tone: "ok", message: "Manifest backup berhasil diunduh." });
-    } catch (error) {
-      handleAuthFailure(error, "Gagal mengunduh manifest backup.");
-    }
-  }
-
   async function handleCreateEntry(event) {
     event.preventDefault();
     try {
       await apiFetch("/api/admin/license-entries", { method: "POST", body: JSON.stringify(formState) });
-      setBanner({ tone: "ok", message: `Entry ${formState.ip} berhasil dibuat.` });
+      setBanner({ tone: "ok", message: \`Entry \${formState.ip} berhasil dibuat.\` });
       setFormState(emptyEntryForm());
-      await refreshDashboard();
+      setCreateDialogOpen(false);
+      await refreshEntries();
     } catch (error) {
       handleAuthFailure(error, "Gagal menyimpan entry.");
     }
@@ -462,63 +284,133 @@ function AdminApp() {
   async function handleUpdateEntry(event) {
     event.preventDefault();
     try {
-      await apiFetch(`/api/admin/license-entries/${encodeURIComponent(editFormState.id)}`, { method: "PATCH", body: JSON.stringify(editFormState) });
-      setBanner({ tone: "ok", message: `Entry ${editFormState.ip} berhasil diperbarui.` });
+      await apiFetch(\`/api/admin/license-entries/\${editFormState.id}\`, { method: "PUT", body: JSON.stringify(editFormState) });
+      setBanner({ tone: "ok", message: \`Entry \${editFormState.ip} berhasil diperbarui.\` });
       setEditDialogOpen(false);
-      setEditFormState(emptyEntryForm());
-      await refreshDashboard();
+      await refreshEntries();
     } catch (error) {
       handleAuthFailure(error, "Gagal memperbarui entry.");
     }
   }
 
   async function toggleEntry(entry, action) {
+    const actionLabel = action === "revoke" ? "Blokir" : "Aktifkan";
     try {
-      await apiFetch(`/api/admin/license-entries/${encodeURIComponent(entry.id)}/${action}`, { method: "POST", body: JSON.stringify({}) });
-      setBanner({ tone: "ok", message: `Entry ${entry.ip} berhasil di-${action}.` });
-      await refreshDashboard();
+      await apiFetch(\`/api/admin/license-entries/\${entry.id}/\${action}\`, { method: "POST" });
+      setBanner({ tone: "ok", message: \`IP \${entry.ip} berhasil di-\${actionLabel}.\` });
+      await refreshEntries();
     } catch (error) {
-      handleAuthFailure(error, `Gagal ${action} entry.`);
+      handleAuthFailure(error, \`Gagal \${actionLabel} IP.\`);
     }
   }
 
   async function deleteEntry(entry) {
-    if (!window.confirm(`Hapus entry ${entry.ip}?`)) return;
+    if (!window.confirm(\`Hapus permanen lisensi untuk IP \${entry.ip}?\`)) return;
     try {
-      await apiFetch(`/api/admin/license-entries/${encodeURIComponent(entry.id)}`, { method: "DELETE" });
-      setBanner({ tone: "ok", message: `Entry ${entry.ip} berhasil dihapus.` });
-      await refreshDashboard();
+      await apiFetch(\`/api/admin/license-entries/\${entry.id}\`, { method: "DELETE" });
+      setBanner({ tone: "ok", message: \`IP \${entry.ip} berhasil dihapus.\` });
+      await refreshEntries();
     } catch (error) {
-      handleAuthFailure(error, "Gagal menghapus entry.");
+      handleAuthFailure(error, "Gagal menghapus IP.");
     }
   }
 
-  function handleAuthFailure(error, fallbackMessage = "") {
-    const status = Number(error?.status || 0);
-    if ([0, 401].includes(status)) {
-      if (shouldStartAccessRelay(error)) {
-        redirectToAccessRelay();
-        return;
-      }
-      setAuthStatus("locked");
-      setBanner({ tone: "error", message: error.message || "Akses belum tersedia." });
+  async function createBackup() {
+    setBackupsLoading(true);
+    try {
+      await apiFetch("/api/admin/backups", { method: "POST" });
+      setBanner({ tone: "ok", message: "Snapshot backup berhasil dibuat." });
+      await refreshBackups();
+    } catch (error) {
+      handleAuthFailure(error, "Gagal membuat snapshot.");
+    } finally {
+      setBackupsLoading(false);
+    }
+  }
+
+  async function restoreBackup(key) {
+    if (!window.confirm(\`RESTORE DATABASE?\\n\\nSemua data saat ini akan digantikan oleh snapshot "\${key}". Tindakan ini tidak bisa dibatalkan.\`)) return;
+    setBackupsLoading(true);
+    try {
+      await apiFetch(\`/api/admin/backups/\${key}/restore\`, { method: "POST" });
+      setBanner({ tone: "ok", message: "Database berhasil dipulihkan dari snapshot." });
+      await refreshDashboard();
+    } catch (error) {
+      handleAuthFailure(error, "Gagal restore database.");
+    } finally {
+      setBackupsLoading(false);
+    }
+  }
+
+  async function deleteBackup(key) {
+    if (!window.confirm(\`Hapus snapshot "\${key}"?\`)) return;
+    setBackupsLoading(true);
+    try {
+      await apiFetch(\`/api/admin/backups/\${key}\`, { method: "DELETE" });
+      setBanner({ tone: "ok", message: "Snapshot backup berhasil dihapus." });
+      await refreshBackups();
+    } catch (error) {
+      handleAuthFailure(error, "Gagal menghapus snapshot.");
+    } finally {
+      setBackupsLoading(false);
+    }
+  }
+
+  async function loadBackupPreview(key) {
+    try {
+      const payload = await apiFetch(\`/api/admin/backups/\${key}/preview\`);
+      setBackupPreview({ key, ...payload });
+      setBackupPreviewOpen(true);
+    } catch (error) {
+      handleAuthFailure(error, "Gagal memuat pratinjau backup.");
+    }
+  }
+
+  async function handleImportBackupFile(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!window.confirm(\`IMPORT FILE BACKUP?\\n\\nData dari file "\${file.name}" akan menggantikan database saat ini.\`)) {
+      event.target.value = "";
       return;
     }
-    setBanner({ tone: "error", message: fallbackMessage || error.message || "Operasi gagal." });
+
+    setBanner({ tone: "muted", message: "Mengunggah dan memproses file backup..." });
+    setBackupsLoading(true);
+    try {
+      const content = await file.text();
+      const backupData = JSON.parse(content);
+      await apiFetch("/api/admin/backups/import", { method: "POST", body: JSON.stringify(backupData) });
+      setBanner({ tone: "ok", message: "Backup berhasil di-import." });
+      await refreshDashboard();
+    } catch (error) {
+      handleAuthFailure(error, "Gagal import file backup. Pastikan format JSON valid.");
+    } finally {
+      setBackupsLoading(false);
+      event.target.value = "";
+    }
+  }
+
+  function handleAuthFailure(error, customMessage) {
+    console.error("API Error:", error);
+    setBanner({ tone: "error", message: customMessage || error.message });
+    if (shouldStartAccessRelay(error)) {
+      setAuthStatus("unauthenticated");
+      redirectToAccessRelay();
+    }
+  }
+
+  function openEntryDetail(entry) {
+    setEntryDetail(entry);
+    setEntryDetailOpen(true);
   }
 
   async function apiFetch(path, options = {}) {
-    const intendedMethod = String(options.method || "GET").toUpperCase();
     const requestUrl = new URL(path, adminApiOrigin);
-    const headers = { ...(options.headers || {}) };
-    let requestMethod = intendedMethod;
-    let requestBody = options.body;
+    const requestMethod = options.method || "GET";
+    const requestBody = options.body;
+    const headers = { ... (options.headers || {}) };
 
-    if (usesCrossOriginAdminApi && !["GET", "HEAD"].includes(intendedMethod)) {
-      requestMethod = "POST";
-      requestUrl.searchParams.set("__proxy_method", intendedMethod);
-      headers["Content-Type"] = "text/plain;charset=UTF-8";
-    } else if (!["GET", "HEAD"].includes(requestMethod)) {
+    if (requestBody && !(requestBody instanceof FormData)) {
       headers["Content-Type"] = "application/json";
     }
 
@@ -544,38 +436,11 @@ function AdminApp() {
     }
 
     if (!response.ok) {
-      const error = new Error(payload.message || `HTTP ${response.status}`);
+      const error = new Error(payload.message || \`HTTP \${response.status}\`);
       error.status = response.status;
       throw error;
     }
     return payload;
-  }
-
-  async function fetchAdminBlob(path) {
-    const requestUrl = new URL(path, adminApiOrigin);
-    let response;
-    try {
-      response = await fetch(requestUrl.toString(), {
-        method: "GET",
-        credentials: "include",
-      });
-    } catch (_error) {
-      const error = new Error("Sesi Access belum aktif.");
-      error.status = 0;
-      throw error;
-    }
-    if (!response.ok) {
-      let payload = {};
-      try {
-        payload = await response.clone().json();
-      } catch (_error) {
-        payload = {};
-      }
-      const error = new Error(payload.message || `HTTP ${response.status}`);
-      error.status = response.status;
-      throw error;
-    }
-    return response;
   }
 
   function shouldStartAccessRelay(error) {
@@ -614,7 +479,6 @@ function AdminApp() {
   }
 
   const summary = metrics?.summary || {};
-  const topEvents = metrics?.top_events || [];
   const checksTrend = metrics?.daily_checks || [];
   const mutationsTrend = metrics?.daily_mutations || [];
   const filteredBackups = getFilteredBackups(backups, backupSearch, backupSourceFilter, backupSort);
@@ -628,20 +492,17 @@ function AdminApp() {
 
   if (authStatus !== "authenticated") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--bg)] px-4 py-10 font-sans text-[var(--fg)]">
-        <Card className="w-full max-w-md shadow-xl shadow-[var(--accent)]/5 border-[var(--line)]">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10 font-sans">
+        <Card className="w-full max-w-md shadow-xl shadow-slate-200/50 border-slate-200">
           <CardHeader className="text-center pt-8">
-            <div className="mx-auto bg-[var(--accent)]/10 text-[var(--accent)] size-14 rounded-full flex items-center justify-center mb-4">
+            <div className="mx-auto bg-blue-100 text-blue-600 size-14 rounded-full flex items-center justify-center mb-4">
               <ShieldCheck className="size-7" />
             </div>
-            <CardTitle className="text-2xl font-bold">Operator Console</CardTitle>
-            <CardDescription className="mt-2 opacity-70">Sistem manajemen lisensi terpusat.</CardDescription>
+            <CardTitle className="text-2xl font-bold text-slate-900">Operator Console</CardTitle>
+            <CardDescription className="text-slate-500 mt-2">Sistem manajemen lisensi terpusat.</CardDescription>
           </CardHeader>
           <CardContent className="pb-8">
-            <Alert tone={banner.tone} className="shadow-sm">{banner.message}</Alert>
-            <div className="mt-6 flex justify-center">
-               <ThemeToggle />
-            </div>
+            <Alert tone={banner.tone} className="bg-slate-50 border-slate-200 text-slate-700 shadow-sm">{banner.message}</Alert>
           </CardContent>
         </Card>
       </div>
@@ -649,10 +510,10 @@ function AdminApp() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg)] flex font-sans text-[var(--fg)]">
+    <div className="min-h-screen bg-slate-50 flex font-sans">
       {/* Fixed Sidebar */}
-      <aside className="hidden md:flex w-64 bg-slate-900 dark:bg-zinc-950 flex-col fixed inset-y-0 z-10 shadow-xl shadow-black/20">
-        <div className="p-6 border-b border-white/10">
+      <aside className="hidden md:flex w-64 bg-slate-900 flex flex-col fixed inset-y-0 z-10 shadow-xl shadow-slate-900/20">
+        <div className="p-6 border-b border-slate-800">
           <div className="flex items-center gap-3 text-white font-bold text-xl">
             <div className="bg-blue-600 p-1.5 rounded-lg shadow-md shadow-blue-900/50">
               <ShieldCheck className="size-5 text-white" />
@@ -668,49 +529,49 @@ function AdminApp() {
           <SidebarButton icon={Settings} active={activeView === "settings"} onClick={() => setActiveView("settings")}>Settings & Backup</SidebarButton>
         </nav>
 
-        <div className="p-4 border-t border-white/10 bg-black/20 space-y-4">
-          <div className="px-3 py-2 bg-white/5 rounded-lg border border-white/10 shadow-inner">
+        <div className="p-4 border-t border-slate-800 bg-slate-900/50 space-y-4">
+          <div className="px-3 py-2 bg-slate-800 rounded-lg border border-slate-700 shadow-inner">
             <div className="text-[10px] uppercase text-slate-500 font-semibold tracking-wider">Identity</div>
             <div className="text-sm font-medium text-slate-200 truncate" title={session?.admin_email}>{session?.admin_email || "Offline"}</div>
           </div>
-          <Button variant="ghost" className="w-full text-slate-400 hover:text-white hover:bg-white/10 justify-start" onClick={logoutAccess}>
-             <LogOut className="size-4 mr-2" /> Logout
+          <Button variant="ghost" className="w-full text-slate-400 hover:text-white hover:bg-slate-800 justify-start" onClick={logoutAccess}>
+             Logout
           </Button>
         </div>
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 md:ml-64 min-h-screen flex flex-col pb-20 md:pb-0">
-        <header className="bg-[var(--panel)] border-b border-[var(--line)] px-4 md:px-8 py-4 md:py-5 flex justify-between items-center sticky top-0 z-10 shadow-sm">
+        <header className="bg-white border-b border-slate-200 px-4 md:px-8 py-4 md:py-5 flex justify-between items-center sticky top-0 z-10 shadow-sm shadow-slate-100/50">
           <div>
-            <h1 className="text-2xl font-bold">{VIEW_META[activeView].title}</h1>
-            <p className="text-sm text-[var(--muted)] mt-1">{VIEW_META[activeView].description}</p>
+            <h1 className="text-2xl font-bold text-slate-900">{VIEW_META[activeView].title}</h1>
+            <p className="text-sm text-slate-500 mt-1">{VIEW_META[activeView].description}</p>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-3">
             <ThemeToggle />
-            <Button variant="secondary" onClick={refreshDashboard} className="h-9 px-3 sm:px-5">
-              <RefreshCw className="size-4 sm:mr-2" /> <span className="hidden sm:inline">Refresh</span>
+            <Button variant="secondary" onClick={refreshDashboard} className="bg-[var(--panel-strong)] hover:bg-[var(--line)] border-[var(--line-strong)] text-[var(--fg)]">
+              <RefreshCw className="size-4 mr-2" /> Refresh
             </Button>
           </div>
         </header>
 
         <div className="flex-1 p-4 md:p-8 overflow-y-auto page-enter">
-          <Alert className="mb-6 shadow-sm" tone={banner.tone}>{banner.message}</Alert>
+          <Alert className="mb-6 bg-white border-slate-200 shadow-sm" tone={banner.tone}>{banner.message}</Alert>
 
           {activeView === "dashboard" && (
             <div className="space-y-6">
               {/* Top Stats */}
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-                <MetricCard title="Active Licenses" value={summary.active_entries || 0} tone="emerald" meta={`${Math.round((activeEntryRatio / totalEntries) * 100)}% active`} />
+                <MetricCard title="Active Licenses" value={summary.active_entries || 0} tone="emerald" meta={\`\${Math.round((activeEntryRatio / totalEntries) * 100)}% active\`} />
                 <MetricCard title="Expired" value={summary.expired_entries || 0} tone="amber" meta="Needs review" />
                 <MetricCard title="Revoked" value={summary.revoked_entries || 0} tone="rose" meta="Blocked IPs" />
-                <MetricCard title="Audit Rows" value={summary.audit_rows_window || 0} tone="slate" meta={`${metricsWindowDays} days window`} />
+                <MetricCard title="Audit Rows" value={summary.audit_rows_window || 0} tone="slate" meta={\`\${metricsWindowDays} days window\`} />
               </div>
 
               {/* Charts & Activity */}
               <div className="grid gap-6 xl:grid-cols-2">
-                <TrendCard title="Check Trend" caption={`Last ${metricsWindowDays} days`} loading={metricsLoading} points={checksTrend} series={[{ key: "allow", label: "Allow", tone: "emerald" }, { key: "deny", label: "Deny", tone: "rose" }]} />
-                <TrendCard title="Mutation Trend" caption={`Last ${metricsWindowDays} days`} loading={metricsLoading} points={mutationsTrend} series={[{ key: "admin_mutations", label: "Admin", tone: "amber" }, { key: "public_activations", label: "Activate", tone: "emerald" }, { key: "public_renewals", label: "Renew", tone: "slate" }]} />
+                <TrendCard title="Check Trend" caption={\`Last \${metricsWindowDays} days\`} loading={metricsLoading} points={checksTrend} series={[{ key: "allow", label: "Allow", tone: "emerald" }, { key: "deny", label: "Deny", tone: "rose" }]} />
+                <TrendCard title="Mutation Trend" caption={\`Last \${metricsWindowDays} days\`} loading={metricsLoading} points={mutationsTrend} series={[{ key: "admin_mutations", label: "Admin", tone: "amber" }, { key: "public_activations", label: "Activate", tone: "emerald" }, { key: "public_renewals", label: "Renew", tone: "slate" }]} />
               </div>
 
               {/* Health & Backups */}
@@ -722,19 +583,21 @@ function AdminApp() {
           )}
 
           {activeView === "entries" && (
-            <div className="grid gap-6 xl:grid-cols-[1.5fr,1fr]">
-              {/* Left Column: Table */}
-              <Card className="shadow-sm flex flex-col border-[var(--line)]">
-                <CardHeader className="bg-[var(--panel-strong)] border-b border-[var(--line)] pb-4">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <CardTitle className="text-lg font-bold">Daftar IP</CardTitle>
-                    <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-                      <div className="relative flex-1 md:w-64">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[var(--muted)]" />
-                        <Input className="pl-9 w-full" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari IP, label..." />
+            <div className="space-y-6">
+              <Card className="border-slate-200 shadow-sm">
+                <CardHeader className="bg-slate-50 border-b border-slate-200 pb-4">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div>
+                      <CardTitle className="text-lg font-bold">Daftar IP</CardTitle>
+                      <CardDescription>Total \${filteredEntries.length} entri ditemukan.</CardDescription>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
+                        <Input className="pl-9 bg-white w-full sm:w-64" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari IP, label..." />
                       </div>
                       <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="Status" /></SelectTrigger>
+                        <SelectTrigger className="w-full sm:w-40 bg-white"><SelectValue placeholder="Status" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">Semua Status</SelectItem>
                           <SelectItem value="active">Active</SelectItem>
@@ -742,10 +605,13 @@ function AdminApp() {
                           <SelectItem value="revoked">Revoked</SelectItem>
                         </SelectContent>
                       </Select>
+                      <Button onClick={() => setCreateDialogOpen(true)} className="bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-200">
+                        <Plus className="size-4 mr-2" /> New Entry
+                      </Button>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="p-0 flex-1 overflow-hidden">
+                <CardContent className="p-0">
                   {entriesLoading ? (
                     <LoadingState message="Memuat entry..." />
                   ) : (
@@ -754,39 +620,39 @@ function AdminApp() {
                       <div className="hidden md:block overflow-x-auto">
                         <Table>
                           <TableHeader>
-                            <TableRow className="bg-[var(--panel-strong)] border-[var(--line)]">
+                            <TableRow className="bg-slate-50 hover:bg-slate-50 border-slate-200">
                               <TableHead>IP / Label</TableHead>
-                              <TableHead>Owner</TableHead>
+                              <TableHead className="hidden lg:table-cell">Owner</TableHead>
                               <TableHead>Status</TableHead>
-                              <TableHead>Expires</TableHead>
+                              <TableHead className="hidden xl:table-cell">Expires</TableHead>
                               <TableHead className="text-right">Aksi</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {entries.map((entry) => (
-                              <TableRow key={entry.id} className="border-[var(--line)]">
+                            {paginatedEntries.map((entry) => (
+                              <TableRow key={entry.id} className="hover:bg-slate-50 transition-colors border-slate-100">
                                 <TableCell>
-                                  <div className="font-mono font-bold text-[var(--fg)]">{entry.ip}</div>
-                                  <div className="text-xs text-[var(--muted)]">{entry.label || "-"}</div>
+                                  <div className="font-mono font-bold text-slate-900">{entry.ip}</div>
+                                  <div className="text-xs text-slate-500">{entry.label || "-"}</div>
                                 </TableCell>
-                                <TableCell className="text-sm opacity-90">{entry.owner || "-"}</TableCell>
+                                <TableCell className="hidden lg:table-cell text-sm text-slate-700">{entry.owner || "-"}</TableCell>
                                 <TableCell><Badge variant={statusTone(entry.effective_status)}>{statusLabel(entry.effective_status)}</Badge></TableCell>
-                                <TableCell className="text-sm opacity-80">{formatDate(entry.expires_at)}</TableCell>
+                                <TableCell className="hidden xl:table-cell text-sm text-slate-600">{formatDate(entry.expires_at)}</TableCell>
                                 <TableCell className="text-right">
                                   <div className="flex justify-end gap-2">
-                                    <Button size="sm" variant="secondary" onClick={() => openEntryDetail(entry)}>
+                                    <Button size="sm" variant="secondary" className="bg-slate-100 hover:bg-slate-200 border-slate-300" onClick={() => openEntryDetail(entry)}>
                                       <Eye className="size-4" />
                                     </Button>
-                                    <Button size="sm" variant="secondary" onClick={() => {
+                                    <Button size="sm" variant="secondary" className="bg-slate-100 hover:bg-slate-200 border-slate-300" onClick={() => {
                                       setEditFormState({
                                         id: entry.id, ip: entry.ip || "", label: entry.label || "", owner: entry.owner || "", notes: entry.notes || "", expires_at: formatForDateTimeLocal(entry.expires_at || ""),
                                       });
                                       setEditDialogOpen(true);
                                     }}>Edit</Button>
-                                    <Button size="sm" variant="outline" className={entry.effective_status === 'revoked' ? 'text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/10' : 'text-rose-500 border-rose-500/20 hover:bg-rose-500/10'} onClick={() => toggleEntry(entry, entry.effective_status === "revoked" ? "reactivate" : "revoke")}>
+                                    <Button size="sm" variant="outline" className={entry.effective_status === 'revoked' ? 'text-emerald-600 border-emerald-200 hover:bg-emerald-50' : 'text-rose-600 border-rose-200 hover:bg-rose-50'} onClick={() => toggleEntry(entry, entry.effective_status === "revoked" ? "reactivate" : "revoke")}>
                                       {entry.effective_status === "revoked" ? "Reactivate" : "Revoke"}
                                     </Button>
-                                    <Button size="sm" variant="destructive" onClick={() => deleteEntry(entry)}>
+                                    <Button size="sm" variant="destructive" className="bg-rose-50 text-rose-600 border-rose-100 hover:bg-rose-100" onClick={() => deleteEntry(entry)}>
                                       <Trash2 className="size-4" />
                                     </Button>
                                   </div>
@@ -798,13 +664,13 @@ function AdminApp() {
                       </div>
 
                       {/* Mobile Card List */}
-                      <div className="md:hidden divide-y divide-[var(--line)]">
-                        {entries.length ? entries.map((entry) => (
-                          <div key={entry.id} className="p-4 space-y-4 active:bg-[var(--panel-strong)] transition-colors">
+                      <div className="md:hidden divide-y divide-slate-100">
+                        {paginatedEntries.length ? paginatedEntries.map((entry) => (
+                          <div key={entry.id} className="p-4 space-y-4 active:bg-slate-50 transition-colors">
                             <div className="flex justify-between items-start">
                               <div className="space-y-1">
-                                <div className="font-mono font-bold text-base text-[var(--accent)]">{entry.ip}</div>
-                                <div className="text-xs font-medium text-[var(--muted)] bg-[var(--panel-strong)] px-2 py-0.5 rounded w-fit">{entry.label || "No Label"}</div>
+                                <div className="font-mono font-bold text-base text-blue-600">{entry.ip}</div>
+                                <div className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded w-fit">{entry.label || "No Label"}</div>
                               </div>
                               <Badge variant={statusTone(entry.effective_status)} className="shadow-sm">
                                 {statusLabel(entry.effective_status)}
@@ -813,20 +679,20 @@ function AdminApp() {
                             
                             <div className="grid grid-cols-2 gap-4 text-xs">
                               <div>
-                                <div className="text-[var(--muted)] uppercase tracking-wider font-bold mb-0.5 opacity-70">Owner</div>
-                                <div className="text-[var(--fg)]">{entry.owner || "-"}</div>
+                                <div className="text-slate-400 uppercase tracking-wider font-bold mb-0.5">Owner</div>
+                                <div className="text-slate-700">{entry.owner || "-"}</div>
                               </div>
                               <div>
-                                <div className="text-[var(--muted)] uppercase tracking-wider font-bold mb-0.5 opacity-70">Expires</div>
-                                <div className="text-[var(--fg)] font-medium">{formatDate(entry.expires_at)}</div>
+                                <div className="text-slate-400 uppercase tracking-wider font-bold mb-0.5">Expires</div>
+                                <div className="text-slate-700 font-medium">{formatDate(entry.expires_at)}</div>
                               </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-2 pt-2">
-                              <Button size="sm" variant="secondary" className="h-9 shadow-sm" onClick={() => openEntryDetail(entry)}>
+                              <Button size="sm" variant="secondary" className="h-9 bg-slate-100 border-slate-200 shadow-sm" onClick={() => openEntryDetail(entry)}>
                                 <Eye className="size-4 mr-2" /> Detail
                               </Button>
-                              <Button size="sm" variant="secondary" className="h-9 shadow-sm" onClick={() => {
+                              <Button size="sm" variant="secondary" className="h-9 bg-slate-100 border-slate-200 shadow-sm" onClick={() => {
                                 setEditFormState({
                                   id: entry.id, ip: entry.ip || "", label: entry.label || "", owner: entry.owner || "", notes: entry.notes || "", expires_at: formatForDateTimeLocal(entry.expires_at || ""),
                                 });
@@ -837,54 +703,83 @@ function AdminApp() {
                               <Button 
                                 size="sm" 
                                 variant="outline" 
-                                className={`h-9 ${entry.effective_status === 'revoked' ? 'text-emerald-500 border-emerald-500/20' : 'text-rose-500 border-rose-500/20'}`} 
+                                className={\`h-9 \${entry.effective_status === 'revoked' ? 'text-emerald-600 border-emerald-200' : 'text-rose-600 border-rose-200'}\`} 
                                 onClick={() => toggleEntry(entry, entry.effective_status === "revoked" ? "reactivate" : "revoke")}
                               >
                                 {entry.effective_status === "revoked" ? "ACTIVATE" : "REVOKE"}
                               </Button>
-                              <Button size="sm" variant="destructive" className="h-9" onClick={() => deleteEntry(entry)}>
+                              <Button size="sm" variant="destructive" className="h-9 bg-rose-50 text-rose-600 border-rose-100 hover:bg-rose-100" onClick={() => deleteEntry(entry)}>
                                 <Trash2 className="size-4 mr-2" /> Hapus
                               </Button>
                             </div>
                           </div>
                         )) : (
-                          <div className="p-8 text-center text-[var(--muted)] text-sm">Tidak ada data.</div>
+                          <div className="p-8 text-center text-slate-400 text-sm">Tidak ada data.</div>
                         )}
                       </div>
+
+                      {/* Pagination Controls */}
+                      {filteredEntries.length > 0 && (
+                        <div className="bg-slate-50 border-t border-slate-200 px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                          <div className="flex items-center gap-3 text-sm text-slate-600">
+                             <span className="hidden sm:inline">Rows per page:</span>
+                             <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+                               <SelectTrigger className="h-8 w-20 bg-white"><SelectValue /></SelectTrigger>
+                               <SelectContent>
+                                 <SelectItem value="10">10</SelectItem>
+                                 <SelectItem value="25">25</SelectItem>
+                                 <SelectItem value="50">50</SelectItem>
+                                 <SelectItem value="100">100</SelectItem>
+                               </SelectContent>
+                             </Select>
+                             <span className="ml-2 font-medium text-slate-900">
+                               Showing {(currentPage-1)*pageSize + 1} to {Math.min(currentPage*pageSize, filteredEntries.length)} of {filteredEntries.length}
+                             </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                             <Button 
+                               variant="secondary" 
+                               size="sm" 
+                               className="h-8 bg-white border-slate-200" 
+                               disabled={currentPage === 1}
+                               onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                             >
+                               Previous
+                             </Button>
+                             <div className="flex items-center gap-1">
+                                {Array.from({length: Math.min(totalPages, 5)}, (_, i) => {
+                                   let pageNum = i + 1;
+                                   if (totalPages > 5 && currentPage > 3) {
+                                     pageNum = currentPage - 2 + i;
+                                     if (pageNum + 2 > totalPages) pageNum = totalPages - 4 + i;
+                                   }
+                                   if (pageNum < 1) pageNum = i + 1;
+                                   if (pageNum > totalPages) return null;
+                                   return (
+                                     <button 
+                                       key={pageNum}
+                                       onClick={() => setCurrentPage(pageNum)}
+                                       className={\`size-8 rounded-md text-xs font-bold transition-colors \${currentPage === pageNum ? 'bg-blue-600 text-white' : 'hover:bg-slate-200 text-slate-600'}\`}
+                                     >
+                                       {pageNum}
+                                     </button>
+                                   )
+                                }).filter(Boolean)}
+                             </div>
+                             <Button 
+                               variant="secondary" 
+                               size="sm" 
+                               className="h-8 bg-white border-slate-200" 
+                               disabled={currentPage === totalPages || totalPages === 0}
+                               onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                             >
+                               Next
+                             </Button>
+                          </div>
+                        </div>
+                      )}
                     </>
                   )}
-                </CardContent>
-              </Card>
-
-              {/* Right Column: Create Entry */}
-              <Card className="shadow-sm h-fit border-[var(--line)]">
-                <CardHeader className="bg-[var(--panel-strong)] border-b border-[var(--line)]">
-                  <CardTitle className="text-lg font-bold">Buat Entry Baru</CardTitle>
-                  <CardDescription>Tambahkan IP manual ke dalam sistem.</CardDescription>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <form className="space-y-4" onSubmit={handleCreateEntry}>
-                    <Field label="Alamat IPv4" hint="IP VPS tujuan.">
-                      <Input value={formState.ip} onChange={(e) => setFormState(s => ({...s, ip: e.target.value}))} placeholder="1.2.3.4" required className="font-mono" />
-                    </Field>
-                    <Field label="Tanggal Expired" hint="Kosongkan untuk durasi default.">
-                      <Input type="datetime-local" value={formState.expires_at} onChange={(e) => setFormState(s => ({...s, expires_at: e.target.value}))} />
-                    </Field>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Field label="Label">
-                        <Input value={formState.label} onChange={(e) => setFormState(s => ({...s, label: e.target.value}))} placeholder="Server Name" />
-                      </Field>
-                      <Field label="Owner">
-                        <Input value={formState.owner} onChange={(e) => setFormState(s => ({...s, owner: e.target.value}))} placeholder="Client Name" />
-                      </Field>
-                    </div>
-                    <Field label="Catatan">
-                      <Textarea value={formState.notes} onChange={(e) => setFormState(s => ({...s, notes: e.target.value}))} placeholder="Keterangan tambahan..." className="min-h-[80px]" />
-                    </Field>
-                    <div className="pt-2">
-                      <Button className="w-full" type="submit"><Plus className="size-4 mr-2"/> Simpan Entry</Button>
-                    </div>
-                  </form>
                 </CardContent>
               </Card>
             </div>
@@ -940,7 +835,7 @@ function AdminApp() {
                     <div className="md:hidden divide-y divide-slate-100">
                       {auditLogs.length ? auditLogs.map((log) => (
                         <div key={log.id} className="p-4 flex gap-4 items-start active:bg-slate-50 transition-colors">
-                          <div className={`mt-1 size-2 shrink-0 rounded-full ${log.decision === 'allow' || log.decision === 'ok' ? 'bg-emerald-500' : 'bg-rose-500'} shadow-[0_0_8px_rgba(0,0,0,0.1)]`} />
+                          <div className={\`mt-1 size-2 shrink-0 rounded-full \${log.decision === 'allow' || log.decision === 'ok' ? 'bg-emerald-500' : 'bg-rose-500'} shadow-[0_0_8px_rgba(0,0,0,0.1)]\`} />
                           <div className="flex-1 space-y-1 min-w-0">
                             <div className="flex justify-between items-center gap-2">
                               <div className="font-mono font-bold text-xs text-slate-900 truncate">{log.ip || "System"}</div>
@@ -1029,6 +924,14 @@ function AdminApp() {
       </nav>
 
       {/* Dialogs */}
+      <CreateEntryDialog
+        isOpen={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
+        formState={formState}
+        setFormState={setFormState}
+        onSubmit={handleCreateEntry}
+      />
+
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1095,7 +998,7 @@ function AdminApp() {
                 <div className="text-xs font-bold text-slate-500 uppercase mb-2">License Sample</div>
                 <div className="space-y-2">
                   {(backupPreview.preview?.license_entries || []).map((item) => (
-                    <div key={`${item.id}-${item.ip}`} className="bg-white border border-slate-200 p-2 rounded-lg text-sm">
+                    <div key={\`\${item.id}-\${item.ip}\`} className="bg-white border border-slate-200 p-2 rounded-lg text-sm">
                       <span className="font-mono font-bold mr-2">{item.ip}</span>
                       <span className="text-slate-500">{item.status}</span>
                     </div>
@@ -1110,9 +1013,45 @@ function AdminApp() {
   );
 }
 
+function CreateEntryDialog({ isOpen, onClose, formState, setFormState, onSubmit }) {
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md bg-white">
+        <DialogHeader>
+          <DialogTitle>Buat Entry Baru</DialogTitle>
+          <DialogDescription>Tambahkan IP manual ke dalam sistem.</DialogDescription>
+        </DialogHeader>
+        <form className="space-y-4 pt-4" onSubmit={onSubmit}>
+          <Field label="Alamat IPv4" hint="IP VPS tujuan.">
+            <Input value={formState.ip} onChange={(e) => setFormState(s => ({...s, ip: e.target.value}))} placeholder="1.2.3.4" required className="font-mono" />
+          </Field>
+          <Field label="Tanggal Expired" hint="Kosongkan untuk durasi default.">
+            <Input type="datetime-local" value={formState.expires_at} onChange={(e) => setFormState(s => ({...s, expires_at: e.target.value}))} />
+          </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Label">
+              <Input value={formState.label} onChange={(e) => setFormState(s => ({...s, label: e.target.value}))} placeholder="Server Name" />
+            </Field>
+            <Field label="Owner">
+              <Input value={formState.owner} onChange={(e) => setFormState(s => ({...s, owner: e.target.value}))} placeholder="Client Name" />
+            </Field>
+          </div>
+          <Field label="Catatan">
+            <Textarea value={formState.notes} onChange={(e) => setFormState(s => ({...s, notes: e.target.value}))} placeholder="Keterangan tambahan..." className="min-h-[80px]" />
+          </Field>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <Button type="button" variant="ghost" onClick={onClose}>Batal</Button>
+            <Button type="submit">Simpan Entry</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function SidebarButton({ icon: Icon, active, children, ...props }) {
   return (
-    <button className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${active ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white hover:bg-slate-800"}`} {...props}>
+    <button className={\`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors \${active ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white hover:bg-slate-800"}\`} {...props}>
       <Icon className="size-4" />
       <span>{children}</span>
     </button>
@@ -1121,8 +1060,8 @@ function SidebarButton({ icon: Icon, active, children, ...props }) {
 
 function MobileNavButton({ icon: Icon, active, label, ...props }) {
   return (
-    <button className={`flex-1 flex flex-col items-center justify-center py-2 px-1 gap-1 transition-colors ${active ? "text-blue-600" : "text-[var(--muted)] hover:text-[var(--fg)]"}`} {...props}>
-      <div className={`p-1 rounded-full ${active ? "bg-blue-500/10" : ""}`}>
+    <button className={\`flex-1 flex flex-col items-center justify-center py-2 px-1 gap-1 transition-colors \${active ? "text-blue-600" : "text-slate-500 hover:text-slate-900"}\`} {...props}>
+      <div className={\`p-1 rounded-full \${active ? "bg-blue-50" : ""}\`}>
         <Icon className="size-5" />
       </div>
       <span className="text-[10px] font-bold">{label}</span>
@@ -1204,7 +1143,7 @@ function TrendCard({ title, caption, loading, points, series }) {
                    </div>
                    <div className="flex items-end h-8 gap-1">
                      {values.slice(-14).map((v, i) => (
-                       <div key={i} className={`flex-1 rounded-t-sm ${s.tone === 'emerald' ? 'bg-emerald-400' : s.tone==='rose' ? 'bg-rose-400' : 'bg-slate-300'}`} style={{ height: `${(v/max)*100}%`, minHeight: '4px' }} title={String(v)} />
+                       <div key={i} className={\`flex-1 rounded-t-sm \${s.tone === 'emerald' ? 'bg-emerald-400' : s.tone==='rose' ? 'bg-rose-400' : 'bg-slate-300'}\`} style={{ height: \`\${(v/max)*100}%\`, minHeight: '4px' }} title={String(v)} />
                      ))}
                    </div>
                  </div>
@@ -1252,4 +1191,7 @@ function getFilteredBackups(b, q, sf, sort) {
   return f.sort((a,c) => sort === 'created_asc' ? new Date(a.created_at) - new Date(c.created_at) : new Date(c.created_at) - new Date(a.created_at));
 }
 
-createRoot(document.getElementById("root")).render(<AdminApp />);
+createRoot(document.getElementById("root")).render(<AdminApp />);\`;
+
+fs.writeFileSync('src/admin/main.jsx', content);
+console.log('Final fix applied');

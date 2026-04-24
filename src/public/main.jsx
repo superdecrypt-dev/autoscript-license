@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input } from "../shared/ui.jsx";
+import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, ThemeToggle } from "../shared/ui.jsx";
 import { getPublicConfig } from "../shared/config.js";
 import { formatDate, formatDaysRemaining, statusLabel, statusTone } from "../shared/utils.js";
 import { ArrowRight, Clock3, Cpu, RotateCcw, Search, ShieldCheck, Signal } from "lucide-react";
@@ -59,7 +59,7 @@ function PublicApp() {
 
       turnstileWidgetIdRef.current = window.turnstile.render(turnstileSlotRef.current, {
         sitekey: config.turnstileSiteKey,
-        theme: "light",
+        theme: document.documentElement.classList.contains("dark") ? "dark" : "light",
         callback(token) {
           setTurnstileToken(String(token || "").trim());
         },
@@ -171,22 +171,25 @@ function PublicApp() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row font-sans text-slate-900">
+    <div className="min-h-screen bg-[var(--bg)] flex flex-col md:flex-row font-sans text-[var(--fg)]">
       {/* Left Branding Panel */}
-      <div className="md:w-5/12 bg-slate-900 text-white p-8 md:p-12 flex flex-col justify-between relative overflow-hidden">
+      <div className="md:w-5/12 bg-slate-900 dark:bg-zinc-950 text-white p-8 md:p-12 flex flex-col justify-between relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 20% 30%, #3b82f6 0%, transparent 50%), radial-gradient(circle at 80% 70%, #8b5cf6 0%, transparent 50%)' }} />
         
         <div className="relative z-10 space-y-6">
-          <div className="flex items-center gap-2">
-            <div className="size-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-900/50">
-              <ShieldCheck className="size-6 text-white" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="size-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-900/50">
+                <ShieldCheck className="size-6 text-white" />
+              </div>
+              <span className="text-xl font-bold tracking-tight">Autoscript</span>
             </div>
-            <span className="text-xl font-bold tracking-tight">Autoscript</span>
+            <ThemeToggle />
           </div>
           
           <div className="mt-16 space-y-4">
             <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30">License Portal</Badge>
-            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight leading-tight">
+            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight leading-tight text-white">
               Akses Instan ke <br />
               <span className="text-blue-400">Infrastruktur Anda.</span>
             </h1>
@@ -197,17 +200,17 @@ function PublicApp() {
         </div>
 
         <div className="relative z-10 mt-12 grid grid-cols-2 gap-4">
-          <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-4 backdrop-blur-sm">
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur-sm">
             <div className="flex items-center gap-2 text-slate-400 mb-2">
               <Cpu className="size-4 text-blue-400" />
               <span className="text-xs font-semibold uppercase tracking-wider">Worker Status</span>
             </div>
-            <div className="font-medium flex items-center gap-2">
+            <div className="font-medium flex items-center gap-2 text-white">
               <div className={`size-2 rounded-full ${statusBadge.tone === 'emerald' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
               {statusBadge.message}
             </div>
           </div>
-          <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-4 backdrop-blur-sm">
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur-sm">
             <div className="flex items-center gap-2 text-slate-400 mb-2">
               <Clock3 className="size-4 text-blue-400" />
               <span className="text-xs font-semibold uppercase tracking-wider">Default Duration</span>
@@ -220,26 +223,26 @@ function PublicApp() {
       {/* Right Interaction Panel */}
       <div className="flex-1 p-6 md:p-12 overflow-y-auto flex items-center justify-center">
         <div className="w-full max-w-xl space-y-6">
-          <Alert tone={banner.tone} className="shadow-sm bg-white">
+          <Alert tone={banner.tone} className="shadow-sm">
             {banner.message}
           </Alert>
 
-          <Card className="border-slate-200 shadow-xl shadow-slate-200/40 bg-white">
-            <div className="flex border-b border-slate-100 bg-slate-50 rounded-t-xl overflow-hidden">
+          <Card className="shadow-xl shadow-[var(--accent)]/5">
+            <div className="flex border-b border-[var(--line)] bg-[var(--panel-strong)] rounded-t-xl overflow-hidden">
                 <button 
-                  className={`flex-1 py-4 text-sm font-bold transition-colors ${processMode === "activate" ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:bg-slate-100'}`}
+                  className={`flex-1 py-4 text-sm font-bold transition-colors ${processMode === "activate" ? 'bg-[var(--panel)] text-[var(--accent)] border-b-2 border-[var(--accent)]' : 'text-[var(--muted)] hover:bg-[var(--panel)]'}`}
                   onClick={() => { setProcessMode("activate"); setCreateResult(null); }}
                 >
                   Register IP
                 </button>
                 <button 
-                  className={`flex-1 py-4 text-sm font-bold transition-colors ${processMode === "renew" ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:bg-slate-100'}`}
+                  className={`flex-1 py-4 text-sm font-bold transition-colors ${processMode === "renew" ? 'bg-[var(--panel)] text-[var(--accent)] border-b-2 border-[var(--accent)]' : 'text-[var(--muted)] hover:bg-[var(--panel)]'}`}
                   onClick={() => { setProcessMode("renew"); setCreateResult(null); }}
                 >
                   Perpanjang
                 </button>
                 <button 
-                  className={`flex-1 py-4 text-sm font-bold transition-colors ${processMode === "status" ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:bg-slate-100'}`}
+                  className={`flex-1 py-4 text-sm font-bold transition-colors ${processMode === "status" ? 'bg-[var(--panel)] text-[var(--accent)] border-b-2 border-[var(--accent)]' : 'text-[var(--muted)] hover:bg-[var(--panel)]'}`}
                   onClick={() => setProcessMode("status")}
                 >
                   Status
@@ -251,10 +254,10 @@ function PublicApp() {
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-lg font-bold text-slate-900">
+                      <h3 className="text-lg font-bold text-[var(--fg)]">
                         {processMode === "renew" ? "Perpanjang Lisensi" : "Register IP Baru"}
                       </h3>
-                      <p className="text-sm text-slate-500">
+                      <p className="text-sm text-[var(--muted)]">
                         {processMode === "renew" ? "Perpanjang masa aktif lisensi IP VPS Anda." : "Daftarkan IP baru ke dalam sistem."}
                       </p>
                     </div>
@@ -265,19 +268,19 @@ function PublicApp() {
 
                   <form onSubmit={handleCreateSubmit} className="space-y-5">
                     <div className="space-y-2">
-                      <label className="text-sm font-semibold text-slate-700">Alamat IPv4</label>
+                      <label className="text-sm font-semibold text-[var(--fg)] opacity-80">Alamat IPv4</label>
                       <Input 
                         placeholder="e.g. 103.45.67.89" 
                         value={createIp}
                         onChange={e => setCreateIp(e.target.value)}
                         className="font-mono text-lg py-6"
                       />
-                      <p className="text-xs text-slate-500">Masukkan IP publik VPS yang akan {processMode === "renew" ? "diperpanjang" : "didaftarkan"}.</p>
+                      <p className="text-xs text-[var(--muted)]">Masukkan IP publik VPS yang akan {processMode === "renew" ? "diperpanjang" : "didaftarkan"}.</p>
                     </div>
 
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                    <div className="bg-[var(--panel-strong)] border border-[var(--line-strong)] rounded-xl p-4 space-y-3">
                       <div className="flex justify-between items-center">
-                        <span className="text-sm font-semibold text-slate-700">Verifikasi Keamanan</span>
+                        <span className="text-sm font-semibold text-[var(--fg)] opacity-80">Verifikasi Keamanan</span>
                         <Badge variant={turnstileToken ? "emerald" : "slate"}>{turnstileToken ? "Verified" : "Pending"}</Badge>
                       </div>
                       <div ref={turnstileSlotRef} className="min-h-[65px] flex justify-center" />
@@ -296,13 +299,13 @@ function PublicApp() {
               {processMode === "status" && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                   <div>
-                    <h3 className="text-lg font-bold text-slate-900">Cek Status Lisensi</h3>
-                    <p className="text-sm text-slate-500">Periksa detail masa aktif lisensi IP Anda.</p>
+                    <h3 className="text-lg font-bold text-[var(--fg)]">Cek Status Lisensi</h3>
+                    <p className="text-sm text-[var(--muted)]">Periksa detail masa aktif lisensi IP Anda.</p>
                   </div>
 
                   <form onSubmit={handleStatusSubmit} className="space-y-5">
                     <div className="space-y-2">
-                      <label className="text-sm font-semibold text-slate-700">Alamat IPv4</label>
+                      <label className="text-sm font-semibold text-[var(--fg)] opacity-80">Alamat IPv4</label>
                       <Input 
                         placeholder="e.g. 103.45.67.89" 
                         value={statusIp}
@@ -310,7 +313,7 @@ function PublicApp() {
                         className="font-mono text-lg py-6"
                       />
                     </div>
-                    <Button variant="secondary" className="w-full h-12 text-base font-bold bg-slate-100 hover:bg-slate-200 border-slate-300" disabled={statusLoading}>
+                    <Button variant="secondary" className="w-full h-12 text-base font-bold border-[var(--line-strong)]" disabled={statusLoading}>
                       <Search className="mr-2 size-4" />
                       {statusLoading ? "Memeriksa..." : "Cek Status"}
                     </Button>
@@ -322,8 +325,8 @@ function PublicApp() {
             </CardContent>
           </Card>
           
-          <div className="text-center text-sm text-slate-500 pt-4">
-             Support: <a href="mailto:autoscript@atomicmail.io" className="font-bold text-blue-600 hover:underline">autoscript@atomicmail.io</a>
+          <div className="text-center text-sm text-[var(--muted)] pt-4">
+             Support: <a href="mailto:autoscript@atomicmail.io" className="font-bold text-[var(--accent)] hover:underline">autoscript@atomicmail.io</a>
           </div>
         </div>
       </div>
@@ -336,16 +339,16 @@ function ResultPanel({ result }) {
   const body = result.body || {};
   const item = body.item || body;
   return (
-    <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+    <div className="space-y-4 rounded-xl border border-[var(--line)] bg-[var(--panel-strong)] p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Hasil</div>
-          <h3 className="mt-1 text-base font-bold text-slate-900">{result.title}</h3>
+          <div className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Hasil</div>
+          <h3 className="mt-1 text-base font-bold text-[var(--fg)]">{result.title}</h3>
         </div>
         <Badge variant={result.tone}>{statusLabel(item.status || result.tone)}</Badge>
       </div>
       {item.message && (
-        <div className="rounded-lg bg-white border border-slate-200 px-3 py-2 text-sm text-slate-600">
+        <div className="rounded-lg bg-[var(--panel)] border border-[var(--line)] px-3 py-2 text-sm text-[var(--muted)]">
           {item.message}
         </div>
       )}
@@ -367,17 +370,17 @@ function StatusResultPanel({ result, onAction }) {
   const nextAction = item.next_action || {};
   const statusBadgeLabel = statusLabel(item.status || result.tone);
   return (
-    <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+    <div className="space-y-4 rounded-xl border border-[var(--line)] bg-[var(--panel-strong)] p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Status</div>
-          <h3 className="mt-1 text-base font-bold text-slate-900">{result.title}</h3>
+          <div className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Status</div>
+          <h3 className="mt-1 text-base font-bold text-[var(--fg)]">{result.title}</h3>
         </div>
         <Badge variant={result.tone}>{statusBadgeLabel}</Badge>
       </div>
 
       {item.detail_message && (
-        <div className="rounded-lg bg-white border border-slate-200 px-3 py-2 text-sm text-slate-600">
+        <div className="rounded-lg bg-[var(--panel)] border border-[var(--line)] px-3 py-2 text-sm text-[var(--muted)]">
           {item.detail_message}
         </div>
       )}
@@ -391,9 +394,9 @@ function StatusResultPanel({ result, onAction }) {
         <Stat label="Jendela Renew" value={`${item.renew_open_before_days || 0} hari`} />
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-white p-4">
-        <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Tindakan Berikutnya</div>
-        <div className="mt-1 text-sm text-slate-600">{nextAction.help || "Tidak ada tindakan lanjutan."}</div>
+      <div className="rounded-lg border border-[var(--line)] bg-[var(--panel)] p-4">
+        <div className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Tindakan Berikutnya</div>
+        <div className="mt-1 text-sm text-[var(--muted)]">{nextAction.help || "Tidak ada tindakan lanjutan."}</div>
         {nextAction.kind && nextAction.kind !== "none" && (
           <div className="mt-4">
             <Button type="button" size="sm" onClick={() => onAction?.(item)}>
@@ -409,9 +412,9 @@ function StatusResultPanel({ result, onAction }) {
 
 function Stat({ label, value, mono = false }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</div>
-      <div className={`mt-1 text-sm text-slate-900 ${mono ? "font-mono" : "font-medium"}`}>{value || "-"}</div>
+    <div className="rounded-lg border border-[var(--line)] bg-[var(--panel)] px-3 py-2">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)]">{label}</div>
+      <div className={`mt-1 text-sm text-[var(--fg)] ${mono ? "font-mono" : "font-medium"}`}>{value || "-"}</div>
     </div>
   );
 }

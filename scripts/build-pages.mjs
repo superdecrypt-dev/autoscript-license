@@ -1,4 +1,5 @@
 import { build } from "esbuild";
+import { execSync } from "node:child_process";
 import postcss from "postcss";
 import tailwind from "@tailwindcss/postcss";
 import autoprefixer from "autoprefixer";
@@ -116,24 +117,19 @@ function copyStaticPagesFiles(currentDir) {
 }
 
 async function buildEntryGroup({ entryPoints }) {
-  const result = await build({
-    absWorkingDir: rootDir,
-    bundle: true,
-    entryNames: "assets/[name].[hash]",
-    entryPoints,
-    jsx: "automatic",
-    legalComments: "none",
-    logLevel: "silent",
-    metafile: true,
-    minify: true,
-    outdir: outputDir,
-    platform: "browser",
-    sourcemap: false,
-    target: ["es2020"],
-    write: true,
-  });
-  return extractEntryOutputs(result.metafile.outputs);
+  const entryPointsArgs = Object.entries(entryPoints).map(([name, path]) => `${path}`).join(" ");
+  const command = `npx esbuild ${entryPointsArgs} --bundle --minify --platform=browser --target=es2020 --outdir=${outputDir} --entry-names=assets/[name].[hash] --metafile=${resolve(outputDir, "meta.json")} --jsx=automatic --legal-comments=none`;
+
+  try {
+    execSync(command, { stdio: 'inherit', cwd: rootDir });
+    const metafile = JSON.parse(readFileSync(resolve(outputDir, "meta.json"), "utf8"));
+    return extractEntryOutputs(metafile.outputs);
+  } catch (error) {
+    console.error("[build:pages] esbuild CLI failed:", error.message);
+    throw error;
+  }
 }
+
 
 function extractEntryOutputs(outputs) {
   const assets = {};
@@ -184,6 +180,17 @@ function renderPublicHtml({ cssHref, jsHref, apiBaseUrl, turnstileSiteKey }) {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Autoscript IP Access</title>
+    <script>
+      (function() {
+        try {
+          var theme = localStorage.getItem('theme');
+          var supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+          if (theme === 'dark' || (!theme && supportDarkMode)) {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
@@ -207,6 +214,17 @@ function renderAdminHtml({ cssHref, jsHref, adminApiBaseUrl }) {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Autoscript License Admin</title>
+    <script>
+      (function() {
+        try {
+          var theme = localStorage.getItem('theme');
+          var supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+          if (theme === 'dark' || (!theme && supportDarkMode)) {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
