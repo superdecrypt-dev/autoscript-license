@@ -36,19 +36,22 @@ import {
   formatBytes,
   formatDate,
   formatForDateTimeLocal,
-  formatShortDay,
   formatRelativeTime,
+  formatShortDay,
   shortChecksum,
   statusLabel,
   statusTone,
 } from "../shared/utils.js";
 import {
   Activity,
+  ArrowUpRight,
   Clock3,
   Database,
   Download,
   Eye,
   FileJson,
+  Filter,
+  HardDriveUpload,
   LayoutDashboard,
   Plus,
   RefreshCw,
@@ -59,10 +62,26 @@ import {
 } from "lucide-react";
 
 const VIEW_META = {
-  dashboard: { title: "Dashboard", description: "Ringkasan lisensi, aktivitas, dan backup terbaru." },
-  entries: { title: "Entries", description: "Kelola IP, masa aktif, dan tindakan admin." },
-  audit: { title: "Audit Log", description: "Pantau jejak perubahan dan akses publik." },
-  settings: { title: "Settings", description: "Kelola sesi dan snapshot backup/restore." },
+  dashboard: {
+    label: "Dashboard",
+    title: "Operations Console",
+    description: "Radar utama untuk lisensi, traffic checks, dan backup health.",
+  },
+  entries: {
+    label: "Entries",
+    title: "Registry Board",
+    description: "Kelola entry lisensi, expiry, revocation, dan identity metadata.",
+  },
+  audit: {
+    label: "Audit",
+    title: "Event Ledger",
+    description: "Lihat jejak event publik dan admin secara cepat dan tersaring.",
+  },
+  settings: {
+    label: "Recovery",
+    title: "Recovery Deck",
+    description: "Snapshot backup, restore, download, dan import ada di sini.",
+  },
 };
 
 function AdminApp() {
@@ -199,7 +218,7 @@ function AdminApp() {
       setEntries(payload.items || []);
       setLastSyncedAt(new Date().toISOString());
     } catch (error) {
-      handleAuthFailure(error, "Gagal refresh daftar IP.");
+      handleAuthFailure(error, "Gagal refresh daftar entry.");
     } finally {
       setEntriesLoading(false);
     }
@@ -213,7 +232,7 @@ function AdminApp() {
       setAuditLogs(payload.items || []);
       setLastSyncedAt(new Date().toISOString());
     } catch (error) {
-      handleAuthFailure(error, "Gagal refresh audit log.");
+      handleAuthFailure(error, "Gagal refresh event ledger.");
     } finally {
       setAuditLoading(false);
     }
@@ -354,7 +373,10 @@ function AdminApp() {
         body: JSON.stringify({}),
       });
       const backup = backups.find((item) => item.key === backupKey) || {};
-      setBanner({ tone: "ok", message: `Dry-run OK: ${formatBackupRows(payload.row_counts)} • ${backup.created_by || "-"} • ${shortChecksum(payload.checksum_sha256)}` });
+      setBanner({
+        tone: "ok",
+        message: `Dry-run OK: ${formatBackupRows(payload.row_counts)} • ${backup.created_by || "-"} • ${shortChecksum(payload.checksum_sha256)}`,
+      });
     } catch (error) {
       handleAuthFailure(error, "Gagal validasi snapshot backup.");
     }
@@ -434,7 +456,10 @@ function AdminApp() {
   async function handleUpdateEntry(event) {
     event.preventDefault();
     try {
-      await apiFetch(`/api/admin/license-entries/${encodeURIComponent(editFormState.id)}`, { method: "PATCH", body: JSON.stringify(editFormState) });
+      await apiFetch(`/api/admin/license-entries/${encodeURIComponent(editFormState.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify(editFormState),
+      });
       setBanner({ tone: "ok", message: `Entry ${editFormState.ip} berhasil diperbarui.` });
       setEditDialogOpen(false);
       setEditFormState(emptyEntryForm());
@@ -446,7 +471,10 @@ function AdminApp() {
 
   async function toggleEntry(entry, action) {
     try {
-      await apiFetch(`/api/admin/license-entries/${encodeURIComponent(entry.id)}/${action}`, { method: "POST", body: JSON.stringify({}) });
+      await apiFetch(`/api/admin/license-entries/${encodeURIComponent(entry.id)}/${action}`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
       setBanner({ tone: "ok", message: `Entry ${entry.ip} berhasil di-${action}.` });
       await refreshDashboard();
     } catch (error) {
@@ -484,7 +512,7 @@ function AdminApp() {
     const requestUrl = new URL(path, adminApiOrigin);
     const headers = { ...(options.headers || {}) };
     let requestMethod = intendedMethod;
-    let requestBody = options.body;
+    const requestBody = options.body;
 
     if (usesCrossOriginAdminApi && !["GET", "HEAD"].includes(intendedMethod)) {
       requestMethod = "POST";
@@ -589,6 +617,8 @@ function AdminApp() {
   const topEvents = metrics?.top_events || [];
   const checksTrend = metrics?.daily_checks || [];
   const mutationsTrend = metrics?.daily_mutations || [];
+  const latestChecks = checksTrend.at(-1) || {};
+  const latestMutations = mutationsTrend.at(-1) || {};
   const filteredBackups = getFilteredBackups(backups, backupSearch, backupSourceFilter, backupSort);
   const adminAlertClass =
     banner.tone === "ok"
@@ -598,22 +628,21 @@ function AdminApp() {
         : banner.tone === "warn"
           ? "border-amber-400/25 bg-amber-500/16 text-amber-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
           : "border-white/10 bg-white/5 text-white/82 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]";
-  const latestChecks = checksTrend.at(-1) || {};
-  const latestMutations = mutationsTrend.at(-1) || {};
-  const activeEntryRatio = Math.max(Number(summary.active_entries || 0), 0);
-  const totalEntries = Math.max(
-    Number(summary.active_entries || 0) + Number(summary.expired_entries || 0) + Number(summary.revoked_entries || 0),
-    1
-  );
+  const activeEntries = Number(summary.active_entries || 0);
+  const expiredEntries = Number(summary.expired_entries || 0);
+  const revokedEntries = Number(summary.revoked_entries || 0);
+  const totalEntries = Math.max(activeEntries + expiredEntries + revokedEntries, 1);
 
   if (authStatus !== "authenticated") {
     return (
       <div className="flex min-h-screen items-center justify-center px-4 py-10">
-        <Card className="w-full max-w-lg">
+        <Card className="w-full max-w-xl">
           <CardHeader>
-            <Badge variant="accent">Access</Badge>
-            <CardTitle className="mt-3 text-3xl">Memverifikasi Akses</CardTitle>
-            <CardDescription className="mt-2">Halaman ini dilindungi Cloudflare Access. Jika sesi gagal, muat ulang setelah sesi Access aktif.</CardDescription>
+            <Badge variant="accent">Cloudflare Access</Badge>
+            <CardTitle className="mt-3 text-3xl">Memverifikasi sesi admin</CardTitle>
+            <CardDescription className="mt-2">
+              Dashboard admin tetap dilindungi Access. Bila sesi belum aktif, browser akan diarahkan ke relay yang benar.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Alert className={adminAlertClass} tone={banner.tone}>{banner.message}</Alert>
@@ -624,138 +653,240 @@ function AdminApp() {
   }
 
   return (
-    <div className="min-h-screen page-enter">
-      <div className="mx-auto grid min-h-screen max-w-[1640px] gap-5 p-4 xl:grid-cols-[320px,1fr] xl:p-6">
-        <aside className="rounded-[2rem] border border-[var(--line)] bg-[linear-gradient(180deg,rgba(10,16,32,0.96),rgba(7,11,22,0.98))] p-4 text-white shadow-[var(--shadow)] xl:p-5">
-          <Badge variant="accent">Admin Signal Deck</Badge>
-          <div className="mt-5">
-            <h1 className="text-3xl font-semibold tracking-[-0.04em]">Autoscript License</h1>
-            <p className="mt-3 text-sm leading-6 text-white/65">
-              Dashboard operasi untuk lisensi, audit trail, backup, dan recovery. Fokusnya cepat dibaca saat ramai, bukan sekadar banyak tabel.
-            </p>
-          </div>
-          <div className="mt-6 grid gap-3">
-            <CompactSidebarStat label="Session" value={session?.admin_email || "Not Connected"} />
-            <CompactSidebarStat label="Entries" value={`${summary.active_entries || 0} active / ${totalEntries} total`} />
-            <CompactSidebarStat label="Recovery" value={`${backups.length} snapshot`} />
-          </div>
-          <nav className="mt-6 flex gap-2 overflow-x-auto pb-1 xl:mt-8 xl:flex-col xl:overflow-visible xl:pb-0">
-            <SidebarButton icon={LayoutDashboard} active={activeView === "dashboard"} onClick={() => setActiveView("dashboard")}>Dashboard</SidebarButton>
-            <SidebarButton icon={ShieldCheck} active={activeView === "entries"} onClick={() => setActiveView("entries")}>Entries</SidebarButton>
-            <SidebarButton icon={RefreshCw} active={activeView === "audit"} onClick={() => setActiveView("audit")}>Audit Log</SidebarButton>
-            <SidebarButton icon={Settings} active={activeView === "settings"} onClick={() => setActiveView("settings")}>Settings</SidebarButton>
-          </nav>
-          <div className="mt-6 rounded-[1.6rem] border border-white/10 bg-white/5 p-4 xl:mt-8">
-            <div className="text-xs uppercase tracking-[0.16em] text-white/45">Access Identity</div>
-            <div className="mt-3">
-              <Badge variant="emerald">{session?.admin_email || "Not Connected"}</Badge>
+    <div className="mx-auto min-h-screen max-w-[1700px] p-4 md:p-6">
+      <div className="grid gap-5 xl:grid-cols-[300px,1fr]">
+        <aside className="page-enter overflow-hidden rounded-[2rem] border border-[var(--line)] bg-[linear-gradient(180deg,rgba(9,15,31,0.98),rgba(8,11,24,0.98))] p-5 shadow-[var(--shadow)]">
+          <div className="space-y-6">
+            <div>
+              <Badge variant="accent">Admin Surface</Badge>
+              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.05em] text-white">Autoscript License</h1>
+              <p className="mt-3 text-sm leading-6 text-white/62">
+                Console operasi baru untuk registry, event ledger, dan recovery flow. Fokusnya cepat dipindai saat pekerjaan sedang ramai.
+              </p>
             </div>
-            <div className="mt-3 text-xs leading-5 text-white/55">
-              API origin: <span className="font-mono text-white/80">{adminApiOrigin}</span>
+
+            <div className="grid gap-3">
+              <SidebarSignal label="Identity" value={session?.admin_email || "Unknown"} />
+              <SidebarSignal label="Entries" value={`${activeEntries} active / ${totalEntries} total`} />
+              <SidebarSignal label="Last Sync" value={lastSyncedAt ? formatRelativeTime(lastSyncedAt) : "Belum ada"} />
+            </div>
+
+            <div className="space-y-2">
+              {Object.entries(VIEW_META).map(([key, item]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setActiveView(key)}
+                  className={`w-full rounded-[1.35rem] border px-4 py-3 text-left transition ${
+                    activeView === key
+                      ? "border-white/24 bg-white/12 text-white shadow-[0_18px_36px_rgba(0,0,0,0.22)]"
+                      : "border-white/10 bg-white/[0.03] text-white/68 hover:border-white/14 hover:bg-white/[0.06]"
+                  }`}
+                >
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em]">{item.label}</div>
+                  <div className="mt-2 text-sm font-medium">{item.title}</div>
+                </button>
+              ))}
+            </div>
+
+            <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-white/42">API Origin</div>
+              <div className="mt-2 break-all font-mono text-xs text-white/80">{adminApiOrigin}</div>
+              <div className="mt-4 flex gap-2">
+                <Button variant="secondary" size="sm" onClick={refreshDashboard}>
+                  <RefreshCw className="size-4" />
+                  Sync
+                </Button>
+                <Button variant="outline" size="sm" onClick={logoutAccess}>Logout</Button>
+              </div>
             </div>
           </div>
         </aside>
 
         <main className="space-y-5">
-          <div className="page-enter stagger-1 overflow-hidden rounded-[2rem] border border-[var(--line)] bg-[var(--panel)] p-5 shadow-[var(--shadow)]">
-            <div className="grid gap-5 xl:grid-cols-[1fr,auto] xl:items-end">
+          <section className="page-enter rounded-[2rem] border border-[var(--line)] bg-[var(--panel)] p-5 shadow-[var(--shadow)] md:p-6">
+            <div className="grid gap-5 lg:grid-cols-[1fr,auto] lg:items-end">
               <div className="space-y-4">
-                <div className="flex flex-wrap items-center gap-3">
-                  <Badge variant="accent">Operations Frame</Badge>
-                  <Badge variant="slate">Last sync {lastSyncedAt ? formatRelativeTime(lastSyncedAt) : "belum ada"}</Badge>
+                <div className="flex flex-wrap gap-3">
+                  <Badge variant="accent">{VIEW_META[activeView].label}</Badge>
+                  <Badge variant="slate">Metrics window {metricsWindowDays} hari</Badge>
                 </div>
                 <div>
                   <h2 className="text-4xl font-semibold tracking-[-0.05em]">{VIEW_META[activeView].title}</h2>
                   <p className="mt-3 max-w-4xl text-sm leading-6 text-[var(--muted)]">{VIEW_META[activeView].description}</p>
                 </div>
-                <div className="grid gap-3 md:grid-cols-3">
-                  <QuickSignal icon={Activity} label="Checks" value={`${Number(latestChecks.allow || 0) + Number(latestChecks.deny || 0)}`} meta={`${latestChecks.allow || 0} allow / ${latestChecks.deny || 0} deny`} />
-                  <QuickSignal icon={Database} label="Active Entries" value={summary.active_entries || 0} meta={`${summary.revoked_entries || 0} revoked / ${summary.expired_entries || 0} expired`} />
-                  <QuickSignal icon={Clock3} label="Snapshots" value={backups.length} meta={lastSyncedAt ? `Synced ${formatRelativeTime(lastSyncedAt)}` : "Belum pernah refresh"} />
+                <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
+                  <MetricTile label="Checks Today" value={Number(latestChecks.allow || 0) + Number(latestChecks.deny || 0)} note={`${latestChecks.allow || 0} allow / ${latestChecks.deny || 0} deny`} icon={Activity} />
+                  <MetricTile label="Mutations Today" value={Number(latestMutations.admin_mutations || 0) + Number(latestMutations.public_activations || 0) + Number(latestMutations.public_renewals || 0)} note={`${latestMutations.admin_mutations || 0} admin actions`} icon={ArrowUpRight} />
+                  <MetricTile label="Snapshots" value={backups.length} note={`${filteredBackups.length} visible`} icon={Database} />
+                  <MetricTile label="Registry" value={`${activeEntries}/${totalEntries}`} note={`${revokedEntries} revoked / ${expiredEntries} expired`} icon={ShieldCheck} />
                 </div>
               </div>
-              <div className="flex flex-wrap gap-3 xl:justify-end">
-                <Button variant="secondary" onClick={refreshDashboard}><RefreshCw className="size-4" />Refresh</Button>
-                <Button variant="outline" onClick={logoutAccess}>Logout Access</Button>
+              <div className="grid gap-3 sm:grid-cols-[220px,1fr]">
+                <Select value={metricsWindowDays} onValueChange={setMetricsWindowDays}>
+                  <SelectTrigger><SelectValue placeholder="Pilih window metrics" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="7">Last 7 days</SelectItem>
+                    <SelectItem value="14">Last 14 days</SelectItem>
+                    <SelectItem value="30">Last 30 days</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button variant="secondary" onClick={refreshDashboard}><RefreshCw className="size-4" />Refresh</Button>
+                  <Button variant="outline" onClick={() => setActiveView("settings")}>Recovery</Button>
+                </div>
               </div>
             </div>
-          </div>
+          </section>
 
           <Alert className={`page-enter stagger-1 ${adminAlertClass}`} tone={banner.tone}>{banner.message}</Alert>
 
           {activeView === "dashboard" ? (
-            <div className="space-y-5">
-              <Card className="bg-[var(--panel-strong)]">
-                <CardContent className="p-5">
-                  <div className="grid gap-3 lg:grid-cols-[1fr,auto] lg:items-center">
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                      <QuickSignal icon={Activity} label="Checks Today" value={`${Number(latestChecks.allow || 0) + Number(latestChecks.deny || 0)}`} meta={`${latestChecks.allow || 0} allow / ${latestChecks.deny || 0} deny`} />
-                      <QuickSignal icon={RefreshCw} label="Mutations Today" value={`${Number(latestMutations.admin_mutations || 0) + Number(latestMutations.public_activations || 0) + Number(latestMutations.public_renewals || 0)}`} meta={`${latestMutations.admin_mutations || 0} admin / ${latestMutations.public_activations || 0} activate`} />
-                      <QuickSignal icon={Database} label="Backups" value={backups.length} meta={`${filteredBackups.length} visible snapshots`} />
-                      <QuickSignal icon={Clock3} label="Live Entries" value={`${activeEntryRatio}/${totalEntries}`} meta={lastSyncedAt ? `Updated ${formatRelativeTime(lastSyncedAt)}` : "Belum pernah refresh"} />
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-[200px,1fr] lg:w-[360px]">
-                      <Select value={metricsWindowDays} onValueChange={setMetricsWindowDays}>
-                        <SelectTrigger><SelectValue placeholder="Metrics Window" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="7">Last 7 days</SelectItem>
-                          <SelectItem value="14">Last 14 days</SelectItem>
-                          <SelectItem value="30">Last 30 days</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <div className="grid grid-cols-2 gap-3">
-                        <Button variant="secondary" onClick={refreshMetrics}>Refresh Metrics</Button>
-                        <Button variant="outline" onClick={() => setActiveView("settings")}>Open Recovery</Button>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            <section className="space-y-5">
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <MetricCard title="Active" value={summary.active_entries || 0} tone="emerald" meta={`${Math.round((activeEntryRatio / totalEntries) * 100)}% dari total entry`} />
-                <MetricCard title="Expired" value={summary.expired_entries || 0} tone="amber" meta="Perlu review atau renew" />
-                <MetricCard title="Revoked" value={summary.revoked_entries || 0} tone="rose" meta="Sedang diblokir dari alur publik" />
-                <MetricCard title="Audit Rows" value={summary.audit_rows_window || 0} tone="slate" meta={`Window ${metricsWindowDays} hari`} />
+                <KpiCard title="Active Entries" value={activeEntries} detail={`${Math.round((activeEntries / totalEntries) * 100)}% dari registry`} tone="emerald" />
+                <KpiCard title="Expired Entries" value={expiredEntries} detail="Perlu review / renew" tone="amber" />
+                <KpiCard title="Revoked Entries" value={revokedEntries} detail="Diblokir dari jalur publik" tone="rose" />
+                <KpiCard title="Audit Rows" value={Number(summary.audit_rows_window || 0)} detail={`Window ${metricsWindowDays} hari`} tone="slate" />
               </div>
+
               <div className="grid gap-5 xl:grid-cols-2">
-                <TrendCard title="License Check Trend" caption={`Last ${metricsWindowDays} days`} loading={metricsLoading} points={checksTrend} series={[{ key: "allow", label: "Allow", tone: "emerald" }, { key: "deny", label: "Deny", tone: "rose" }]} />
-                <TrendCard title="Mutations Trend" caption={`Last ${metricsWindowDays} days`} loading={metricsLoading} points={mutationsTrend} series={[{ key: "admin_mutations", label: "Admin", tone: "amber" }, { key: "public_activations", label: "Activation", tone: "emerald" }, { key: "public_renewals", label: "Renew", tone: "slate" }]} />
-              </div>
-              <div className="grid gap-5 xl:grid-cols-2">
-                <TopEventsCard items={topEvents} />
-                <SourceSplitCard summary={summary} />
-              </div>
-              <div className="grid gap-5 xl:grid-cols-[1.15fr,0.85fr]">
-                <OperationalHealthCard
-                  latestChecks={latestChecks}
-                  latestMutations={latestMutations}
-                  summary={summary}
-                  metricsWindowDays={metricsWindowDays}
+                <TrendPanel
+                  title="License Check Stream"
+                  caption={`Aktivitas allow vs deny selama ${metricsWindowDays} hari`}
+                  loading={metricsLoading}
+                  points={checksTrend}
+                  series={[
+                    { key: "allow", label: "Allow", tone: "emerald" },
+                    { key: "deny", label: "Deny", tone: "rose" },
+                  ]}
                 />
-                <RecentRecoveryCard backups={filteredBackups} onOpenSettings={() => setActiveView("settings")} />
+                <TrendPanel
+                  title="Mutation Stream"
+                  caption={`Aktivitas admin, activation, dan renew publik`}
+                  loading={metricsLoading}
+                  points={mutationsTrend}
+                  series={[
+                    { key: "admin_mutations", label: "Admin", tone: "amber" },
+                    { key: "public_activations", label: "Activation", tone: "emerald" },
+                    { key: "public_renewals", label: "Renew", tone: "slate" },
+                  ]}
+                />
               </div>
-            </div>
+
+              <div className="grid gap-5 xl:grid-cols-[1.1fr,0.9fr]">
+                <Card>
+                  <CardHeader>
+                    <Badge variant="accent">Top Events</Badge>
+                    <CardTitle className="mt-3">Apa yang paling sering terjadi</CardTitle>
+                    <CardDescription className="mt-2">Distribusi event pada window metrics aktif.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {topEvents.length ? (
+                      <div className="space-y-3">
+                        {topEvents.map((item) => {
+                          const width = Math.max(8, Math.round((Number(item.count || 0) / Math.max(...topEvents.map((entry) => Number(entry.count || 0)), 1)) * 100));
+                          return (
+                            <div key={item.event_type} className="space-y-2 rounded-[1.35rem] border border-[var(--line)] bg-white/70 p-4">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="font-medium">{item.event_type || "-"}</div>
+                                <Badge variant="slate">{item.count} events</Badge>
+                              </div>
+                              <div className="h-2 rounded-full bg-black/5">
+                                <div className="h-2 rounded-full bg-[var(--accent)]" style={{ width: `${width}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <EmptyState title="Belum ada event historis" body="Window metrics ini belum memiliki cukup data untuk divisualkan." />
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <Badge variant="accent">Source Split</Badge>
+                    <CardTitle className="mt-3">Asal entry lisensi</CardTitle>
+                    <CardDescription className="mt-2">Perbandingan entry dari jalur publik vs tindakan manual admin.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <SplitBar left={Number(summary.public_entries || 0)} right={Number(summary.admin_entries || 0)} />
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <DataCell label="Public Entry" value={summary.public_entries || 0} />
+                      <DataCell label="Manual Entry" value={summary.admin_entries || 0} />
+                      <DataCell label="Manual Mutations" value={summary.admin_mutations || 0} />
+                      <DataCell label="Visible Snapshots" value={filteredBackups.length} />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid gap-5 xl:grid-cols-[1.05fr,0.95fr]">
+                <Card>
+                  <CardHeader>
+                    <Badge variant="emerald">System Readout</Badge>
+                    <CardTitle className="mt-3">Ringkasan operasional</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-3 md:grid-cols-2">
+                    <DataCell label="Allow Today" value={latestChecks.allow || 0} />
+                    <DataCell label="Deny Today" value={latestChecks.deny || 0} />
+                    <DataCell label="Public Activations" value={latestMutations.public_activations || 0} />
+                    <DataCell label="Public Renewals" value={latestMutations.public_renewals || 0} />
+                    <DataCell label="Admin Mutations" value={latestMutations.admin_mutations || 0} />
+                    <DataCell label="Last Sync" value={lastSyncedAt ? formatRelativeTime(lastSyncedAt) : "Belum ada"} />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <Badge variant="amber">Recovery Watch</Badge>
+                    <CardTitle className="mt-3">Snapshot terbaru</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {filteredBackups.length ? (
+                      <div className="space-y-3">
+                        {filteredBackups.slice(0, 3).map((backup) => (
+                          <div key={backup.key} className="rounded-[1.35rem] border border-[var(--line)] bg-white/72 p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <div className="font-medium">{backup.key.split("/").at(-1) || backup.key}</div>
+                                <div className="mt-1 text-sm text-[var(--muted)]">{formatDate(backup.created_at)} • {humanizeBackupSource(backup.source)}</div>
+                              </div>
+                              <Badge variant="slate">{formatBackupRows(backup.row_counts)}</Badge>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <EmptyState title="Belum ada snapshot" body="Buat snapshot pertama untuk membuka jalur recovery." />
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </section>
           ) : null}
 
           {activeView === "entries" ? (
-            <div className="grid gap-5 xl:grid-cols-[1.45fr,0.85fr]">
+            <section className="grid gap-5 xl:grid-cols-[1.08fr,0.92fr]">
               <Card>
                 <CardHeader>
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                     <div>
-                      <Badge variant="accent">Lookup</Badge>
-                      <CardTitle className="mt-3">License Registry</CardTitle>
-                      <CardDescription className="mt-2">Daftar entry dibuat untuk scanning cepat: identity di kiri, state di tengah, tindakan di kanan.</CardDescription>
+                      <Badge variant="accent">Registry Scanner</Badge>
+                      <CardTitle className="mt-3">Entry board</CardTitle>
+                      <CardDescription className="mt-2">Scanning dibuat cepat: filter di atas, metadata inti di depan, tindakan di sisi kanan.</CardDescription>
                     </div>
-                    <div className="flex flex-col gap-3 md:flex-row">
-                      <div className="relative w-full md:w-72">
+                    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr),180px]">
+                      <div className="relative">
                         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--muted)]" />
                         <Input className="pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari IP, label, owner, notes" />
                       </div>
                       <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-full md:w-48"><SelectValue placeholder="Semua Status" /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder="Semua status" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">Semua Status</SelectItem>
+                          <SelectItem value="all">Semua status</SelectItem>
                           <SelectItem value="active">Active</SelectItem>
                           <SelectItem value="expired">Expired</SelectItem>
                           <SelectItem value="revoked">Revoked</SelectItem>
@@ -764,352 +895,262 @@ function AdminApp() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="mb-4 grid gap-3 sm:grid-cols-3">
-                    <StatBox label="Visible" value={entries.length} />
-                    <StatBox label="Filter Status" value={statusFilter === "all" ? "Semua" : statusLabel(statusFilter)} />
-                    <StatBox label="Query" value={search.trim() || "Semua"} mono={Boolean(search.trim())} />
+                <CardContent className="space-y-4">
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <DataCell label="Visible Rows" value={entries.length} />
+                    <DataCell label="Current Filter" value={statusFilter === "all" ? "Semua" : statusLabel(statusFilter)} />
+                    <DataCell label="Query" value={search.trim() || "Tanpa query"} mono={Boolean(search.trim())} />
                   </div>
-                {entriesLoading ? (
-                  <LoadingState message="Memuat entry lisensi..." />
-                ) : (
-                    <>
-                    <div className="space-y-3 md:hidden">
-                      {entries.length ? entries.map((entry) => (
-                        <EntryMobileCard
-                          key={entry.id}
-                          entry={entry}
-                          onInspect={() => openEntryDetail(entry)}
-                          onEdit={() => {
-                            setEditFormState({
-                              id: entry.id,
-                              ip: entry.ip || "",
-                              label: entry.label || "",
-                              owner: entry.owner || "",
-                              notes: entry.notes || "",
-                              expires_at: formatForDateTimeLocal(entry.expires_at || ""),
-                            });
-                            setEditDialogOpen(true);
-                          }}
-                          onToggle={() => toggleEntry(entry, entry.effective_status === "revoked" ? "reactivate" : "revoke")}
-                          onDelete={() => deleteEntry(entry)}
-                        />
-                      )) : (
-                        <LoadingState message="Belum ada entry IP." copy="Coba ubah filter atau buat entry baru." />
-                      )}
-                    </div>
-                    <div className="hidden overflow-x-auto rounded-[1.5rem] border border-[var(--line)] bg-[rgba(255,255,255,0.03)] p-2 md:block">
+
+                  <div className="hidden xl:block">
+                    <div className="overflow-hidden rounded-[1.6rem] border border-[var(--line)] bg-white/74">
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>IP / Label</TableHead>
-                            <TableHead>Owner / Notes</TableHead>
+                            <TableHead>Identity</TableHead>
                             <TableHead>Status</TableHead>
-                            <TableHead>Expires</TableHead>
-                            <TableHead>Updated</TableHead>
-                            <TableHead>Actions</TableHead>
+                            <TableHead>Expiry</TableHead>
+                            <TableHead>Owner</TableHead>
+                            <TableHead>Notes</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {entries.length ? entries.map((entry) => (
+                          {entries.map((entry) => (
                             <TableRow key={entry.id}>
                               <TableCell>
                                 <div className="space-y-1">
-                                  <div className="font-semibold tracking-[-0.02em]">{entry.ip}</div>
-                                  <div className="text-xs text-[var(--muted)]">{entry.label || "Tanpa label"}</div>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="space-y-1">
-                                  <div>{entry.owner || "-"}</div>
-                                  <div className="line-clamp-2 text-xs leading-5 text-[var(--muted)]">{entry.notes || "-"}</div>
+                                  <div className="font-mono text-sm font-semibold">{entry.ip}</div>
+                                  <div className="text-sm text-[var(--muted)]">{entry.label || "Tanpa label"}</div>
                                 </div>
                               </TableCell>
                               <TableCell><Badge variant={statusTone(entry.effective_status)}>{statusLabel(entry.effective_status)}</Badge></TableCell>
                               <TableCell>{formatDate(entry.expires_at)}</TableCell>
-                              <TableCell>{formatDate(entry.updated_at)}</TableCell>
+                              <TableCell>{entry.owner || "-"}</TableCell>
+                              <TableCell className="max-w-[240px] text-sm text-[var(--muted)]">{entry.notes || "-"}</TableCell>
                               <TableCell>
-                                <div className="flex flex-wrap gap-2">
-                                  <Button size="sm" variant="ghost" onClick={() => openEntryDetail(entry)}>Detail</Button>
-                                  <Button size="sm" variant="secondary" onClick={() => {
-                                    setEditFormState({
-                                      id: entry.id,
-                                      ip: entry.ip || "",
-                                      label: entry.label || "",
-                                      owner: entry.owner || "",
-                                      notes: entry.notes || "",
-                                      expires_at: formatForDateTimeLocal(entry.expires_at || ""),
-                                    });
-                                    setEditDialogOpen(true);
-                                  }}>Edit</Button>
-                                  {entry.effective_status === "revoked" ? (
-                                    <Button size="sm" variant="outline" onClick={() => toggleEntry(entry, "reactivate")}>Reactivate</Button>
-                                  ) : (
-                                    <Button size="sm" variant="outline" onClick={() => toggleEntry(entry, "revoke")}>Revoke</Button>
-                                  )}
-                                  <Button size="sm" variant="destructive" onClick={() => deleteEntry(entry)}>Delete</Button>
+                                <div className="flex justify-end gap-2">
+                                  <Button size="sm" variant="ghost" onClick={() => openEntryDetail(entry)}><Eye className="size-4" />Detail</Button>
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => {
+                                      setEditFormState({
+                                        id: entry.id,
+                                        ip: entry.ip || "",
+                                        label: entry.label || "",
+                                        owner: entry.owner || "",
+                                        notes: entry.notes || "",
+                                        expires_at: formatForDateTimeLocal(entry.expires_at),
+                                      });
+                                      setEditDialogOpen(true);
+                                    }}
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button size="sm" variant="outline" onClick={() => toggleEntry(entry, entry.effective_status === "revoked" ? "reactivate" : "revoke")}>
+                                    {entry.effective_status === "revoked" ? "Reactivate" : "Revoke"}
+                                  </Button>
+                                  <Button size="sm" variant="destructive" onClick={() => deleteEntry(entry)}><Trash2 className="size-4" /></Button>
                                 </div>
                               </TableCell>
                             </TableRow>
-                          )) : (
-                            <TableRow>
-                              <TableCell colSpan={6}><LoadingState message="Belum ada entry IP." copy="Coba ubah filter atau buat entry baru." /></TableCell>
-                            </TableRow>
-                          )}
+                          ))}
                         </TableBody>
                       </Table>
                     </div>
-                    </>
-                  )}
+                  </div>
+
+                  <div className="grid gap-3 xl:hidden">
+                    {entries.map((entry) => (
+                      <EntryCard
+                        key={entry.id}
+                        entry={entry}
+                        onInspect={() => openEntryDetail(entry)}
+                        onEdit={() => {
+                          setEditFormState({
+                            id: entry.id,
+                            ip: entry.ip || "",
+                            label: entry.label || "",
+                            owner: entry.owner || "",
+                            notes: entry.notes || "",
+                            expires_at: formatForDateTimeLocal(entry.expires_at),
+                          });
+                          setEditDialogOpen(true);
+                        }}
+                        onToggle={() => toggleEntry(entry, entry.effective_status === "revoked" ? "reactivate" : "revoke")}
+                        onDelete={() => deleteEntry(entry)}
+                      />
+                    ))}
+                  </div>
+
+                  {!entriesLoading && !entries.length ? (
+                    <EmptyState title="Tidak ada entry yang cocok" body="Ubah filter atau tambahkan entry baru dari panel composer." />
+                  ) : null}
                 </CardContent>
               </Card>
 
-              <Card className="bg-[var(--panel-strong)]">
+              <Card>
                 <CardHeader>
-                  <Badge variant="accent">Buat Entry</Badge>
-                  <CardTitle className="mt-3">Create Operator Entry</CardTitle>
-                  <CardDescription className="mt-2">Panel input ini diposisikan seperti composer: identity, expiry, dan operator note dalam satu alur.</CardDescription>
+                  <Badge variant="emerald">Composer</Badge>
+                  <CardTitle className="mt-3">Buat entry baru</CardTitle>
+                  <CardDescription className="mt-2">Panel ini dipakai untuk input manual saat perlu override jalur publik atau menambahkan lisensi secara langsung.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <EntryFormSummary formState={formState} mode="create" />
+                <CardContent className="space-y-5">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <DataCell label="Mode" value="Create Entry" />
+                    <DataCell label="Expiry" value={formState.expires_at ? formatDate(formState.expires_at) : "Default backend"} />
+                    <DataCell label="Target IP" value={formState.ip?.trim() || "Belum diisi"} mono={Boolean(formState.ip?.trim())} />
+                    <DataCell label="Identity" value={buildFormIdentity(formState)} />
+                  </div>
                   <form className="space-y-4" onSubmit={handleCreateEntry}>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <Field label="IPv4 VPS" hint="Wajib. Gunakan IP publik final yang akan dicek oleh autoscript client.">
-                        <Input value={formState.ip} onChange={(event) => setFormState((state) => ({ ...state, ip: event.target.value }))} placeholder="123.45.67.89" required />
-                      </Field>
-                      <Field label="Expires At" hint="Opsional. Kosongkan jika ingin mengikuti perilaku default backend.">
-                        <Input type="datetime-local" value={formState.expires_at} onChange={(event) => setFormState((state) => ({ ...state, expires_at: event.target.value }))} />
-                      </Field>
-                    </div>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <Field label="Label" hint="Nama singkat server atau cluster.">
-                        <Input value={formState.label} onChange={(event) => setFormState((state) => ({ ...state, label: event.target.value }))} placeholder="Server SG-01" />
-                      </Field>
-                      <Field label="Owner" hint="Nama operator, client, atau penyedia host.">
-                        <Input value={formState.owner} onChange={(event) => setFormState((state) => ({ ...state, owner: event.target.value }))} placeholder="Nama owner" />
-                      </Field>
-                    </div>
-                    <Field label="Notes" hint="Catatan internal. Tidak untuk jalur publik.">
-                      <Textarea value={formState.notes} onChange={(event) => setFormState((state) => ({ ...state, notes: event.target.value }))} placeholder="Keterangan operator" />
+                    <Field label="IP">
+                      <Input value={formState.ip} onChange={(event) => setFormState((current) => ({ ...current, ip: event.target.value }))} placeholder="123.45.67.89" />
                     </Field>
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <Button className="flex-1"><Plus className="size-4" />Buat Entry</Button>
-                      <Button type="button" variant="secondary" onClick={() => setFormState(emptyEntryForm())}>Reset</Button>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <Field label="Label">
+                        <Input value={formState.label} onChange={(event) => setFormState((current) => ({ ...current, label: event.target.value }))} placeholder="Production VPS" />
+                      </Field>
+                      <Field label="Owner">
+                        <Input value={formState.owner} onChange={(event) => setFormState((current) => ({ ...current, owner: event.target.value }))} placeholder="Ops Team" />
+                      </Field>
                     </div>
+                    <Field label="Expires At">
+                      <Input type="datetime-local" value={formState.expires_at} onChange={(event) => setFormState((current) => ({ ...current, expires_at: event.target.value }))} />
+                    </Field>
+                    <Field label="Notes">
+                      <Textarea value={formState.notes} onChange={(event) => setFormState((current) => ({ ...current, notes: event.target.value }))} placeholder="Catatan internal admin..." />
+                    </Field>
+                    <Button type="submit"><Plus className="size-4" />Create Entry</Button>
                   </form>
                 </CardContent>
               </Card>
-            </div>
+            </section>
           ) : null}
 
           {activeView === "audit" ? (
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                  <div>
-                    <Badge variant="accent">Audit</Badge>
-                    <CardTitle className="mt-3">Audit Ledger</CardTitle>
-                    <CardDescription className="mt-2">Log disusun sebagai ledger operasional: waktu, event, actor, dan payload singkat yang masih bisa dipindai cepat.</CardDescription>
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <Input value={auditIp} onChange={(event) => setAuditIp(event.target.value)} placeholder="Filter IP audit" />
-                    <Input value={auditEvent} onChange={(event) => setAuditEvent(event.target.value)} placeholder="Filter event" />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="mb-4 grid gap-3 sm:grid-cols-3">
-                  <StatBox label="Rows" value={auditLogs.length} />
-                  <StatBox label="IP Filter" value={auditIp.trim() || "All"} mono={Boolean(auditIp.trim())} />
-                  <StatBox label="Event Filter" value={auditEvent.trim() || "All"} mono={Boolean(auditEvent.trim())} />
-                </div>
-                {auditLoading ? (
-                  <LoadingState message="Memuat audit log..." />
-                ) : (
-                  <>
-                  <div className="space-y-3 md:hidden">
-                    {auditLogs.length ? auditLogs.map((log) => (
-                      <AuditMobileCard key={log.id} log={log} />
-                    )) : (
-                      <LoadingState message="Belum ada audit log." copy="Activity akan muncul setelah ada check atau perubahan." />
-                    )}
-                  </div>
-                  <div className="hidden overflow-x-auto rounded-[1.5rem] border border-[var(--line)] bg-[rgba(255,255,255,0.03)] p-2 md:block">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>When</TableHead>
-                          <TableHead>Event</TableHead>
-                          <TableHead>IP</TableHead>
-                          <TableHead>Stage</TableHead>
-                          <TableHead>Actor</TableHead>
-                          <TableHead>Payload</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {auditLogs.length ? auditLogs.map((log) => (
-                          <TableRow key={log.id}>
-                            <TableCell>{formatDate(log.created_at)}</TableCell>
-                            <TableCell><Badge variant={statusTone(log.decision)}>{log.event_type || "-"}</Badge></TableCell>
-                            <TableCell className="font-mono text-xs">{log.ip || "-"}</TableCell>
-                            <TableCell>{log.stage || "-"}</TableCell>
-                            <TableCell>{log.actor_email || "worker"}</TableCell>
-                            <TableCell className="max-w-md text-xs leading-5 text-[var(--muted)]">{JSON.stringify(log.payload_json || {})}</TableCell>
-                          </TableRow>
-                        )) : (
-                          <TableRow>
-                            <TableCell colSpan={6}><LoadingState message="Belum ada audit log." copy="Activity akan muncul setelah ada check atau perubahan." /></TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          ) : null}
-
-          {activeView === "settings" ? (
-            <div className="grid gap-5 xl:grid-cols-[0.75fr,1.25fr]">
+            <section className="grid gap-5 xl:grid-cols-[340px,1fr]">
               <Card>
                 <CardHeader>
-                  <Badge variant="accent">Admin</Badge>
-                  <CardTitle className="mt-3">Control Actions</CardTitle>
-                  <CardDescription className="mt-2">Aksi berisiko ditempatkan di sini: refresh backup, buat snapshot, dan import restore source baru.</CardDescription>
+                  <Badge variant="accent">Ledger Filter</Badge>
+                  <CardTitle className="mt-3">Saring event</CardTitle>
+                  <CardDescription className="mt-2">Gunakan filter tipis untuk memperkecil noise dan menemukan thread kejadian dengan cepat.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid gap-3">
-                    <StatBox label="Admin" value={session?.admin_email || "-"} />
+                  <Field label="IP Filter">
+                    <Input value={auditIp} onChange={(event) => setAuditIp(event.target.value)} placeholder="123.45.67.89" />
+                  </Field>
+                  <Field label="Event Filter">
+                    <Input value={auditEvent} onChange={(event) => setAuditEvent(event.target.value)} placeholder="license_check, public_activate..." />
+                  </Field>
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
+                    <DataCell label="Visible Events" value={auditLogs.length} />
+                    <DataCell label="Window" value="Last 120 rows" />
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Button variant="secondary" onClick={refreshBackups}><RefreshCw className="size-4" />Refresh Backups</Button>
-                    <Button onClick={createBackup}><ShieldCheck className="size-4" />Create Backup</Button>
-                  </div>
-                  <div>
-                    <input id="import-backup-input" type="file" accept="application/json,.json" hidden onChange={handleImportBackupFile} />
-                    <Button variant="outline" onClick={() => document.getElementById("import-backup-input")?.click()}>Import Backup</Button>
-                  </div>
+                  <Button variant="secondary" onClick={refreshAuditLogs}><Filter className="size-4" />Refresh Ledger</Button>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader>
-                  <div className="flex flex-col gap-4">
-                    <div>
-                      <Badge variant="accent">Recovery</Badge>
-                      <CardTitle className="mt-3">Recovery Studio</CardTitle>
-                      <CardDescription className="mt-2">Mode restore v1 mengganti hanya `license_entries`. Gunakan Validate lebih dulu.</CardDescription>
-                    </div>
-                    <div className="grid gap-3 md:grid-cols-[1fr,180px,180px]">
-                      <div className="relative">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--muted)]" />
-                        <Input className="pl-9" value={backupSearch} onChange={(event) => setBackupSearch(event.target.value)} placeholder="Cari backup berdasarkan waktu, actor, atau key" />
-                      </div>
-                      <Select value={backupSourceFilter} onValueChange={setBackupSourceFilter}>
-                        <SelectTrigger><SelectValue placeholder="Semua Sumber" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Semua Sumber</SelectItem>
-                          <SelectItem value="r2">Manual</SelectItem>
-                          <SelectItem value="scheduled">Scheduled</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Select value={backupSort} onValueChange={setBackupSort}>
-                        <SelectTrigger><SelectValue placeholder="Newest First" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="created_desc">Newest First</SelectItem>
-                          <SelectItem value="created_asc">Oldest First</SelectItem>
-                          <SelectItem value="rows_desc">Largest Entries</SelectItem>
-                          <SelectItem value="size_desc">Largest Size</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
+                  <Badge variant="slate">Event Ledger</Badge>
+                  <CardTitle className="mt-3">Jejak event terbaru</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  {!backupsLoading && filteredBackups.length ? (
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <StatBox label="Visible" value={filteredBackups.length} />
-                      <StatBox label="Latest Source" value={humanizeBackupSource(filteredBackups[0]?.source)} />
-                      <StatBox label="Latest Size" value={formatBytes(filteredBackups[0]?.size || 0)} />
-                    </div>
-                  ) : null}
-                  {backupsLoading ? (
-                    <LoadingState message="Memuat snapshot backup..." />
-                  ) : filteredBackups.length ? (
-                    <div className="space-y-3">
-                      {filteredBackups.map((backup) => (
-                        <div key={backup.key} className="rounded-[1.5rem] border border-[var(--line)] bg-white/75 p-4">
-                          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                            <div className="space-y-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Badge variant={backup.source === "scheduled" ? "amber" : "emerald"}>{humanizeBackupSource(backup.source)}</Badge>
-                                <span className="text-sm text-[var(--muted)]">{formatDate(backup.created_at)}</span>
-                              </div>
-                              <div className="font-medium">{backup.created_by || "-"}</div>
-                              <div className="break-all font-mono text-xs text-[var(--muted)]">{backup.key}</div>
-                              <div className="flex flex-wrap gap-3 text-sm text-[var(--muted)]">
-                                <span>{formatBackupRows(backup.row_counts)}</span>
-                                <span>{formatBytes(backup.size || 0)}</span>
-                                <span>{shortChecksum(backup.checksum_sha256)}</span>
-                              </div>
-                            </div>
-                            <div className="flex flex-wrap gap-2 lg:max-w-[360px] lg:justify-end">
-                              <Button size="sm" variant="secondary" onClick={() => loadBackupPreview(backup.key)}><Eye className="size-4" />Preview</Button>
-                              <Button size="sm" variant="ghost" onClick={() => openBackupPreviewDialog(backup.key)}>Detail</Button>
-                              <Button size="sm" variant="secondary" onClick={() => validateBackupRestore(backup.key)}>Validate</Button>
-                              <Button size="sm" variant="outline" onClick={() => downloadBackupManifest(backup.key)}><FileJson className="size-4" />Manifest</Button>
-                              <Button size="sm" variant="outline" onClick={() => downloadBackup(backup.key)}><Download className="size-4" />Download</Button>
-                              <Button size="sm" onClick={() => restoreBackup(backup.key)}>Restore</Button>
-                              <Button size="sm" variant="destructive" onClick={() => deleteBackup(backup.key)}><Trash2 className="size-4" />Delete</Button>
-                            </div>
-                          </div>
-                        </div>
+                <CardContent>
+                  {auditLoading ? (
+                    <EmptyState title="Memuat event ledger" body="Sedang mengambil audit log terbaru dari worker." />
+                  ) : auditLogs.length ? (
+                    <div className="grid gap-3">
+                      {auditLogs.map((log) => (
+                        <AuditRow key={log.id || `${log.created_at}-${log.event_type}-${log.ip || "x"}`} log={log} />
                       ))}
                     </div>
                   ) : (
-                    <LoadingState message="Belum ada snapshot backup." copy="Buat backup pertama dari panel admin." />
+                    <EmptyState title="Belum ada event" body="Filter saat ini tidak mengembalikan event apa pun." />
                   )}
-
-                  <Card className="border-[var(--line-strong)] bg-[var(--panel-strong)] shadow-none">
-                    <CardHeader>
-                      <CardTitle>Backup Preview</CardTitle>
-                      <CardDescription>{backupPreview ? `${formatDate(backupPreview.created_at)} • ${backupPreview.created_by || "-"} • ${formatBackupRows(backupPreview.row_counts)} • ${formatBytes(backupPreview.size || 0)}` : "Pilih preview snapshot untuk melihat ringkasan isi sebelum restore."}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {backupPreview ? (
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <StatBox label="Key" value={backupPreview.key} mono />
-                          <StatBox label="Checksum" value={backupPreview.checksum_sha256 || "-"} mono />
-                          <div className="md:col-span-2 rounded-2xl border border-[var(--line)] bg-white/70 p-4">
-                            <div className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">License Sample</div>
-                            <div className="mt-3 space-y-2 text-sm">
-                              {(backupPreview.preview?.license_entries || []).length ? (
-                                backupPreview.preview.license_entries.map((item) => (
-                                  <div key={`${item.id}-${item.ip}`} className="rounded-xl border border-[var(--line)] px-3 py-2">
-                                    <div className="font-medium">{item.ip || "-"}</div>
-                                    <div className="text-xs text-[var(--muted)]">
-                                      {item.label || "-"} • {item.status || "-"} • {formatDate(item.expires_at)}
-                                    </div>
-                                  </div>
-                                ))
-                              ) : (
-                                <div className="text-[var(--muted)]">Tidak ada sample.</div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="md:col-span-2">
-                            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setBackupPreviewOpen(true)}>Open Full Preview</Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <LoadingState message="Belum ada preview snapshot yang dipilih." />
-                      )}
-                    </CardContent>
-                  </Card>
                 </CardContent>
               </Card>
-            </div>
+            </section>
+          ) : null}
+
+          {activeView === "settings" ? (
+            <section className="grid gap-5 xl:grid-cols-[360px,1fr]">
+              <Card>
+                <CardHeader>
+                  <Badge variant="amber">Recovery Controls</Badge>
+                  <CardTitle className="mt-3">Backup operations</CardTitle>
+                  <CardDescription className="mt-2">Buat snapshot, import backup file, lalu validasi restore sebelum menyentuh data produksi.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
+                    <DataCell label="Snapshots" value={backups.length} />
+                    <DataCell label="Visible" value={filteredBackups.length} />
+                  </div>
+                  <Button onClick={createBackup}><Plus className="size-4" />Create Snapshot</Button>
+                  <label className="block">
+                    <input className="hidden" type="file" accept="application/json" onChange={handleImportBackupFile} />
+                    <span className="inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-full border border-[var(--line-strong)] bg-[var(--panel-strong)] px-5 text-sm font-semibold text-[var(--fg)] transition hover:bg-[var(--panel)]">
+                      <HardDriveUpload className="size-4" />
+                      Import Backup File
+                    </span>
+                  </label>
+                  <Field label="Search Snapshot">
+                    <Input value={backupSearch} onChange={(event) => setBackupSearch(event.target.value)} placeholder="Cari key, checksum, actor..." />
+                  </Field>
+                  <Field label="Source">
+                    <Select value={backupSourceFilter} onValueChange={setBackupSourceFilter}>
+                      <SelectTrigger><SelectValue placeholder="Semua source" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Semua source</SelectItem>
+                        <SelectItem value="r2">Manual</SelectItem>
+                        <SelectItem value="scheduled">Scheduled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label="Sort">
+                    <Select value={backupSort} onValueChange={setBackupSort}>
+                      <SelectTrigger><SelectValue placeholder="Sort backup" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="created_desc">Newest first</SelectItem>
+                        <SelectItem value="created_asc">Oldest first</SelectItem>
+                        <SelectItem value="rows_desc">Largest row count</SelectItem>
+                        <SelectItem value="size_desc">Largest file size</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <Badge variant="slate">Snapshot Deck</Badge>
+                  <CardTitle className="mt-3">Backup inventory</CardTitle>
+                  <CardDescription className="mt-2">Setiap row mendukung preview, dry-run restore, download, restore penuh, dan delete.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {backupsLoading ? (
+                    <EmptyState title="Memuat snapshot" body="Sedang mengambil daftar backup dari worker." />
+                  ) : filteredBackups.length ? (
+                    <div className="grid gap-3">
+                      {filteredBackups.map((backup) => (
+                        <BackupCard
+                          key={backup.key}
+                          backup={backup}
+                          onPreview={() => openBackupPreviewDialog(backup.key)}
+                          onValidate={() => validateBackupRestore(backup.key)}
+                          onDownload={() => downloadBackup(backup.key)}
+                          onManifest={() => downloadBackupManifest(backup.key)}
+                          onRestore={() => restoreBackup(backup.key)}
+                          onDelete={() => deleteBackup(backup.key)}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <EmptyState title="Tidak ada snapshot yang cocok" body="Ubah filter pencarian atau buat snapshot baru." />
+                  )}
+                </CardContent>
+              </Card>
+            </section>
           ) : null}
         </main>
       </div>
@@ -1117,33 +1158,30 @@ function AdminApp() {
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Entry</DialogTitle>
-            <DialogDescription>Perbarui IP, masa aktif, dan catatan tanpa mengubah alur backend.</DialogDescription>
+            <DialogTitle>Edit entry</DialogTitle>
+            <DialogDescription>Perubahan ini akan dikirim ke worker admin API dan dicatat dalam audit log.</DialogDescription>
           </DialogHeader>
-          <EntryFormSummary formState={editFormState} mode="edit" />
           <form className="space-y-4" onSubmit={handleUpdateEntry}>
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="IPv4 VPS" hint="Perubahan IP akan langsung memengaruhi entry yang sedang dipilih.">
-                <Input value={editFormState.ip} onChange={(event) => setEditFormState((state) => ({ ...state, ip: event.target.value }))} required />
-              </Field>
-              <Field label="Expires At" hint="Gunakan tanggal lokal operator untuk update cepat.">
-                <Input type="datetime-local" value={editFormState.expires_at} onChange={(event) => setEditFormState((state) => ({ ...state, expires_at: event.target.value }))} />
-              </Field>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Label" hint="Nama singkat entri untuk lookup cepat.">
-                <Input value={editFormState.label} onChange={(event) => setEditFormState((state) => ({ ...state, label: event.target.value }))} />
-              </Field>
-              <Field label="Owner" hint="Gunakan agar handoff operator lebih jelas.">
-                <Input value={editFormState.owner} onChange={(event) => setEditFormState((state) => ({ ...state, owner: event.target.value }))} />
-              </Field>
-            </div>
-            <Field label="Notes" hint="Catatan internal terbaru akan menggantikan isi lama.">
-              <Textarea value={editFormState.notes} onChange={(event) => setEditFormState((state) => ({ ...state, notes: event.target.value }))} />
+            <Field label="IP">
+              <Input value={editFormState.ip} onChange={(event) => setEditFormState((current) => ({ ...current, ip: event.target.value }))} />
             </Field>
-            <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-              <Button type="button" variant="secondary" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-              <Button>Update Entry</Button>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Label">
+                <Input value={editFormState.label} onChange={(event) => setEditFormState((current) => ({ ...current, label: event.target.value }))} />
+              </Field>
+              <Field label="Owner">
+                <Input value={editFormState.owner} onChange={(event) => setEditFormState((current) => ({ ...current, owner: event.target.value }))} />
+              </Field>
+            </div>
+            <Field label="Expires At">
+              <Input type="datetime-local" value={editFormState.expires_at} onChange={(event) => setEditFormState((current) => ({ ...current, expires_at: event.target.value }))} />
+            </Field>
+            <Field label="Notes">
+              <Textarea value={editFormState.notes} onChange={(event) => setEditFormState((current) => ({ ...current, notes: event.target.value }))} />
+            </Field>
+            <div className="flex gap-3">
+              <Button type="submit">Save Changes</Button>
+              <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
             </div>
           </form>
         </DialogContent>
@@ -1152,248 +1190,122 @@ function AdminApp() {
       <Dialog open={entryDetailOpen} onOpenChange={setEntryDetailOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Entry Detail</DialogTitle>
-            <DialogDescription>Inspeksi lengkap entry tanpa membuka mode edit.</DialogDescription>
+            <DialogTitle>Entry detail</DialogTitle>
+            <DialogDescription>Ringkasan lengkap metadata entry yang sedang dipilih.</DialogDescription>
           </DialogHeader>
           {entryDetail ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              <StatBox label="IP" value={entryDetail.ip || "-"} mono />
-              <StatBox label="Status" value={statusLabel(entryDetail.effective_status)} />
-              <StatBox label="Label" value={entryDetail.label || "-"} />
-              <StatBox label="Owner" value={entryDetail.owner || "-"} />
-              <StatBox label="Expires" value={formatDate(entryDetail.expires_at)} />
-              <StatBox label="Updated" value={formatDate(entryDetail.updated_at)} />
-              <div className="md:col-span-2 rounded-2xl border border-[var(--line)] bg-white/70 p-4">
-                <div className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">Notes</div>
-                <div className="mt-2 text-sm leading-6 text-[var(--fg)]">{entryDetail.notes || "Tidak ada catatan operator."}</div>
-              </div>
-              <div className="md:col-span-2 flex flex-col gap-3 sm:flex-row sm:justify-end">
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setEditFormState({
-                      id: entryDetail.id,
-                      ip: entryDetail.ip || "",
-                      label: entryDetail.label || "",
-                      owner: entryDetail.owner || "",
-                      notes: entryDetail.notes || "",
-                      expires_at: formatForDateTimeLocal(entryDetail.expires_at || ""),
-                    });
-                    setEntryDetailOpen(false);
-                    setEditDialogOpen(true);
-                  }}
-                >
-                  Edit Entry
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setEntryDetailOpen(false)}>Close</Button>
+            <div className="grid gap-3 md:grid-cols-2">
+              <DataCell label="IP" value={entryDetail.ip} mono />
+              <DataCell label="Status" value={statusLabel(entryDetail.effective_status)} />
+              <DataCell label="Label" value={entryDetail.label || "-"} />
+              <DataCell label="Owner" value={entryDetail.owner || "-"} />
+              <DataCell label="Created At" value={formatDate(entryDetail.created_at)} />
+              <DataCell label="Updated At" value={formatDate(entryDetail.updated_at)} />
+              <DataCell label="Expires At" value={formatDate(entryDetail.expires_at)} />
+              <DataCell label="Entry ID" value={entryDetail.id} mono />
+              <div className="md:col-span-2">
+                <DataCell label="Notes" value={entryDetail.notes || "-"} />
               </div>
             </div>
-          ) : (
-            <LoadingState message="Belum ada entry yang dipilih." />
-          )}
+          ) : null}
         </DialogContent>
       </Dialog>
 
       <Dialog open={backupPreviewOpen} onOpenChange={setBackupPreviewOpen}>
-        <DialogContent className="max-h-[88vh] overflow-y-auto">
+        <DialogContent className="w-[min(94vw,900px)]">
           <DialogHeader>
-            <DialogTitle>Backup Preview</DialogTitle>
-            <DialogDescription>Metadata dan sample snapshot untuk validasi cepat sebelum restore.</DialogDescription>
+            <DialogTitle>Snapshot preview</DialogTitle>
+            <DialogDescription>Metadata, row count, dan sample isi backup sebelum restore dijalankan.</DialogDescription>
           </DialogHeader>
           {backupPreview ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              <StatBox label="Key" value={backupPreview.key} mono />
-              <StatBox label="Checksum" value={backupPreview.checksum_sha256 || "-"} mono />
-              <StatBox label="Created" value={formatDate(backupPreview.created_at)} />
-              <StatBox label="Actor" value={backupPreview.created_by || "-"} />
-              <StatBox label="Source" value={humanizeBackupSource(backupPreview.source)} />
-              <StatBox label="Rows" value={formatBackupRows(backupPreview.row_counts)} />
-              <StatBox label="Size" value={formatBytes(backupPreview.size || 0)} />
-              <StatBox label="Latest Status Sample" value={backupPreview.preview?.license_entries?.[0]?.status || "-"} />
-              <div className="md:col-span-2 rounded-2xl border border-[var(--line)] bg-white/70 p-4">
-                <div className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">License Sample</div>
-                <div className="mt-3 space-y-2 text-sm">
-                  {(backupPreview.preview?.license_entries || []).length ? (
-                    backupPreview.preview.license_entries.map((item) => (
-                      <div key={`${item.id}-${item.ip}`} className="rounded-xl border border-[var(--line)] px-3 py-2">
-                        <div className="font-medium">{item.ip || "-"}</div>
-                        <div className="text-xs text-[var(--muted)]">
-                          {item.label || "-"} • {item.status || "-"} • {formatDate(item.expires_at)}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-[var(--muted)]">Tidak ada sample.</div>
-                  )}
-                </div>
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <DataCell label="Key" value={backupPreview.key} mono />
+                <DataCell label="Created" value={formatDate(backupPreview.created_at)} />
+                <DataCell label="Actor" value={backupPreview.created_by || "-"} />
+                <DataCell label="Source" value={humanizeBackupSource(backupPreview.source)} />
+                <DataCell label="Size" value={formatBytes(backupPreview.size || 0)} />
+                <DataCell label="Checksum" value={backupPreview.checksum_sha256 || "-"} mono />
+              </div>
+              <div className="rounded-[1.45rem] border border-[var(--line)] bg-white/74 p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">Row Counts</div>
+                <div className="mt-2 text-sm">{formatBackupRows(backupPreview.row_counts)}</div>
+              </div>
+              <div className="rounded-[1.45rem] border border-[var(--line)] bg-white/74 p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">Sample Payload</div>
+                <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words rounded-[1.2rem] bg-black/[0.04] p-4 text-xs leading-6 text-[var(--muted)]">
+                  {formatPayloadSummary(backupPreview.sample_payload || {})}
+                </pre>
               </div>
             </div>
-          ) : (
-            <LoadingState message="Belum ada preview snapshot yang dipilih." />
-          )}
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>
   );
 }
 
-function SidebarButton({ icon: Icon, active, children, ...props }) {
+function SidebarSignal({ label, value }) {
   return (
-    <button className={`flex min-w-max items-center gap-3 rounded-[1.3rem] border px-4 py-3 text-left text-sm transition xl:min-w-0 ${active ? "border-white/14 bg-[linear-gradient(135deg,rgba(91,183,255,0.2),rgba(123,104,255,0.22))] text-white shadow-[0_16px_34px_rgba(0,0,0,0.24)]" : "border-transparent text-white/72 hover:border-white/10 hover:bg-white/6 hover:text-white"}`} {...props}>
-      <Icon className="size-4" />
-      <span>{children}</span>
-    </button>
+    <div className="rounded-[1.35rem] border border-white/10 bg-white/[0.04] px-4 py-3">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/42">{label}</div>
+      <div className="mt-2 text-sm font-medium text-white">{value}</div>
+    </div>
   );
 }
 
-function MetricCard({ title, value, tone, meta }) {
+function MetricTile({ label, value, note, icon: Icon }) {
   return (
-    <Card className="bg-[var(--panel-strong)]">
-      <CardContent className="p-5">
-        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{title}</div>
-        <div className="mt-3 flex items-end justify-between gap-4">
-          <div className="text-4xl font-semibold tracking-[-0.04em]">{value}</div>
-          <Badge variant={tone}>{title}</Badge>
-        </div>
-        <div className="mt-3 text-sm text-[var(--muted)]">{meta || "Operational snapshot"}</div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function QuickSignal({ icon: Icon, label, value, meta }) {
-  return (
-    <div className="rounded-[1.45rem] border border-[var(--line)] bg-[rgba(255,255,255,0.04)] p-4 xl:bg-white/[0.03]">
+    <div className="rounded-[1.45rem] border border-[var(--line)] bg-white/74 p-4">
       <div className="flex items-center justify-between gap-3">
-        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
+        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
         <Icon className="size-4 text-[var(--accent)]" />
       </div>
-      <div className="mt-3 text-2xl font-semibold leading-none tracking-[-0.04em]">{value}</div>
-      <div className="mt-2 text-sm text-[var(--muted)]">{meta}</div>
+      <div className="mt-3 text-2xl font-semibold tracking-[-0.04em]">{value}</div>
+      <div className="mt-2 text-sm text-[var(--muted)]">{note}</div>
     </div>
   );
 }
 
-function MiniToneCard({ label, value, meta, tone = "slate" }) {
-  const borderTone = tone === "emerald"
-    ? "border-emerald-300/60"
-    : tone === "amber"
-      ? "border-amber-300/60"
-      : tone === "accent"
-        ? "border-[var(--accent)]/35"
-        : "border-[var(--line)]";
+function KpiCard({ title, value, detail, tone }) {
+  const toneClass =
+    tone === "emerald"
+      ? "border-emerald-400/18 bg-emerald-500/[0.07]"
+      : tone === "amber"
+        ? "border-amber-400/18 bg-amber-500/[0.08]"
+        : tone === "rose"
+          ? "border-rose-400/18 bg-rose-500/[0.07]"
+          : "border-[var(--line)] bg-white/72";
   return (
-    <div className={`rounded-[1.4rem] border bg-white/72 p-4 ${borderTone}`}>
-      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
-      <div className="mt-3 text-2xl font-semibold leading-none tracking-[-0.04em]">{value}</div>
-      <div className="mt-2 text-sm text-[var(--muted)]">{meta}</div>
+    <div className={`rounded-[1.55rem] border p-5 ${toneClass}`}>
+      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{title}</div>
+      <div className="mt-3 text-3xl font-semibold tracking-[-0.05em]">{value}</div>
+      <div className="mt-2 text-sm leading-6 text-[var(--muted)]">{detail}</div>
     </div>
   );
 }
 
-function OperationalHealthCard({ latestChecks, latestMutations, summary, metricsWindowDays }) {
-  const allow = Number(latestChecks.allow || 0);
-  const deny = Number(latestChecks.deny || 0);
-  const totalChecks = allow + deny;
-  const adminMutations = Number(latestMutations.admin_mutations || 0);
-  const publicActivations = Number(latestMutations.public_activations || 0);
-  const publicRenewals = Number(latestMutations.public_renewals || 0);
-  const publicEntries = Number(summary.public_entries || 0);
-  const manualEntries = Number(summary.admin_entries || 0);
+function TrendPanel({ title, caption, loading, points, series }) {
   return (
     <Card>
       <CardHeader>
-        <Badge variant="accent">Health</Badge>
-        <CardTitle className="mt-3">Health</CardTitle>
-        <CardDescription className="mt-2">Ringkasan kualitas traffic publik dan intensitas perubahan pada window {metricsWindowDays} hari.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <MiniToneCard
-            label="Allow Ratio"
-            value={totalChecks ? `${Math.round((allow / totalChecks) * 100)}%` : "0%"}
-            meta={`${allow} allow / ${deny} deny`}
-            tone="emerald"
-          />
-          <MiniToneCard
-            label="Mutation Mix"
-            value={adminMutations + publicActivations + publicRenewals}
-            meta={`${adminMutations} admin • ${publicActivations} create • ${publicRenewals} renew`}
-            tone="amber"
-          />
-          <MiniToneCard
-            label="Public Surface"
-            value={publicEntries}
-            meta="Entry dari jalur publik"
-            tone="slate"
-          />
-          <MiniToneCard
-            label="Manual Surface"
-            value={manualEntries}
-            meta="Entry/operator manual"
-            tone="accent"
-          />
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function RecentRecoveryCard({ backups, onOpenSettings }) {
-  const recent = backups.slice(0, 3);
-  return (
-    <Card className="bg-[var(--panel-strong)]">
-      <CardHeader>
-        <Badge variant="accent">Recovery</Badge>
-        <CardTitle className="mt-3">Recent Backup Activity</CardTitle>
-        <CardDescription className="mt-2">Snapshot terbaru yang paling relevan untuk restore cepat atau audit operator.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {recent.length ? recent.map((backup) => (
-          <div key={backup.key} className="rounded-2xl border border-[var(--line)] bg-white/75 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <Badge variant={backup.source === "scheduled" ? "amber" : "emerald"}>{humanizeBackupSource(backup.source)}</Badge>
-              <div className="text-xs text-[var(--muted)]">{formatRelativeTime(backup.created_at)}</div>
-            </div>
-            <div className="mt-3 font-medium">{backup.created_by || "-"}</div>
-            <div className="mt-1 text-xs text-[var(--muted)]">{backup.key}</div>
-            <div className="mt-3 flex flex-wrap gap-3 text-sm text-[var(--muted)]">
-              <span>{formatBackupRows(backup.row_counts)}</span>
-              <span>{formatBytes(backup.size || 0)}</span>
-            </div>
-          </div>
-        )) : (
-          <LoadingState message="Belum ada snapshot terbaru." copy="Buat backup dari Settings untuk mengisi panel ini." />
-        )}
-        <Button variant="outline" className="w-full" onClick={onOpenSettings}>Buka Backup</Button>
-      </CardContent>
-    </Card>
-  );
-}
-
-function TrendCard({ title, caption, loading, points, series }) {
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <Badge variant="accent">Trend</Badge>
-            <CardTitle className="mt-3">{title}</CardTitle>
-          </div>
-          <Badge variant="slate">{caption}</Badge>
-        </div>
+        <Badge variant="accent">Trend</Badge>
+        <CardTitle className="mt-3">{title}</CardTitle>
+        <CardDescription className="mt-2">{caption}</CardDescription>
       </CardHeader>
       <CardContent>
         {loading ? (
-          <LoadingState message="Memuat trend..." />
+          <EmptyState title="Memuat trend data" body="Sedang mengambil metrics dari worker." />
+        ) : !points.length ? (
+          <EmptyState title="Belum ada data trend" body="Window ini belum punya data historis yang cukup." />
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+          <div className="grid gap-4">
             {series.map((item) => {
               const values = points.map((point) => Number(point[item.key] || 0));
-              const total = values.reduce((sum, value) => sum + value, 0);
               const latest = values.at(-1) || 0;
+              const total = values.reduce((sum, value) => sum + value, 0);
               return (
-                <div key={item.key} className="rounded-[1.4rem] border border-[var(--line)] bg-white/70 p-4">
+                <div key={item.key} className="rounded-[1.4rem] border border-[var(--line)] bg-white/72 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="font-medium">{item.label}</div>
@@ -1401,8 +1313,15 @@ function TrendCard({ title, caption, loading, points, series }) {
                     </div>
                     <Badge variant={item.tone}>{latest} latest</Badge>
                   </div>
-                  <svg className="mt-4 h-14 w-full" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
-                    <path d={buildSparklinePath(values)} fill="none" stroke="currentColor" strokeWidth="1.75" className={item.tone === "emerald" ? "text-emerald-600" : item.tone === "rose" ? "text-rose-600" : item.tone === "amber" ? "text-amber-600" : "text-slate-600"} vectorEffect="non-scaling-stroke" />
+                  <svg className="mt-4 h-16 w-full" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
+                    <path
+                      d={buildSparklinePath(values)}
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.75"
+                      className={item.tone === "emerald" ? "text-emerald-600" : item.tone === "rose" ? "text-rose-600" : item.tone === "amber" ? "text-amber-600" : "text-slate-600"}
+                      vectorEffect="non-scaling-stroke"
+                    />
                   </svg>
                   <div className="mt-2 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
                     {points.slice(-6).map((point) => (
@@ -1419,169 +1338,128 @@ function TrendCard({ title, caption, loading, points, series }) {
   );
 }
 
-function TopEventsCard({ items }) {
+function SplitBar({ left, right }) {
+  const total = Math.max(Number(left || 0) + Number(right || 0), 1);
+  const leftWidth = Math.round((Number(left || 0) / total) * 100);
   return (
-    <Card>
-      <CardHeader>
-        <Badge variant="accent">Activity</Badge>
-        <CardTitle className="mt-3">Top Events</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {items.length ? (
-          <div className="space-y-3">
-            {items.map((item) => {
-              const width = Math.max(8, Math.round((Number(item.count || 0) / Math.max(...items.map((entry) => Number(entry.count || 0)), 1)) * 100));
-              return (
-                <div key={item.event_type} className="space-y-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="font-medium">{item.event_type || "-"}</div>
-                    <div className="text-sm text-[var(--muted)]">{item.count} events</div>
-                  </div>
-                  <div className="h-2 rounded-full bg-black/5">
-                    <div className="h-2 rounded-full bg-[var(--accent)]" style={{ width: `${width}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <LoadingState message="Belum ada event historis." copy="Window ini belum memiliki cukup data." />
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function SourceSplitCard({ summary }) {
-  const publicEntries = Number(summary.public_entries || 0);
-  const adminEntries = Number(summary.admin_entries || 0);
-  const total = Math.max(publicEntries + adminEntries, 1);
-  const publicWidth = Math.round((publicEntries / total) * 100);
-  const adminWidth = 100 - publicWidth;
-  return (
-    <Card>
-      <CardHeader>
-        <Badge variant="accent">Source Split</Badge>
-        <CardTitle className="mt-3">Entry Source</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex h-4 overflow-hidden rounded-full bg-black/5">
-          <div className="bg-emerald-500" style={{ width: `${publicWidth}%` }} />
-          <div className="bg-[var(--accent)]" style={{ width: `${adminWidth}%` }} />
-        </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          <StatBox label="Public Entry" value={publicEntries} />
-          <StatBox label="Manual Entry" value={adminEntries} />
-          <StatBox label="Manual Updates" value={Number(summary.admin_mutations || 0)} />
-          <StatBox label="Audit Rows Window" value={Number(summary.audit_rows_window || 0)} />
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function StatBox({ label, value, mono = false }) {
-  return (
-    <div className="rounded-[1.35rem] border border-[var(--line)] bg-white/70 p-4">
-      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
-      <div className={`mt-2 text-sm ${mono ? "font-mono break-all" : "font-medium"}`}>{String(value ?? "-")}</div>
+    <div className="space-y-3">
+      <div className="flex h-4 overflow-hidden rounded-full bg-black/5">
+        <div className="bg-emerald-500" style={{ width: `${leftWidth}%` }} />
+        <div className="bg-[var(--accent)]" style={{ width: `${100 - leftWidth}%` }} />
+      </div>
+      <div className="flex justify-between text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
+        <span>Public</span>
+        <span>Manual</span>
+      </div>
     </div>
   );
 }
 
-function CompactSidebarStat({ label, value }) {
+function DataCell({ label, value, mono = false }) {
   return (
-    <div className="rounded-[1.3rem] border border-white/10 bg-white/5 px-4 py-3">
-      <div className="text-[11px] uppercase tracking-[0.18em] text-white/42">{label}</div>
-      <div className="mt-2 text-sm font-medium text-white">{value}</div>
+    <div className="rounded-[1.3rem] border border-[var(--line)] bg-white/72 px-4 py-3">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
+      <div className={`mt-2 text-sm ${mono ? "break-all font-mono" : "font-medium"}`}>{String(value ?? "-")}</div>
     </div>
   );
 }
 
-function EntryFormSummary({ formState, mode }) {
-  return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      <StatBox label="Mode" value={mode === "edit" ? "Update Existing Entry" : "Create New Entry"} />
-      <StatBox label="Target IP" value={formState.ip?.trim() || "Belum diisi"} mono={Boolean(formState.ip?.trim())} />
-      <StatBox label="Label / Owner" value={buildFormIdentity(formState)} />
-      <StatBox label="Expiry Preview" value={formState.expires_at ? formatDate(formState.expires_at) : "Default backend behavior"} />
-    </div>
-  );
-}
-
-function Field({ label, hint = "", children }) {
+function Field({ label, children }) {
   return (
     <label className="block space-y-2">
       <div className="text-sm font-medium">{label}</div>
       {children}
-      {hint ? <div className="text-xs leading-5 text-[var(--muted)]">{hint}</div> : null}
     </label>
   );
 }
 
-function LoadingState({ message, copy = "Tunggu sebentar." }) {
+function EmptyState({ title, body }) {
   return (
-    <div className="rounded-[1.5rem] border border-dashed border-[var(--line)] bg-[rgba(255,255,255,0.03)] p-10 text-center text-sm text-[var(--muted)]">
-      <div className="font-medium tracking-[-0.02em] text-[var(--fg)]">{message}</div>
-      <div className="mt-2">{copy}</div>
+    <div className="rounded-[1.55rem] border border-dashed border-[var(--line)] bg-white/40 p-10 text-center">
+      <div className="font-medium tracking-[-0.02em]">{title}</div>
+      <div className="mt-2 text-sm leading-6 text-[var(--muted)]">{body}</div>
     </div>
   );
 }
 
-function EntryMobileCard({ entry, onInspect, onEdit, onToggle, onDelete }) {
-  const toggleLabel = entry.effective_status === "revoked" ? "Reactivate" : "Revoke";
+function EntryCard({ entry, onInspect, onEdit, onToggle, onDelete }) {
   return (
-    <div className="rounded-[1.5rem] border border-[var(--line)] bg-white/75 p-4 shadow-[0_12px_28px_rgba(2,6,20,0.08)]">
+    <div className="rounded-[1.55rem] border border-[var(--line)] bg-white/74 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="font-semibold tracking-[-0.02em]">{entry.ip}</div>
+          <div className="font-mono text-sm font-semibold">{entry.ip}</div>
           <div className="mt-1 text-sm text-[var(--muted)]">{entry.label || "Tanpa label"}</div>
         </div>
         <Badge variant={statusTone(entry.effective_status)}>{statusLabel(entry.effective_status)}</Badge>
       </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <MiniMeta label="Owner" value={entry.owner || "-"} />
-        <MiniMeta label="Expires" value={formatDate(entry.expires_at)} />
-        <MiniMeta label="Updated" value={formatDate(entry.updated_at)} />
-        <MiniMeta label="Notes" value={entry.notes || "-"} />
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <DataCell label="Owner" value={entry.owner || "-"} />
+        <DataCell label="Expires" value={formatDate(entry.expires_at)} />
+        <DataCell label="Updated" value={formatDate(entry.updated_at)} />
+        <DataCell label="Notes" value={entry.notes || "-"} />
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2">
         <Button size="sm" variant="ghost" onClick={onInspect}>Detail</Button>
         <Button size="sm" variant="secondary" onClick={onEdit}>Edit</Button>
-        <Button size="sm" variant="outline" onClick={onToggle}>{toggleLabel}</Button>
-        <Button size="sm" variant="destructive" className="col-span-2" onClick={onDelete}>Delete Entry</Button>
+        <Button size="sm" variant="outline" onClick={onToggle}>{entry.effective_status === "revoked" ? "Reactivate" : "Revoke"}</Button>
+        <Button size="sm" variant="destructive" onClick={onDelete}>Delete</Button>
       </div>
     </div>
   );
 }
 
-function AuditMobileCard({ log }) {
+function AuditRow({ log }) {
   return (
-    <div className="rounded-[1.5rem] border border-[var(--line)] bg-white/75 p-4 shadow-[0_12px_28px_rgba(2,6,20,0.08)]">
-      <div className="flex items-start justify-between gap-3">
-        <div className="text-sm font-medium">{log.event_type || "-"}</div>
-        <Badge variant={statusTone(log.decision)}>{log.stage || "log"}</Badge>
-      </div>
-      <div className="mt-2 text-sm text-[var(--muted)]">{formatDate(log.created_at)}</div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <MiniMeta label="IP" value={log.ip || "-"} mono />
-        <MiniMeta label="Actor" value={log.actor_email || "worker"} />
-      </div>
-      <div className="mt-4 rounded-2xl border border-[var(--line)] bg-white/70 p-3">
-        <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--muted)]">Payload</div>
-        <div className="mt-2 break-all font-mono text-xs leading-5 text-[var(--muted)]">
-          {formatPayloadSummary(log.payload_json)}
+    <div className="rounded-[1.5rem] border border-[var(--line)] bg-white/74 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="font-medium">{log.event_type || "-"}</div>
+          <div className="mt-1 text-sm text-[var(--muted)]">{formatDate(log.created_at)}</div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge variant={statusTone(log.decision)}>{log.decision || "n/a"}</Badge>
+          <Badge variant="slate">{log.stage || "log"}</Badge>
         </div>
       </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <DataCell label="IP" value={log.ip || "-"} mono />
+        <DataCell label="Actor" value={log.actor_email || "worker"} />
+        <DataCell label="Event ID" value={log.id || "-"} mono />
+      </div>
+      <div className="mt-4 rounded-[1.35rem] border border-[var(--line)] bg-white/70 p-4">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">Payload Summary</div>
+        <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words font-mono text-xs leading-6 text-[var(--muted)]">
+          {formatPayloadSummary(log.payload_json)}
+        </pre>
+      </div>
     </div>
   );
 }
 
-function MiniMeta({ label, value, mono = false }) {
+function BackupCard({ backup, onPreview, onValidate, onDownload, onManifest, onRestore, onDelete }) {
   return (
-    <div className="rounded-[1.2rem] border border-[var(--line)] bg-white/70 px-3 py-2">
-      <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
-      <div className={`mt-1 text-sm ${mono ? "break-all font-mono" : "font-medium"}`}>{String(value ?? "-")}</div>
+    <div className="rounded-[1.55rem] border border-[var(--line)] bg-white/74 p-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="space-y-2">
+          <div className="font-medium">{backup.key}</div>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="slate">{humanizeBackupSource(backup.source)}</Badge>
+            <Badge variant="amber">{formatBackupRows(backup.row_counts)}</Badge>
+          </div>
+          <div className="text-sm leading-6 text-[var(--muted)]">
+            {formatDate(backup.created_at)} • {backup.created_by || "-"} • {formatBytes(backup.size || 0)}
+          </div>
+          <div className="break-all font-mono text-xs text-[var(--muted)]">{backup.checksum_sha256 || "Checksum belum dimuat"}</div>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-3 lg:w-[360px]">
+          <Button size="sm" variant="ghost" onClick={onPreview}><Eye className="size-4" />Preview</Button>
+          <Button size="sm" variant="secondary" onClick={onValidate}><ShieldCheck className="size-4" />Validate</Button>
+          <Button size="sm" variant="outline" onClick={onRestore}><RefreshCw className="size-4" />Restore</Button>
+          <Button size="sm" variant="outline" onClick={onDownload}><Download className="size-4" />Backup</Button>
+          <Button size="sm" variant="outline" onClick={onManifest}><FileJson className="size-4" />Manifest</Button>
+          <Button size="sm" variant="destructive" onClick={onDelete}><Trash2 className="size-4" />Delete</Button>
+        </div>
+      </div>
     </div>
   );
 }

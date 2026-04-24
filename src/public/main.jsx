@@ -3,14 +3,14 @@ import { createRoot } from "react-dom/client";
 import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input } from "../shared/ui.jsx";
 import { getPublicConfig } from "../shared/config.js";
 import { formatDate, formatDaysRemaining, statusLabel, statusTone } from "../shared/utils.js";
-import { ArrowRight, Clock3, RotateCcw, ScanSearch, ShieldCheck, Signal, Sparkles } from "lucide-react";
+import { ArrowRight, CheckCircle2, Clock3, Radar, RefreshCw, ScanSearch, ShieldCheck, Sparkles } from "lucide-react";
 
 function PublicApp() {
   const config = useMemo(() => getPublicConfig(), []);
   const turnstileSlotRef = useRef(null);
   const turnstileWidgetIdRef = useRef(null);
-  const [banner, setBanner] = useState({ tone: "muted", message: "Mengambil konfigurasi..." });
-  const [statusBadge, setStatusBadge] = useState({ tone: "slate", message: "Memuat" });
+  const [banner, setBanner] = useState({ tone: "muted", message: "Mengambil konfigurasi portal..." });
+  const [statusBadge, setStatusBadge] = useState({ tone: "slate", message: "Booting" });
   const [licenseDurationDays, setLicenseDurationDays] = useState(14);
   const [renewOpenBeforeDays, setRenewOpenBeforeDays] = useState(3);
   const [turnstileToken, setTurnstileToken] = useState("");
@@ -30,12 +30,12 @@ function PublicApp() {
         if (!active) return;
         setLicenseDurationDays(Number(payload.license_duration_days || 14));
         setRenewOpenBeforeDays(Number(payload.renew_open_before_days || 3));
-        setBanner({ tone: "ok", message: "Portal siap dipakai. Konfigurasi worker berhasil dimuat." });
+        setBanner({ tone: "ok", message: "Portal publik siap dipakai. Worker merespons dengan normal." });
         setStatusBadge({ tone: "emerald", message: "Online" });
       } catch (error) {
         if (!active) return;
-        setBanner({ tone: "error", message: error.message || "Gagal mengambil konfigurasi." });
-        setStatusBadge({ tone: "rose", message: "Gangguan" });
+        setBanner({ tone: "error", message: error.message || "Gagal mengambil konfigurasi portal." });
+        setStatusBadge({ tone: "rose", message: "Unavailable" });
       }
     }
     bootstrap();
@@ -79,7 +79,7 @@ function PublicApp() {
       return;
     }
     if (!turnstileToken) {
-      setCreateResult({ tone: "warn", title: "Selesaikan verifikasi keamanan dulu.", body: null });
+      setCreateResult({ tone: "warn", title: "Selesaikan verifikasi keamanan sebelum melanjutkan.", body: null });
       return;
     }
     setCreateLoading(true);
@@ -93,10 +93,10 @@ function PublicApp() {
           turnstile_token: turnstileToken,
         }),
       });
-      setBanner({ tone: "ok", message: `IP ${ip} berhasil diproses.` });
+      setBanner({ tone: "ok", message: `IP ${ip} berhasil diproses oleh worker.` });
       setCreateResult({
         tone: statusTone(payload?.item?.status || "active"),
-        title: payload.message || (processMode === "renew" ? "IP berhasil diperpanjang." : "IP berhasil diproses."),
+        title: payload.message || (processMode === "renew" ? "Renew berhasil diproses." : "Aktivasi berhasil diproses."),
         body: payload,
       });
       setProcessMode("activate");
@@ -105,7 +105,7 @@ function PublicApp() {
         window.turnstile.reset(turnstileWidgetIdRef.current);
       }
     } catch (error) {
-      setCreateResult({ tone: "error", title: error.message || "Proses IP gagal.", body: null });
+      setCreateResult({ tone: "error", title: error.message || "Mutasi lisensi gagal.", body: null });
     } finally {
       setCreateLoading(false);
     }
@@ -123,11 +123,9 @@ function PublicApp() {
     try {
       const payload = await publicApiFetch(config.apiBaseUrl, "/api/public/license/status", {
         method: "POST",
-        body: JSON.stringify({
-          ip,
-        }),
+        body: JSON.stringify({ ip }),
       });
-      setBanner({ tone: "ok", message: `Status ${ip} berhasil diambil.` });
+      setBanner({ tone: "ok", message: `Status ${ip} berhasil dimuat.` });
       setStatusResult({
         kind: "status",
         tone: statusTone(payload?.status),
@@ -135,7 +133,7 @@ function PublicApp() {
         body: payload,
       });
     } catch (error) {
-      setStatusResult({ tone: "error", title: error.message || "Check status gagal.", body: null });
+      setStatusResult({ tone: "error", title: error.message || "Gagal membaca status lisensi.", body: null });
     } finally {
       setStatusLoading(false);
     }
@@ -151,188 +149,167 @@ function PublicApp() {
     }
     setCreateIp(String(item.ip || "").trim());
     setProcessMode(nextAction.kind === "renew" ? "renew" : "activate");
-    document.getElementById("mission-control")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById("action-station")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  const createItem = createResult?.body?.item || createResult?.body || {};
+  const statusItem = statusResult?.body || {};
+
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-[1440px] flex-col gap-6 px-4 py-5 md:px-6 md:py-6 lg:px-8">
-      <section className="page-enter relative overflow-hidden rounded-[2rem] border border-[var(--line)] bg-[var(--panel)] p-6 shadow-[var(--shadow)] md:p-8">
-        <div className="absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_top_left,rgba(234,109,47,0.22),transparent_48%),radial-gradient(circle_at_top_right,rgba(15,76,129,0.18),transparent_42%)]" />
-        <div className="relative grid gap-8 xl:grid-cols-[1.15fr,0.85fr]">
+    <div className="mx-auto flex min-h-screen w-full max-w-[1520px] flex-col gap-6 px-4 py-5 md:px-6 md:py-6 lg:px-8">
+      <section className="page-enter overflow-hidden rounded-[2.25rem] border border-[var(--line)] bg-[linear-gradient(135deg,rgba(255,250,244,0.96),rgba(245,238,227,0.84))] shadow-[var(--shadow)]">
+        <div className="grid gap-6 p-5 md:p-8 xl:grid-cols-[1.08fr,0.92fr] xl:p-10">
           <div className="space-y-7">
             <div className="flex flex-wrap items-center gap-3">
-              <Badge variant="accent">Public Control Surface</Badge>
-              <div className="rounded-full border border-[var(--line)] bg-white/60 px-3 py-1 text-xs font-medium text-[var(--muted)]">
-                Worker: <span className="text-[var(--fg)]">{statusBadge.message}</span>
+              <Badge variant="accent">Public Launchpad</Badge>
+              <div className="rounded-full border border-[var(--line)] bg-white/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+                Worker {statusBadge.message}
               </div>
             </div>
             <div className="space-y-4">
-              <h1 className="max-w-4xl text-4xl font-semibold tracking-[-0.05em] md:text-6xl xl:text-7xl">
-                Portal lisensi IP VPS yang terasa lebih seperti mission control, bukan form biasa.
+              <h1 className="max-w-4xl text-4xl font-semibold tracking-[-0.06em] md:text-6xl xl:text-7xl">
+                Lisensi VPS terasa seperti workspace yang membimbing, bukan sekadar form submit.
               </h1>
               <p className="max-w-2xl text-base leading-7 text-[var(--muted)] md:text-lg">
-                Aktivasi IP baru, renew saat window terbuka, dan cek status lisensi dari satu permukaan kerja yang ringkas. Durasi lisensi default tetap
-                {" "}
-                <strong>{licenseDurationDays} hari</strong>
-                {" "}
-                dengan jendela renew publik
-                {" "}
-                <strong>{renewOpenBeforeDays} hari</strong>
-                {" "}
-                sebelum jatuh tempo.
+                Halaman publik dibelah jadi dua jalur kerja yang jelas. Jalur pertama untuk aktivasi atau renew, jalur kedua untuk diagnosis state lisensi
+                sebelum user memutuskan tindakan berikutnya.
               </p>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <Button onClick={() => document.getElementById("mission-control")?.scrollIntoView({ behavior: "smooth" })}>
-                <Sparkles className="size-4" />
-                Mulai Proses IP
-              </Button>
-              <Button variant="secondary" onClick={() => document.getElementById("status-lab")?.scrollIntoView({ behavior: "smooth" })}>
-                <ScanSearch className="size-4" />
-                Buka Status Lab
-              </Button>
+            <div className="grid gap-3 md:grid-cols-3">
+              <HeroStat icon={Sparkles} label="License Span" value={`${licenseDurationDays} hari`} detail="Durasi default lisensi publik." />
+              <HeroStat icon={Clock3} label="Renew Window" value={`${renewOpenBeforeDays} hari`} detail="Publik baru bisa renew saat ambang ini tercapai." />
+              <HeroStat icon={ShieldCheck} label="Security" value={config.turnstileSiteKey ? "Turnstile on" : "Turnstile off"} detail="Proteksi untuk jalur mutasi lisensi." />
             </div>
-            <div className="grid gap-4 md:grid-cols-3">
-              <HeroSignal label="Worker" value={statusBadge.message} meta="Koneksi portal ke API lisensi" icon={Signal} />
-              <HeroSignal label="Renew Window" value={`${renewOpenBeforeDays} hari`} meta="Renew publik baru dibuka saat ambang ini tercapai" icon={Clock3} />
-              <HeroSignal label="Protection" value={config.turnstileSiteKey ? "Turnstile aktif" : "Turnstile off"} meta="Proteksi publik untuk aktivasi dan renew" icon={ShieldCheck} />
+            <div className="flex flex-wrap gap-3">
+              <Button onClick={() => document.getElementById("action-station")?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+                <ArrowRight className="size-4" />
+                Buka Action Station
+              </Button>
+              <Button variant="secondary" onClick={() => document.getElementById("status-deck")?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+                <Radar className="size-4" />
+                Buka Status Deck
+              </Button>
             </div>
           </div>
 
-          <Card className="bg-[rgba(255,255,255,0.58)]">
-            <CardHeader>
-              <Badge variant="slate">Flow Preview</Badge>
-              <CardTitle className="mt-3 text-2xl">Cara kerja portal ini</CardTitle>
-              <CardDescription className="mt-2">
-                Pengguna publik tidak perlu membuka banyak menu. UX dibagi jadi dua jalur yang jelas: mutasi state dan inspeksi status.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <TimelineStep number="01" title="Masukkan IPv4 publik VPS" copy="Gunakan IP final yang memang dipakai server saat dicek oleh autoscript client." />
-              <TimelineStep number="02" title="Verifikasi keamanan" copy="Turnstile wajib diselesaikan sebelum aktivasi atau renew dijalankan." />
-              <TimelineStep number="03" title="Proses atau cek status" copy="Portal akan mengarahkan tindakan berikutnya berdasarkan state lisensi yang dikembalikan worker." />
-              <div className="rounded-[1.4rem] border border-[var(--line)] bg-white/70 p-4 text-sm leading-6 text-[var(--muted)]">
-                Support:
-                {" "}
-                <a className="font-semibold text-[var(--accent-strong)] underline underline-offset-4" href="mailto:autoscript@atomicmail.io">
-                  autoscript@atomicmail.io
-                </a>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="grid gap-4">
+            <Card className="border-white/70 bg-white/72">
+              <CardHeader>
+                <Badge variant="slate">Flow Map</Badge>
+                <CardTitle className="mt-3 text-2xl">Tiga langkah, dua jalur kerja</CardTitle>
+                <CardDescription className="mt-2">
+                  Pengguna publik tidak perlu menebak. Status checker memberi konteks, action station mengeksekusi keputusan.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <FlowLane step="01" title="Masukkan IPv4 publik VPS" copy="Masukkan IP publik final yang benar-benar dipakai server pada saat request lisensi." />
+                <FlowLane step="02" title="Validasi dan cek state" copy="Gunakan status checker bila ragu, atau lanjutkan langsung ke action station bila state-nya sudah jelas." />
+                <FlowLane step="03" title="Ikuti rekomendasi worker" copy="Hasil status akan mengarahkan ke aktivasi, renew, atau eskalasi support bila diperlukan." />
+              </CardContent>
+            </Card>
+            <Card className="border-white/70 bg-[linear-gradient(180deg,rgba(15,76,129,0.08),rgba(255,255,255,0.82))]">
+              <CardHeader>
+                <Badge variant="emerald">Operator Notes</Badge>
+                <CardTitle className="mt-3 text-2xl">Aturan kerja yang paling sering dipakai</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-3 md:grid-cols-3 xl:grid-cols-1">
+                <MiniRule title="Status dulu jika ragu">
+                  Aktivasi ulang untuk entry aktif bisa ditolak. Jalankan pemeriksaan status sebelum submit mutasi.
+                </MiniRule>
+                <MiniRule title="Renew tidak selalu terbuka">
+                  Window renew baru aktif saat sisa masa aktif sudah cukup dekat dengan tanggal jatuh tempo.
+                </MiniRule>
+                <MiniRule title="IP baru berarti target baru">
+                  Bila VPS berganti IP, lisensi diproses terhadap IP pengganti itu sendiri, bukan histori IP lama.
+                </MiniRule>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </section>
 
       <Alert className="page-enter stagger-1" tone={banner.tone}>{banner.message}</Alert>
 
-      <section className="page-enter stagger-2 grid gap-6 xl:grid-cols-[1.15fr,0.85fr]">
-        <Card id="mission-control" className="bg-[var(--panel-strong)]">
+      <section className="grid gap-6 xl:grid-cols-[1.02fr,0.98fr]">
+        <Card id="action-station" className="page-enter stagger-2 overflow-hidden border-[rgba(234,109,47,0.18)] bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(249,241,231,0.9))]">
           <CardHeader>
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
-                <Badge variant="accent">Mission Control</Badge>
-                <CardTitle className="mt-3 text-3xl">Aktivasi dan renew dari satu panel utama</CardTitle>
+                <Badge variant="accent">Action Station</Badge>
+                <CardTitle className="mt-3 text-3xl">Aktivasi dan renew dalam satu komando kerja</CardTitle>
                 <CardDescription className="mt-2">
-                  {processMode === "renew"
-                    ? "Mode renew sedang aktif. Portal akan memperpanjang hanya jika entry memang sudah masuk jendela renew."
-                    : "Gunakan mode ini untuk IP baru, IP expired, atau hasil tindak lanjut dari status checker."}
+                  Jalur ini dipakai saat user memang ingin mengubah state lisensi. Mode akan mengikuti aksi yang Anda pilih atau rekomendasi dari status deck.
                 </CardDescription>
               </div>
-              <div className="flex items-center gap-3">
-                <Badge variant={processMode === "renew" ? "amber" : "emerald"}>{processMode === "renew" ? "Renew Mode" : "Activation Mode"}</Badge>
+              <Badge variant={processMode === "renew" ? "amber" : "emerald"}>{processMode === "renew" ? "Renew Mode" : "Activation Mode"}</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="grid gap-3 md:grid-cols-3">
+              <StationMetric label="Current Action" value={processMode === "renew" ? "Perpanjang entry aktif" : "Buat atau hidupkan lisensi"} />
+              <StationMetric label="Turnstile" value={turnstileToken ? "Verified" : "Pending"} />
+              <StationMetric label="Default Term" value={`${licenseDurationDays} hari`} />
+            </div>
+            <form className="space-y-4" onSubmit={handleCreateSubmit}>
+              <Field label="IPv4 publik VPS" help="Gunakan IP publik final yang sama dengan identitas server di lapangan.">
+                <Input value={createIp} onChange={(event) => setCreateIp(event.target.value)} placeholder="123.45.67.89" />
+              </Field>
+              <div className="rounded-[1.65rem] border border-[var(--line)] bg-white/70 p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Verification Slot</div>
+                <div className="mt-3 min-h-[76px]" ref={turnstileSlotRef} />
+                <div className="mt-3 text-sm text-[var(--muted)]">
+                  Turnstile wajib valid untuk jalur aktivasi dan renew. Jika token expired, ulangi verifikasi sebelum submit.
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Button type="submit" disabled={createLoading}>
+                  {createLoading ? <RefreshCw className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+                  {createLoading ? "Memproses..." : processMode === "renew" ? "Jalankan Renew" : "Jalankan Aktivasi"}
+                </Button>
                 {processMode === "renew" ? (
-                  <Button type="button" size="sm" variant="ghost" onClick={() => setProcessMode("activate")}>
-                    <RotateCcw className="size-4" />
+                  <Button type="button" variant="secondary" onClick={() => setProcessMode("activate")}>
+                    <RefreshCw className="size-4" />
                     Kembali ke Aktivasi
                   </Button>
                 ) : null}
               </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-3">
-              <ProcessMetric label="Target action" value={processMode === "renew" ? "Perpanjang entry aktif" : "Buat / hidupkan lisensi"} />
-              <ProcessMetric label="Verification" value={turnstileToken ? "Verified" : "Pending"} />
-              <ProcessMetric label="Default duration" value={`${licenseDurationDays} hari`} />
-            </div>
-            <form className="space-y-4" onSubmit={handleCreateSubmit}>
-              <Field label="IPv4 VPS" help="Masukkan public IPv4 VPS yang dipakai server.">
-                <Input value={createIp} onChange={(event) => setCreateIp(event.target.value)} placeholder="123.45.67.89" />
-              </Field>
-              <div className="rounded-[1.5rem] border border-dashed border-[var(--line-strong)] bg-[rgba(255,255,255,0.64)] p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold">Verifikasi Keamanan</div>
-                    <p className="mt-1 text-sm text-[var(--muted)]">
-                      {config.turnstileSiteKey
-                        ? turnstileToken
-                          ? "Turnstile sudah valid. Jalur mutasi siap dipakai."
-                          : "Selesaikan verifikasi sebelum menekan tombol proses."
-                        : "Turnstile belum dikonfigurasi."}
-                    </p>
-                  </div>
-                  <Badge variant={turnstileToken ? "emerald" : "slate"}>{turnstileToken ? "Verified" : "Waiting"}</Badge>
-                </div>
-                <div ref={turnstileSlotRef} className="mt-4 min-h-16" />
-              </div>
-              <div className="flex flex-col gap-3 md:flex-row">
-                <Button className="flex-1" disabled={createLoading || !turnstileToken}>
-                  {createLoading ? "Memproses..." : processMode === "renew" ? "Jalankan Renew" : "Jalankan Aktivasi"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    setCreateIp("");
-                    setCreateResult(null);
-                    setProcessMode("activate");
-                  }}
-                >
-                  Reset
-                </Button>
-              </div>
             </form>
-            <ResultPanel result={createResult} />
+            <ActionResult result={createResult} item={createItem} />
           </CardContent>
         </Card>
 
-        <div className="space-y-6">
-          <Card id="status-lab" className="bg-[var(--panel-strong)]">
+        <div className="grid gap-6">
+          <Card id="status-deck" className="page-enter stagger-3 border-[rgba(15,76,129,0.18)] bg-[linear-gradient(180deg,rgba(242,248,252,0.92),rgba(255,255,255,0.88))]">
             <CardHeader>
-              <Badge variant="slate">Status Lab</Badge>
-              <CardTitle className="mt-3 text-3xl">Inspeksi status sebelum ambil tindakan</CardTitle>
+              <Badge variant="slate">Status Deck</Badge>
+              <CardTitle className="mt-3 text-3xl">Pemeriksaan state sebelum mengambil keputusan</CardTitle>
               <CardDescription className="mt-2">
-                Jalur ini tidak mengubah state lisensi. Pakai untuk memastikan apakah IP masih aktif, expired, atau perlu diarahkan ke renew/support.
+                Jalur ini cocok untuk user yang tidak yakin harus aktivasi, renew, atau berhenti dan menghubungi support.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               <form className="space-y-4" onSubmit={handleStatusSubmit}>
-                <Field label="IPv4 VPS" help="Gunakan IP yang sama dengan target lisensi yang ingin dicek.">
+                <Field label="IPv4 yang ingin dicek" help="Worker akan mengembalikan detail aman, status lisensi, dan rekomendasi tindakan berikutnya.">
                   <Input value={statusIp} onChange={(event) => setStatusIp(event.target.value)} placeholder="123.45.67.89" />
                 </Field>
-                <Button className="w-full" variant="secondary" disabled={statusLoading}>
-                  {statusLoading ? "Memeriksa..." : "Analisis Status"}
+                <Button type="submit" variant="secondary" disabled={statusLoading}>
+                  {statusLoading ? <RefreshCw className="size-4 animate-spin" /> : <ScanSearch className="size-4" />}
+                  {statusLoading ? "Mengecek..." : "Periksa Status"}
                 </Button>
               </form>
-              <StatusResultPanel result={statusResult} onAction={applyStatusAction} />
+              <StatusDeck result={statusResult} item={statusItem} onAction={applyStatusAction} />
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-[rgba(19,24,43,0.08)] bg-[rgba(255,255,255,0.78)]">
             <CardHeader>
-              <Badge variant="accent">Aturan Operasi</Badge>
-              <CardTitle className="mt-3">Panduan singkat yang benar-benar dipakai user</CardTitle>
+              <Badge variant="accent">Quick Read</Badge>
+              <CardTitle className="mt-3 text-2xl">Portal behavior snapshot</CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-3">
-              <RuleItem title="Aktivasi ulang ditolak saat entry masih aktif.">
-                Jalankan status check dulu jika ragu apakah IP sudah aktif atau belum.
-              </RuleItem>
-              <RuleItem title={`Renew publik dibuka saat sisa aktif ${renewOpenBeforeDays} hari atau kurang.`}>
-                Portal status akan mengarahkan user ke renew mode jika waktunya sudah tepat.
-              </RuleItem>
-              <RuleItem title="IP baru berarti entry baru.">
-                Jika VPS pindah IP, proses lisensi dilakukan terhadap IP pengganti itu sendiri.
-              </RuleItem>
+            <CardContent className="grid gap-3 md:grid-cols-3">
+              <QuickRead label="Worker State" value={statusBadge.message} detail="Sinyal konektivitas portal saat ini." />
+              <QuickRead label="Renew Gate" value={`${renewOpenBeforeDays} hari`} detail="Ambang sebelum jalur renew publik dibuka." />
+              <QuickRead label="Support" value="autoscript@atomicmail.io" detail="Kontak saat status menyarankan eskalasi." mono />
             </CardContent>
           </Card>
         </div>
@@ -341,23 +318,23 @@ function PublicApp() {
   );
 }
 
-function HeroSignal({ label, value, meta, icon: Icon }) {
+function HeroStat({ icon: Icon, label, value, detail }) {
   return (
-    <div className="rounded-[1.5rem] border border-[var(--line)] bg-white/62 p-4 shadow-[0_16px_36px_rgba(16,24,40,0.08)]">
+    <div className="rounded-[1.65rem] border border-[var(--line)] bg-white/68 p-4 shadow-[0_18px_32px_rgba(17,24,39,0.08)]">
       <div className="flex items-center justify-between gap-3">
         <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
         <Icon className="size-4 text-[var(--accent-strong)]" />
       </div>
       <div className="mt-3 text-xl font-semibold tracking-[-0.03em]">{value}</div>
-      <div className="mt-2 text-sm leading-6 text-[var(--muted)]">{meta}</div>
+      <div className="mt-2 text-sm leading-6 text-[var(--muted)]">{detail}</div>
     </div>
   );
 }
 
-function TimelineStep({ number, title, copy }) {
+function FlowLane({ step, title, copy }) {
   return (
-    <div className="grid grid-cols-[auto,1fr] gap-4 rounded-[1.4rem] border border-[var(--line)] bg-white/68 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)]">
-      <div className="flex size-11 items-center justify-center rounded-full bg-[var(--fg)] text-sm font-semibold text-white">{number}</div>
+    <div className="grid grid-cols-[auto,1fr] gap-4 rounded-[1.55rem] border border-[var(--line)] bg-white/68 p-4">
+      <div className="flex size-11 items-center justify-center rounded-full bg-[var(--fg)] text-sm font-semibold text-white">{step}</div>
       <div>
         <div className="font-semibold">{title}</div>
         <div className="mt-1 text-sm leading-6 text-[var(--muted)]">{copy}</div>
@@ -366,9 +343,18 @@ function TimelineStep({ number, title, copy }) {
   );
 }
 
-function ProcessMetric({ label, value }) {
+function MiniRule({ title, children }) {
   return (
-    <div className="rounded-[1.3rem] border border-[var(--line)] bg-white/62 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)]">
+    <div className="rounded-[1.45rem] border border-[var(--line)] bg-white/70 p-4">
+      <div className="font-semibold tracking-[-0.02em]">{title}</div>
+      <div className="mt-2 text-sm leading-6 text-[var(--muted)]">{children}</div>
+    </div>
+  );
+}
+
+function StationMetric({ label, value }) {
+  return (
+    <div className="rounded-[1.35rem] border border-[var(--line)] bg-white/68 px-4 py-3">
       <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
       <div className="mt-2 text-sm font-medium">{value}</div>
     </div>
@@ -385,85 +371,71 @@ function Field({ label, help, children }) {
   );
 }
 
-function RuleItem({ title, children }) {
-  return (
-    <div className="rounded-[1.4rem] border border-[var(--line)] bg-white/65 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.32)]">
-      <div className="font-semibold">{title}</div>
-      <div className="mt-1 text-sm leading-6 text-[var(--muted)]">{children}</div>
-    </div>
-  );
-}
-
-function ResultPanel({ result }) {
+function ActionResult({ result, item }) {
   if (!result) return null;
-  const body = result.body || {};
-  const item = body.item || body;
   return (
-    <div className="space-y-4 rounded-[1.6rem] border border-[var(--line)] bg-[rgba(255,255,255,0.74)] p-4 shadow-[0_18px_42px_rgba(16,24,40,0.08)]">
+    <div className="rounded-[1.7rem] border border-[var(--line)] bg-white/74 p-4 shadow-[0_20px_40px_rgba(17,24,39,0.08)]">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Mutation Result</div>
-          <h3 className="mt-2 text-xl font-semibold tracking-[-0.03em]">{result.title}</h3>
+          <div className="mt-2 text-xl font-semibold tracking-[-0.03em]">{result.title}</div>
         </div>
         <Badge variant={result.tone}>{statusLabel(item.status || result.tone)}</Badge>
       </div>
       {item.message ? (
-        <div className="rounded-[1.2rem] border border-[var(--line)] bg-white/70 px-3 py-3 text-sm leading-6 text-[var(--muted)]">
+        <div className="mt-4 rounded-[1.25rem] border border-[var(--line)] bg-white/78 px-4 py-3 text-sm leading-6 text-[var(--muted)]">
           {item.message}
         </div>
       ) : null}
-      {item.ip ? (
-        <div className="grid gap-3 md:grid-cols-2">
-          <Stat label="IP" value={item.ip} mono />
-          {"entry_id" in item ? <Stat label="Entry ID" value={item.entry_id || "-"} mono /> : null}
-          {"expires_at" in item ? <Stat label="Aktif sampai" value={formatDate(item.expires_at)} /> : null}
-          {"days_remaining" in item ? <Stat label="Sisa waktu" value={formatDaysRemaining(item.days_remaining)} /> : null}
-          {"renewable" in item ? <Stat label="Bisa renew" value={item.renewable ? "Ya" : "Tidak"} /> : null}
-          {"allowed" in item ? <Stat label="Akses publik" value={item.allowed ? "Diizinkan" : "Tidak"} /> : null}
-        </div>
-      ) : null}
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <InfoCell label="IP" value={item.ip} mono />
+        {"entry_id" in item ? <InfoCell label="Entry ID" value={item.entry_id || "-"} mono /> : null}
+        {"expires_at" in item ? <InfoCell label="Aktif sampai" value={formatDate(item.expires_at)} /> : null}
+        {"days_remaining" in item ? <InfoCell label="Sisa waktu" value={formatDaysRemaining(item.days_remaining)} /> : null}
+        {"renewable" in item ? <InfoCell label="Renewable" value={item.renewable ? "Ya" : "Tidak"} /> : null}
+        {"allowed" in item ? <InfoCell label="Akses publik" value={item.allowed ? "Diizinkan" : "Tidak"} /> : null}
+      </div>
     </div>
   );
 }
 
-function StatusResultPanel({ result, onAction }) {
+function StatusDeck({ result, item, onAction }) {
   if (!result) return null;
-  const item = result.body || {};
   const nextAction = item.next_action || {};
   return (
-    <div className="space-y-4 rounded-[1.6rem] border border-[var(--line)] bg-[rgba(255,255,255,0.74)] p-4 shadow-[0_18px_42px_rgba(16,24,40,0.08)]">
+    <div className="rounded-[1.7rem] border border-[var(--line)] bg-white/74 p-4 shadow-[0_20px_40px_rgba(17,24,39,0.08)]">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Inspection Result</div>
-          <h3 className="mt-2 text-xl font-semibold tracking-[-0.03em]">{result.title}</h3>
+          <div className="mt-2 text-xl font-semibold tracking-[-0.03em]">{result.title}</div>
         </div>
         <Badge variant={result.tone}>{statusLabel(item.status || result.tone)}</Badge>
       </div>
 
       {item.detail_message ? (
-        <div className="rounded-[1.2rem] border border-[var(--line)] bg-white/70 px-3 py-3 text-sm leading-6 text-[var(--muted)]">
+        <div className="mt-4 rounded-[1.25rem] border border-[var(--line)] bg-white/78 px-4 py-3 text-sm leading-6 text-[var(--muted)]">
           {item.detail_message}
         </div>
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-2">
-        <Stat label="IP dicek" value={item.ip} mono />
-        <Stat label="Akses publik" value={item.allowed ? "Diizinkan" : "Tidak"} />
-        <Stat label="Aktif sampai" value={formatDate(item.expires_at)} />
-        <Stat label="Sisa waktu" value={formatDaysRemaining(item.days_remaining)} />
-        <Stat label="Bisa renew" value={item.renewable ? "Ya" : "Tidak"} />
-        <Stat label="Jendela renew" value={`${item.renew_open_before_days || 0} hari`} />
-        {Number(item.renew_opens_in_days || 0) > 0 ? <Stat label="Renew dibuka dalam" value={formatDaysRemaining(item.renew_opens_in_days)} /> : null}
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <InfoCell label="IP dicek" value={item.ip} mono />
+        <InfoCell label="Akses publik" value={item.allowed ? "Diizinkan" : "Tidak"} />
+        <InfoCell label="Aktif sampai" value={formatDate(item.expires_at)} />
+        <InfoCell label="Sisa waktu" value={formatDaysRemaining(item.days_remaining)} />
+        <InfoCell label="Bisa renew" value={item.renewable ? "Ya" : "Tidak"} />
+        <InfoCell label="Jendela renew" value={`${item.renew_open_before_days || 0} hari`} />
+        {Number(item.renew_opens_in_days || 0) > 0 ? <InfoCell label="Renew dibuka dalam" value={formatDaysRemaining(item.renew_opens_in_days)} /> : null}
       </div>
 
-      <div className="rounded-[1.4rem] border border-[var(--line)] bg-white/72 p-4">
-        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Aksi berikutnya</div>
-        <div className="mt-2 text-sm leading-6 text-[var(--muted)]">{nextAction.help || "Tidak ada tindakan lanjutan."}</div>
+      <div className="mt-4 rounded-[1.45rem] border border-[var(--line)] bg-[linear-gradient(180deg,rgba(15,76,129,0.06),rgba(255,255,255,0.75))] p-4">
+        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Recommended Next Action</div>
+        <div className="mt-2 text-sm leading-6 text-[var(--muted)]">{nextAction.help || "Tidak ada tindakan lanjutan yang dibutuhkan."}</div>
         {nextAction.kind && nextAction.kind !== "none" ? (
           <div className="mt-4">
             <Button type="button" onClick={() => onAction?.(item)}>
-              {nextAction.kind === "renew" ? <RotateCcw className="size-4" /> : <ArrowRight className="size-4" />}
-              {nextAction.label || "Lanjut"}
+              {nextAction.kind === "renew" ? <RefreshCw className="size-4" /> : <ArrowRight className="size-4" />}
+              {nextAction.label || "Lanjutkan"}
             </Button>
           </div>
         ) : null}
@@ -472,22 +444,32 @@ function StatusResultPanel({ result, onAction }) {
   );
 }
 
-function Stat({ label, value, mono = false }) {
+function QuickRead({ label, value, detail, mono = false }) {
   return (
-    <div className="rounded-[1.2rem] border border-[var(--line)] bg-white/72 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]">
+    <div className="rounded-[1.45rem] border border-[var(--line)] bg-white/72 p-4">
       <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
-      <div className={`mt-2 text-sm ${mono ? "font-mono break-all" : "font-medium"}`}>{value || "-"}</div>
+      <div className={`mt-2 text-sm ${mono ? "break-all font-mono" : "font-semibold"}`}>{value}</div>
+      <div className="mt-2 text-sm leading-6 text-[var(--muted)]">{detail}</div>
+    </div>
+  );
+}
+
+function InfoCell({ label, value, mono = false }) {
+  return (
+    <div className="rounded-[1.25rem] border border-[var(--line)] bg-white/76 px-4 py-3">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
+      <div className={`mt-2 text-sm ${mono ? "break-all font-mono" : "font-medium"}`}>{value || "-"}</div>
     </div>
   );
 }
 
 function describeStatus(payload) {
   const status = String(payload?.status || "").toLowerCase();
-  if (status === "active") return "IP masih aktif dan berada dalam cakupan lisensi.";
-  if (status === "expired") return "IP sudah expired dan perlu diproses ulang.";
-  if (status === "revoked") return "IP sedang revoked dan tidak dapat memakai jalur publik normal.";
-  if (status === "not_found") return "IP belum tercatat di sistem lisensi.";
-  return "Status lisensi berhasil diambil.";
+  if (status === "active") return "IP ini masih aktif dan ada di dalam cakupan lisensi.";
+  if (status === "expired") return "IP ini sudah melewati masa aktif dan perlu diproses ulang.";
+  if (status === "revoked") return "IP sedang berada pada status revoked dan tidak bisa memakai alur publik normal.";
+  if (status === "not_found") return "IP belum tercatat di database lisensi.";
+  return "Status lisensi berhasil dimuat.";
 }
 
 async function publicApiFetch(baseUrl, path, options = {}) {
