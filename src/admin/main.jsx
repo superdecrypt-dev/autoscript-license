@@ -30,280 +30,1620 @@ import {
 } from "../shared/ui.jsx";
 import { getAdminConfig } from "../shared/config.js";
 import {
+  buildSparklinePath,
+  computeSha256Hex,
+  formatBackupRows,
+  formatBytes,
   formatDate,
+  formatForDateTimeLocal,
+  formatShortDay,
   formatRelativeTime,
+  shortChecksum,
   statusLabel,
   statusTone,
 } from "../shared/utils.js";
 import {
   Activity,
-  BarChart3,
+  Clock3,
   Database,
-  History,
+  Download,
+  Eye,
+  FileJson,
   LayoutDashboard,
   Plus,
   RefreshCw,
   Search,
   Settings,
-  Shield,
-  Users,
+  ShieldCheck,
+  Trash2,
 } from "lucide-react";
+
+const VIEW_META = {
+  dashboard: { title: "Dashboard", description: "Ringkasan lisensi, aktivitas, dan backup terbaru." },
+  entries: { title: "Entries", description: "Kelola IP, masa aktif, dan tindakan admin." },
+  audit: { title: "Audit Log", description: "Pantau jejak perubahan dan akses publik." },
+  settings: { title: "Settings", description: "Kelola sesi dan snapshot backup/restore." },
+};
 
 function AdminApp() {
   const config = useMemo(() => getAdminConfig(), []);
-  const [activeView, setActiveView] = useState("dashboard");
-  const [authStatus, setAuthStatus] = useState("authenticated"); // Simplified for redesign demo
-  const [session, setSession] = useState({ admin_email: "admin@autoscript.io" });
+  const adminApiOrigin = useMemo(() => new URL(config.adminApiBaseUrl).origin, [config.adminApiBaseUrl]);
+  const usesCrossOriginAdminApi = adminApiOrigin !== window.location.origin;
+  const [activeView, setActiveView] = useState(localStorage.getItem("autoscriptLicenseAdminActiveView") || "dashboard");
+  const [authStatus, setAuthStatus] = useState("authenticating");
+  const [banner, setBanner] = useState({ tone: "muted", message: "Memverifikasi akses Cloudflare..." });
+  const [session, setSession] = useState(null);
   const [entries, setEntries] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
   const [metrics, setMetrics] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [backups, setBackups] = useState([]);
+  const [backupPreview, setBackupPreview] = useState(null);
+  const [metricsWindowDays, setMetricsWindowDays] = useState(localStorage.getItem("autoscriptLicenseMetricsWindowDays") || "14");
+  const [entriesLoading, setEntriesLoading] = useState(false);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [metricsLoading, setMetricsLoading] = useState(false);
+  const [backupsLoading, setBackupsLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [auditIp, setAuditIp] = useState("");
+  const [auditEvent, setAuditEvent] = useState("");
+  const [backupSearch, setBackupSearch] = useState("");
+  const [backupSourceFilter, setBackupSourceFilter] = useState("all");
+  const [backupSort, setBackupSort] = useState("created_desc");
+  const [formState, setFormState] = useState(emptyEntryForm());
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editFormState, setEditFormState] = useState(emptyEntryForm());
+  const [entryDetailOpen, setEntryDetailOpen] = useState(false);
+  const [entryDetail, setEntryDetail] = useState(null);
+  const [backupPreviewOpen, setBackupPreviewOpen] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState("");
 
-  // Mock data for immediate visual feedback during redesign
   useEffect(() => {
-    setEntries([
-      { id: "1", ip: "123.45.67.89", label: "Production Web", owner: "Marketing", effective_status: "active", expires_at: new Date(Date.now() + 864000000).toISOString() },
-      { id: "2", ip: "192.168.1.1", label: "Staging API", owner: "DevOps", effective_status: "expired", expires_at: new Date(Date.now() - 86400000).toISOString() },
-      { id: "3", ip: "45.12.33.102", label: "Client VPS-A", owner: "Hansen", effective_status: "revoked", expires_at: new Date(Date.now() + 400000000).toISOString() },
-    ]);
-    setMetrics({
-      summary: { active_entries: 42, expired_entries: 5, revoked_entries: 2, total_entries: 49 },
-    });
+    localStorage.setItem("autoscriptLicenseAdminActiveView", activeView);
+  }, [activeView]);
+
+  useEffect(() => {
+    localStorage.setItem("autoscriptLicenseMetricsWindowDays", metricsWindowDays);
+  }, [metricsWindowDays]);
+
+  useEffect(() => {
+    authenticateWithAccess();
   }, []);
 
-  const navItems = [
-    { id: "dashboard", label: "Overview", icon: LayoutDashboard },
-    { id: "entries", label: "Licenses", icon: Shield },
-    { id: "audit", label: "Audit Log", icon: History },
-    { id: "settings", label: "System", icon: Settings },
-  ];
+  useEffect(() => {
+    if (authStatus === "authenticated") {
+      if (activeView === "dashboard") refreshDashboard();
+      if (activeView === "entries") refreshEntries();
+      if (activeView === "audit") refreshAuditLogs();
+      if (activeView === "settings") refreshBackups();
+    }
+  }, [authStatus, activeView]);
+
+  useEffect(() => {
+    if (authStatus === "authenticated" && activeView === "audit") refreshAuditLogs();
+  }, [auditIp, auditEvent]);
+
+  useEffect(() => {
+    if (authStatus === "authenticated" && activeView === "entries") refreshEntries();
+  }, [search, statusFilter]);
+
+  useEffect(() => {
+    if (authStatus === "authenticated" && activeView === "dashboard") refreshMetrics();
+  }, [metricsWindowDays]);
+
+  async function authenticateWithAccess() {
+    setAuthStatus("authenticating");
+    setBanner({ tone: "muted", message: "Memverifikasi akses Cloudflare..." });
+    try {
+      const currentSession = await apiFetch("/api/admin/session");
+      maybeCompleteAccessRelay();
+      setSession(currentSession);
+      setAuthStatus("authenticated");
+      setBanner({ tone: "ok", message: `Terhubung: ${currentSession.admin_email || "-"}` });
+    } catch (error) {
+      setSession(null);
+      if (shouldStartAccessRelay(error)) {
+        redirectToAccessRelay();
+        return;
+      }
+      setAuthStatus("locked");
+      setBanner({ tone: "error", message: error.message || "Akses belum tersedia." });
+    }
+  }
+
+  function logoutAccess() {
+    const logoutUrl = new URL("/cdn-cgi/access/logout", adminApiOrigin);
+    window.location.assign(logoutUrl.toString());
+  }
+
+  function ensureAuthenticated() {
+    return authStatus === "authenticated";
+  }
+
+  async function refreshDashboard() {
+    if (!ensureAuthenticated()) return;
+    setEntriesLoading(true);
+    setAuditLoading(true);
+    setMetricsLoading(true);
+    setBackupsLoading(true);
+    try {
+      const [currentSession, entriesPayload, auditPayload, metricsPayload, backupsPayload] = await Promise.all([
+        apiFetch("/api/admin/session"),
+        fetchEntries(),
+        fetchAuditLogs(),
+        fetchMetrics(),
+        fetchBackups(),
+      ]);
+      setSession(currentSession);
+      setEntries(entriesPayload.items || []);
+      setAuditLogs(auditPayload.items || []);
+      setMetrics(metricsPayload || null);
+      setBackups(backupsPayload.items || []);
+      setLastSyncedAt(new Date().toISOString());
+      setBanner({ tone: "ok", message: `Terhubung: ${currentSession.admin_email || "-"}` });
+    } catch (error) {
+      handleAuthFailure(error);
+    } finally {
+      setEntriesLoading(false);
+      setAuditLoading(false);
+      setMetricsLoading(false);
+      setBackupsLoading(false);
+    }
+  }
+
+  async function refreshEntries() {
+    if (!ensureAuthenticated()) return;
+    setEntriesLoading(true);
+    try {
+      const payload = await fetchEntries();
+      setEntries(payload.items || []);
+      setLastSyncedAt(new Date().toISOString());
+    } catch (error) {
+      handleAuthFailure(error, "Gagal refresh daftar IP.");
+    } finally {
+      setEntriesLoading(false);
+    }
+  }
+
+  async function refreshAuditLogs() {
+    if (!ensureAuthenticated()) return;
+    setAuditLoading(true);
+    try {
+      const payload = await fetchAuditLogs();
+      setAuditLogs(payload.items || []);
+      setLastSyncedAt(new Date().toISOString());
+    } catch (error) {
+      handleAuthFailure(error, "Gagal refresh audit log.");
+    } finally {
+      setAuditLoading(false);
+    }
+  }
+
+  async function refreshMetrics() {
+    if (!ensureAuthenticated()) return;
+    setMetricsLoading(true);
+    try {
+      const payload = await fetchMetrics();
+      setMetrics(payload || null);
+      setLastSyncedAt(new Date().toISOString());
+    } catch (error) {
+      handleAuthFailure(error, "Gagal refresh metrics.");
+    } finally {
+      setMetricsLoading(false);
+    }
+  }
+
+  async function refreshBackups() {
+    if (!ensureAuthenticated()) return;
+    setBackupsLoading(true);
+    try {
+      const payload = await fetchBackups();
+      setBackups(payload.items || []);
+      setLastSyncedAt(new Date().toISOString());
+    } catch (error) {
+      handleAuthFailure(error, "Gagal refresh backup snapshot.");
+    } finally {
+      setBackupsLoading(false);
+    }
+  }
+
+  async function fetchEntries() {
+    const params = new URLSearchParams();
+    if (search.trim()) params.set("search", search.trim());
+    if (statusFilter !== "all") params.set("status", statusFilter);
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    return apiFetch(`/api/admin/license-entries${suffix}`);
+  }
+
+  async function fetchAuditLogs() {
+    const params = new URLSearchParams({ limit: "120" });
+    if (auditIp.trim()) params.set("ip", auditIp.trim());
+    if (auditEvent.trim()) params.set("event", auditEvent.trim());
+    return apiFetch(`/api/admin/audit-logs?${params.toString()}`);
+  }
+
+  async function fetchMetrics() {
+    const params = new URLSearchParams({ days: metricsWindowDays });
+    return apiFetch(`/api/admin/metrics?${params.toString()}`);
+  }
+
+  async function fetchBackups() {
+    return apiFetch("/api/admin/backups");
+  }
+
+  async function createBackup() {
+    try {
+      await apiFetch("/api/admin/backups", { method: "POST", body: JSON.stringify({}) });
+      setBanner({ tone: "ok", message: "Snapshot backup berhasil dibuat." });
+      await refreshBackups();
+    } catch (error) {
+      handleAuthFailure(error, "Gagal membuat snapshot backup.");
+    }
+  }
+
+  async function handleImportBackupFile(event) {
+    const [file] = Array.from(event.target.files || []);
+    event.target.value = "";
+    if (!file) return;
+    const accepted = window.confirm(`Import backup ${file.name} akan mengganti daftar license entries saat ini. Lanjutkan?`);
+    if (!accepted) return;
+    try {
+      const rawPayload = await file.text();
+      const checksumSha256 = await computeSha256Hex(rawPayload);
+      const dryRunPayload = await apiFetch("/api/admin/backups/import?dry_run=1", {
+        method: "POST",
+        headers: {
+          "X-Backup-SHA256": checksumSha256,
+        },
+        body: rawPayload,
+      });
+      const confirmed = window.confirm(
+        `Import backup ${file.name} siap dijalankan.\n\nEntries: ${formatBackupRows(dryRunPayload.row_counts)}\nChecksum: ${shortChecksum(dryRunPayload.checksum_sha256)}\n\nLanjutkan import penuh?`
+      );
+      if (!confirmed) {
+        setBanner({ tone: "muted", message: "Import backup dibatalkan setelah dry-run." });
+        return;
+      }
+      await apiFetch("/api/admin/backups/import", {
+        method: "POST",
+        headers: {
+          "X-Backup-SHA256": checksumSha256,
+        },
+        body: rawPayload,
+      });
+      setBanner({ tone: "ok", message: `Backup ${file.name} berhasil di-import.` });
+      await refreshDashboard();
+    } catch (error) {
+      handleAuthFailure(error, "Gagal import file backup.");
+    }
+  }
+
+  async function loadBackupPreview(backupKey, silent = false) {
+    try {
+      const payload = await apiFetch(`/api/admin/backups/${encodeURIComponent(backupKey)}/preview`);
+      setBackupPreview(payload.item || null);
+      setBackups((current) =>
+        current.map((item) =>
+          item.key === payload.item?.key
+            ? { ...item, checksum_sha256: payload.item?.checksum_sha256 || item.checksum_sha256 || "" }
+            : item
+        )
+      );
+      if (!silent) setBanner({ tone: "ok", message: "Preview snapshot berhasil dimuat." });
+      return payload.item || null;
+    } catch (error) {
+      if (!silent) handleAuthFailure(error, "Gagal memuat preview snapshot backup.");
+      throw error;
+    }
+  }
+
+  function openEntryDetail(entry) {
+    setEntryDetail(entry);
+    setEntryDetailOpen(true);
+  }
+
+  async function openBackupPreviewDialog(backupKey) {
+    const preview = await loadBackupPreview(backupKey);
+    if (preview) setBackupPreviewOpen(true);
+  }
+
+  async function validateBackupRestore(backupKey) {
+    try {
+      const payload = await apiFetch(`/api/admin/backups/${encodeURIComponent(backupKey)}/restore?dry_run=1`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      const backup = backups.find((item) => item.key === backupKey) || {};
+      setBanner({ tone: "ok", message: `Dry-run OK: ${formatBackupRows(payload.row_counts)} • ${backup.created_by || "-"} • ${shortChecksum(payload.checksum_sha256)}` });
+    } catch (error) {
+      handleAuthFailure(error, "Gagal validasi snapshot backup.");
+    }
+  }
+
+  async function restoreBackup(backupKey) {
+    let backup = backups.find((item) => item.key === backupKey);
+    if (!backup || !backup.checksum_sha256) {
+      backup = await loadBackupPreview(backupKey, true);
+    }
+    const summary = [
+      `Created: ${formatDate(backup?.created_at)}`,
+      `Actor: ${backup?.created_by || "-"}`,
+      `Source: ${backup?.source || "-"}`,
+      `Entries: ${formatBackupRows(backup?.row_counts)}`,
+      `Size: ${formatBytes(backup?.size || 0)}`,
+      `Checksum: ${backup?.checksum_sha256 || "-"}`,
+    ].join("\n");
+    if (!window.confirm(`Restore snapshot berikut akan mengganti daftar license entries saat ini:\n\n${summary}\n\nLanjutkan?`)) return;
+    try {
+      await apiFetch(`/api/admin/backups/${encodeURIComponent(backupKey)}/restore`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      setBanner({ tone: "ok", message: "Restore snapshot berhasil." });
+      await refreshDashboard();
+    } catch (error) {
+      handleAuthFailure(error, "Gagal restore snapshot backup.");
+    }
+  }
+
+  async function deleteBackup(backupKey) {
+    if (!window.confirm(`Hapus snapshot ${backupKey}?`)) return;
+    try {
+      await apiFetch(`/api/admin/backups/${encodeURIComponent(backupKey)}`, { method: "DELETE" });
+      setBanner({ tone: "ok", message: "Snapshot backup berhasil dihapus." });
+      await refreshBackups();
+    } catch (error) {
+      handleAuthFailure(error, "Gagal menghapus snapshot backup.");
+    }
+  }
+
+  async function downloadBackup(backupKey) {
+    try {
+      const response = await fetchAdminBlob(`/api/admin/backups/${encodeURIComponent(backupKey)}/download`);
+      const blob = await response.blob();
+      triggerDownload(blob, backupKey.split("/").at(-1) || "autoscript-license-backup.json");
+      setBanner({ tone: "ok", message: "Snapshot backup berhasil diunduh." });
+    } catch (error) {
+      handleAuthFailure(error, "Gagal mengunduh snapshot backup.");
+    }
+  }
+
+  async function downloadBackupManifest(backupKey) {
+    try {
+      const response = await fetchAdminBlob(`/api/admin/backups/${encodeURIComponent(backupKey)}/manifest`);
+      const blob = await response.blob();
+      triggerDownload(blob, `${backupKey.split("/").at(-1) || "autoscript-license-backup"}.manifest.json`);
+      setBanner({ tone: "ok", message: "Manifest backup berhasil diunduh." });
+    } catch (error) {
+      handleAuthFailure(error, "Gagal mengunduh manifest backup.");
+    }
+  }
+
+  async function handleCreateEntry(event) {
+    event.preventDefault();
+    try {
+      await apiFetch("/api/admin/license-entries", { method: "POST", body: JSON.stringify(formState) });
+      setBanner({ tone: "ok", message: `Entry ${formState.ip} berhasil dibuat.` });
+      setFormState(emptyEntryForm());
+      await refreshDashboard();
+    } catch (error) {
+      handleAuthFailure(error, "Gagal menyimpan entry.");
+    }
+  }
+
+  async function handleUpdateEntry(event) {
+    event.preventDefault();
+    try {
+      await apiFetch(`/api/admin/license-entries/${encodeURIComponent(editFormState.id)}`, { method: "PATCH", body: JSON.stringify(editFormState) });
+      setBanner({ tone: "ok", message: `Entry ${editFormState.ip} berhasil diperbarui.` });
+      setEditDialogOpen(false);
+      setEditFormState(emptyEntryForm());
+      await refreshDashboard();
+    } catch (error) {
+      handleAuthFailure(error, "Gagal memperbarui entry.");
+    }
+  }
+
+  async function toggleEntry(entry, action) {
+    try {
+      await apiFetch(`/api/admin/license-entries/${encodeURIComponent(entry.id)}/${action}`, { method: "POST", body: JSON.stringify({}) });
+      setBanner({ tone: "ok", message: `Entry ${entry.ip} berhasil di-${action}.` });
+      await refreshDashboard();
+    } catch (error) {
+      handleAuthFailure(error, `Gagal ${action} entry.`);
+    }
+  }
+
+  async function deleteEntry(entry) {
+    if (!window.confirm(`Hapus entry ${entry.ip}?`)) return;
+    try {
+      await apiFetch(`/api/admin/license-entries/${encodeURIComponent(entry.id)}`, { method: "DELETE" });
+      setBanner({ tone: "ok", message: `Entry ${entry.ip} berhasil dihapus.` });
+      await refreshDashboard();
+    } catch (error) {
+      handleAuthFailure(error, "Gagal menghapus entry.");
+    }
+  }
+
+  function handleAuthFailure(error, fallbackMessage = "") {
+    const status = Number(error?.status || 0);
+    if ([0, 401].includes(status)) {
+      if (shouldStartAccessRelay(error)) {
+        redirectToAccessRelay();
+        return;
+      }
+      setAuthStatus("locked");
+      setBanner({ tone: "error", message: error.message || "Akses belum tersedia." });
+      return;
+    }
+    setBanner({ tone: "error", message: fallbackMessage || error.message || "Operasi gagal." });
+  }
+
+  async function apiFetch(path, options = {}) {
+    const intendedMethod = String(options.method || "GET").toUpperCase();
+    const requestUrl = new URL(path, adminApiOrigin);
+    const headers = { ...(options.headers || {}) };
+    let requestMethod = intendedMethod;
+    let requestBody = options.body;
+
+    if (usesCrossOriginAdminApi && !["GET", "HEAD"].includes(intendedMethod)) {
+      requestMethod = "POST";
+      requestUrl.searchParams.set("__proxy_method", intendedMethod);
+      headers["Content-Type"] = "text/plain;charset=UTF-8";
+    } else if (!["GET", "HEAD"].includes(requestMethod)) {
+      headers["Content-Type"] = "application/json";
+    }
+
+    let response;
+    try {
+      response = await fetch(requestUrl.toString(), {
+        method: requestMethod,
+        headers,
+        body: requestBody,
+        credentials: "include",
+      });
+    } catch (_error) {
+      const error = new Error("Sesi Access belum aktif.");
+      error.status = 0;
+      throw error;
+    }
+
+    let payload = {};
+    try {
+      payload = await response.json();
+    } catch (_error) {
+      payload = {};
+    }
+
+    if (!response.ok) {
+      const error = new Error(payload.message || `HTTP ${response.status}`);
+      error.status = response.status;
+      throw error;
+    }
+    return payload;
+  }
+
+  async function fetchAdminBlob(path) {
+    const requestUrl = new URL(path, adminApiOrigin);
+    let response;
+    try {
+      response = await fetch(requestUrl.toString(), {
+        method: "GET",
+        credentials: "include",
+      });
+    } catch (_error) {
+      const error = new Error("Sesi Access belum aktif.");
+      error.status = 0;
+      throw error;
+    }
+    if (!response.ok) {
+      let payload = {};
+      try {
+        payload = await response.clone().json();
+      } catch (_error) {
+        payload = {};
+      }
+      const error = new Error(payload.message || `HTTP ${response.status}`);
+      error.status = response.status;
+      throw error;
+    }
+    return response;
+  }
+
+  function shouldStartAccessRelay(error) {
+    return usesCrossOriginAdminApi && [0, 401].includes(Number(error?.status || 0)) && !new URL(window.location.href).searchParams.has("relay_failed");
+  }
+
+  function redirectToAccessRelay() {
+    const relayUrl = new URL("/admin/", adminApiOrigin);
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.delete("relay_failed");
+    relayUrl.searchParams.set("return_to", currentUrl.toString());
+    window.location.assign(relayUrl.toString());
+  }
+
+  function maybeCompleteAccessRelay() {
+    const currentUrl = new URL(window.location.href);
+    if (currentUrl.searchParams.has("relay_failed")) {
+      currentUrl.searchParams.delete("relay_failed");
+      window.history.replaceState({}, "", currentUrl.toString());
+    }
+    const returnTarget = currentUrl.searchParams.get("return_to");
+    if (!returnTarget) return;
+    try {
+      const targetUrl = new URL(returnTarget, window.location.origin);
+      if (targetUrl.origin === window.location.origin) {
+        currentUrl.searchParams.delete("return_to");
+        window.history.replaceState({}, "", currentUrl.toString());
+        return;
+      }
+      targetUrl.searchParams.set("relay_failed", "0");
+      window.location.replace(targetUrl.toString());
+    } catch (_error) {
+      currentUrl.searchParams.delete("return_to");
+      window.history.replaceState({}, "", currentUrl.toString());
+    }
+  }
+
+  const summary = metrics?.summary || {};
+  const topEvents = metrics?.top_events || [];
+  const checksTrend = metrics?.daily_checks || [];
+  const mutationsTrend = metrics?.daily_mutations || [];
+  const filteredBackups = getFilteredBackups(backups, backupSearch, backupSourceFilter, backupSort);
+  const adminAlertClass =
+    banner.tone === "ok"
+      ? "border-emerald-400/25 bg-emerald-500/14 text-emerald-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+      : banner.tone === "error"
+        ? "border-rose-400/25 bg-rose-500/14 text-rose-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+        : banner.tone === "warn"
+          ? "border-amber-400/25 bg-amber-500/16 text-amber-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+          : "border-white/10 bg-white/5 text-white/82 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]";
+  const latestChecks = checksTrend.at(-1) || {};
+  const latestMutations = mutationsTrend.at(-1) || {};
+  const activeEntryRatio = Math.max(Number(summary.active_entries || 0), 0);
+  const totalEntries = Math.max(
+    Number(summary.active_entries || 0) + Number(summary.expired_entries || 0) + Number(summary.revoked_entries || 0),
+    1
+  );
+
+  if (authStatus !== "authenticated") {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4 py-10">
+        <Card className="w-full max-w-lg">
+          <CardHeader>
+            <Badge variant="accent">Access</Badge>
+            <CardTitle className="mt-3 text-3xl">Memverifikasi Akses</CardTitle>
+            <CardDescription className="mt-2">Halaman ini dilindungi Cloudflare Access. Jika sesi gagal, muat ulang setelah sesi Access aktif.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Alert className={adminAlertClass} tone={banner.tone}>{banner.message}</Alert>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen flex bg-[#020617] text-slate-200">
-      {/* Sidebar */}
-      <aside className="w-64 border-r border-white/5 bg-slate-900/50 backdrop-blur-xl flex flex-col fixed inset-y-0">
-        <div className="p-6">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="size-8 rounded-lg bg-indigo-500 flex items-center justify-center shadow-[0_0_15px_rgba(99,102,241,0.5)]">
-              <Shield className="size-5 text-white" />
-            </div>
-            <span className="font-bold text-lg tracking-tight">Autoscript</span>
-          </div>
-          
-          <nav className="space-y-1">
-            {navItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setActiveView(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
-                  activeView === item.id 
-                    ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" 
-                    : "text-slate-400 hover:text-slate-100 hover:bg-white/5 border border-transparent"
-                }`}
-              >
-                <item.icon className="size-4" />
-                {item.label}
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        <div className="mt-auto p-6 border-t border-white/5">
-          <div className="flex items-center gap-3">
-            <div className="size-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 text-xs font-bold border border-indigo-500/30">
-              AD
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">{session.admin_email}</p>
-              <p className="text-xs text-slate-500 uppercase tracking-wider">Administrator</p>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 ml-64 p-8">
-        <header className="flex items-center justify-between mb-10 page-enter">
-          <div>
-            <h1 className="text-3xl font-bold text-white tracking-tight">
-              {navItems.find(n => n.id === activeView)?.label}
-            </h1>
-            <p className="text-slate-400 text-sm mt-1">
-              Manage your licensing infrastructure and monitor IP health.
+    <div className="min-h-screen page-enter">
+      <div className="mx-auto grid min-h-screen max-w-[1640px] gap-5 p-4 xl:grid-cols-[320px,1fr] xl:p-6">
+        <aside className="rounded-[2rem] border border-[var(--line)] bg-[linear-gradient(180deg,rgba(10,16,32,0.96),rgba(7,11,22,0.98))] p-4 text-white shadow-[var(--shadow)] xl:p-5">
+          <Badge variant="accent">Admin Signal Deck</Badge>
+          <div className="mt-5">
+            <h1 className="text-3xl font-semibold tracking-[-0.04em]">Autoscript License</h1>
+            <p className="mt-3 text-sm leading-6 text-white/65">
+              Dashboard operasi untuk lisensi, audit trail, backup, dan recovery. Fokusnya cepat dibaca saat ramai, bukan sekadar banyak tabel.
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <Button variant="secondary" size="sm">
-              <RefreshCw className="size-4" />
-              Sync Data
-            </Button>
-            <Button size="sm">
-              <Plus className="size-4" />
-              New Entry
-            </Button>
+          <div className="mt-6 grid gap-3">
+            <CompactSidebarStat label="Session" value={session?.admin_email || "Not Connected"} />
+            <CompactSidebarStat label="Entries" value={`${summary.active_entries || 0} active / ${totalEntries} total`} />
+            <CompactSidebarStat label="Recovery" value={`${backups.length} snapshot`} />
           </div>
-        </header>
-
-        {activeView === "dashboard" && (
-          <div className="space-y-8 page-enter stagger-1">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <StatCard title="Active Licenses" value={metrics?.summary?.active_entries || 0} icon={Shield} color="emerald" />
-              <StatCard title="Expired" value={metrics?.summary?.expired_entries || 0} icon={Activity} color="amber" />
-              <StatCard title="Revoked" value={metrics?.summary?.revoked_entries || 0} icon={Users} color="rose" />
-              <StatCard title="System Health" value="99.9%" icon={BarChart3} color="indigo" />
+          <nav className="mt-6 flex gap-2 overflow-x-auto pb-1 xl:mt-8 xl:flex-col xl:overflow-visible xl:pb-0">
+            <SidebarButton icon={LayoutDashboard} active={activeView === "dashboard"} onClick={() => setActiveView("dashboard")}>Dashboard</SidebarButton>
+            <SidebarButton icon={ShieldCheck} active={activeView === "entries"} onClick={() => setActiveView("entries")}>Entries</SidebarButton>
+            <SidebarButton icon={RefreshCw} active={activeView === "audit"} onClick={() => setActiveView("audit")}>Audit Log</SidebarButton>
+            <SidebarButton icon={Settings} active={activeView === "settings"} onClick={() => setActiveView("settings")}>Settings</SidebarButton>
+          </nav>
+          <div className="mt-6 rounded-[1.6rem] border border-white/10 bg-white/5 p-4 xl:mt-8">
+            <div className="text-xs uppercase tracking-[0.16em] text-white/45">Access Identity</div>
+            <div className="mt-3">
+              <Badge variant="emerald">{session?.admin_email || "Not Connected"}</Badge>
             </div>
+            <div className="mt-3 text-xs leading-5 text-white/55">
+              API origin: <span className="font-mono text-white/80">{adminApiOrigin}</span>
+            </div>
+          </div>
+        </aside>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <Card className="lg:col-span-2">
+        <main className="space-y-5">
+          <div className="page-enter stagger-1 overflow-hidden rounded-[2rem] border border-[var(--line)] bg-[var(--panel)] p-5 shadow-[var(--shadow)]">
+            <div className="grid gap-5 xl:grid-cols-[1fr,auto] xl:items-end">
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Badge variant="accent">Operations Frame</Badge>
+                  <Badge variant="slate">Last sync {lastSyncedAt ? formatRelativeTime(lastSyncedAt) : "belum ada"}</Badge>
+                </div>
+                <div>
+                  <h2 className="text-4xl font-semibold tracking-[-0.05em]">{VIEW_META[activeView].title}</h2>
+                  <p className="mt-3 max-w-4xl text-sm leading-6 text-[var(--muted)]">{VIEW_META[activeView].description}</p>
+                </div>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <QuickSignal icon={Activity} label="Checks" value={`${Number(latestChecks.allow || 0) + Number(latestChecks.deny || 0)}`} meta={`${latestChecks.allow || 0} allow / ${latestChecks.deny || 0} deny`} />
+                  <QuickSignal icon={Database} label="Active Entries" value={summary.active_entries || 0} meta={`${summary.revoked_entries || 0} revoked / ${summary.expired_entries || 0} expired`} />
+                  <QuickSignal icon={Clock3} label="Snapshots" value={backups.length} meta={lastSyncedAt ? `Synced ${formatRelativeTime(lastSyncedAt)}` : "Belum pernah refresh"} />
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-3 xl:justify-end">
+                <Button variant="secondary" onClick={refreshDashboard}><RefreshCw className="size-4" />Refresh</Button>
+                <Button variant="outline" onClick={logoutAccess}>Logout Access</Button>
+              </div>
+            </div>
+          </div>
+
+          <Alert className={`page-enter stagger-1 ${adminAlertClass}`} tone={banner.tone}>{banner.message}</Alert>
+
+          {activeView === "dashboard" ? (
+            <div className="space-y-5">
+              <Card className="bg-[var(--panel-strong)]">
+                <CardContent className="p-5">
+                  <div className="grid gap-3 lg:grid-cols-[1fr,auto] lg:items-center">
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                      <QuickSignal icon={Activity} label="Checks Today" value={`${Number(latestChecks.allow || 0) + Number(latestChecks.deny || 0)}`} meta={`${latestChecks.allow || 0} allow / ${latestChecks.deny || 0} deny`} />
+                      <QuickSignal icon={RefreshCw} label="Mutations Today" value={`${Number(latestMutations.admin_mutations || 0) + Number(latestMutations.public_activations || 0) + Number(latestMutations.public_renewals || 0)}`} meta={`${latestMutations.admin_mutations || 0} admin / ${latestMutations.public_activations || 0} activate`} />
+                      <QuickSignal icon={Database} label="Backups" value={backups.length} meta={`${filteredBackups.length} visible snapshots`} />
+                      <QuickSignal icon={Clock3} label="Live Entries" value={`${activeEntryRatio}/${totalEntries}`} meta={lastSyncedAt ? `Updated ${formatRelativeTime(lastSyncedAt)}` : "Belum pernah refresh"} />
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-[200px,1fr] lg:w-[360px]">
+                      <Select value={metricsWindowDays} onValueChange={setMetricsWindowDays}>
+                        <SelectTrigger><SelectValue placeholder="Metrics Window" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="7">Last 7 days</SelectItem>
+                          <SelectItem value="14">Last 14 days</SelectItem>
+                          <SelectItem value="30">Last 30 days</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Button variant="secondary" onClick={refreshMetrics}>Refresh Metrics</Button>
+                        <Button variant="outline" onClick={() => setActiveView("settings")}>Open Recovery</Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <MetricCard title="Active" value={summary.active_entries || 0} tone="emerald" meta={`${Math.round((activeEntryRatio / totalEntries) * 100)}% dari total entry`} />
+                <MetricCard title="Expired" value={summary.expired_entries || 0} tone="amber" meta="Perlu review atau renew" />
+                <MetricCard title="Revoked" value={summary.revoked_entries || 0} tone="rose" meta="Sedang diblokir dari alur publik" />
+                <MetricCard title="Audit Rows" value={summary.audit_rows_window || 0} tone="slate" meta={`Window ${metricsWindowDays} hari`} />
+              </div>
+              <div className="grid gap-5 xl:grid-cols-2">
+                <TrendCard title="License Check Trend" caption={`Last ${metricsWindowDays} days`} loading={metricsLoading} points={checksTrend} series={[{ key: "allow", label: "Allow", tone: "emerald" }, { key: "deny", label: "Deny", tone: "rose" }]} />
+                <TrendCard title="Mutations Trend" caption={`Last ${metricsWindowDays} days`} loading={metricsLoading} points={mutationsTrend} series={[{ key: "admin_mutations", label: "Admin", tone: "amber" }, { key: "public_activations", label: "Activation", tone: "emerald" }, { key: "public_renewals", label: "Renew", tone: "slate" }]} />
+              </div>
+              <div className="grid gap-5 xl:grid-cols-2">
+                <TopEventsCard items={topEvents} />
+                <SourceSplitCard summary={summary} />
+              </div>
+              <div className="grid gap-5 xl:grid-cols-[1.15fr,0.85fr]">
+                <OperationalHealthCard
+                  latestChecks={latestChecks}
+                  latestMutations={latestMutations}
+                  summary={summary}
+                  metricsWindowDays={metricsWindowDays}
+                />
+                <RecentRecoveryCard backups={filteredBackups} onOpenSettings={() => setActiveView("settings")} />
+              </div>
+            </div>
+          ) : null}
+
+          {activeView === "entries" ? (
+            <div className="grid gap-5 xl:grid-cols-[1.45fr,0.85fr]">
+              <Card>
                 <CardHeader>
-                  <CardTitle>Recent Licenses</CardTitle>
-                  <CardDescription>Latest IP addresses registered in the system.</CardDescription>
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <Badge variant="accent">Lookup</Badge>
+                      <CardTitle className="mt-3">License Registry</CardTitle>
+                      <CardDescription className="mt-2">Daftar entry dibuat untuk scanning cepat: identity di kiri, state di tengah, tindakan di kanan.</CardDescription>
+                    </div>
+                    <div className="flex flex-col gap-3 md:flex-row">
+                      <div className="relative w-full md:w-72">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--muted)]" />
+                        <Input className="pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari IP, label, owner, notes" />
+                      </div>
+                      <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="w-full md:w-48"><SelectValue placeholder="Semua Status" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Semua Status</SelectItem>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="expired">Expired</SelectItem>
+                          <SelectItem value="revoked">Revoked</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="rounded-xl border border-white/5 overflow-hidden">
+                  <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                    <StatBox label="Visible" value={entries.length} />
+                    <StatBox label="Filter Status" value={statusFilter === "all" ? "Semua" : statusLabel(statusFilter)} />
+                    <StatBox label="Query" value={search.trim() || "Semua"} mono={Boolean(search.trim())} />
+                  </div>
+                {entriesLoading ? (
+                  <LoadingState message="Memuat entry lisensi..." />
+                ) : (
+                    <>
+                    <div className="space-y-3 md:hidden">
+                      {entries.length ? entries.map((entry) => (
+                        <EntryMobileCard
+                          key={entry.id}
+                          entry={entry}
+                          onInspect={() => openEntryDetail(entry)}
+                          onEdit={() => {
+                            setEditFormState({
+                              id: entry.id,
+                              ip: entry.ip || "",
+                              label: entry.label || "",
+                              owner: entry.owner || "",
+                              notes: entry.notes || "",
+                              expires_at: formatForDateTimeLocal(entry.expires_at || ""),
+                            });
+                            setEditDialogOpen(true);
+                          }}
+                          onToggle={() => toggleEntry(entry, entry.effective_status === "revoked" ? "reactivate" : "revoke")}
+                          onDelete={() => deleteEntry(entry)}
+                        />
+                      )) : (
+                        <LoadingState message="Belum ada entry IP." copy="Coba ubah filter atau buat entry baru." />
+                      )}
+                    </div>
+                    <div className="hidden overflow-x-auto rounded-[1.5rem] border border-[var(--line)] bg-[rgba(255,255,255,0.03)] p-2 md:block">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>IP / Label</TableHead>
+                            <TableHead>Owner / Notes</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Expires</TableHead>
+                            <TableHead>Updated</TableHead>
+                            <TableHead>Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {entries.length ? entries.map((entry) => (
+                            <TableRow key={entry.id}>
+                              <TableCell>
+                                <div className="space-y-1">
+                                  <div className="font-semibold tracking-[-0.02em]">{entry.ip}</div>
+                                  <div className="text-xs text-[var(--muted)]">{entry.label || "Tanpa label"}</div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="space-y-1">
+                                  <div>{entry.owner || "-"}</div>
+                                  <div className="line-clamp-2 text-xs leading-5 text-[var(--muted)]">{entry.notes || "-"}</div>
+                                </div>
+                              </TableCell>
+                              <TableCell><Badge variant={statusTone(entry.effective_status)}>{statusLabel(entry.effective_status)}</Badge></TableCell>
+                              <TableCell>{formatDate(entry.expires_at)}</TableCell>
+                              <TableCell>{formatDate(entry.updated_at)}</TableCell>
+                              <TableCell>
+                                <div className="flex flex-wrap gap-2">
+                                  <Button size="sm" variant="ghost" onClick={() => openEntryDetail(entry)}>Detail</Button>
+                                  <Button size="sm" variant="secondary" onClick={() => {
+                                    setEditFormState({
+                                      id: entry.id,
+                                      ip: entry.ip || "",
+                                      label: entry.label || "",
+                                      owner: entry.owner || "",
+                                      notes: entry.notes || "",
+                                      expires_at: formatForDateTimeLocal(entry.expires_at || ""),
+                                    });
+                                    setEditDialogOpen(true);
+                                  }}>Edit</Button>
+                                  {entry.effective_status === "revoked" ? (
+                                    <Button size="sm" variant="outline" onClick={() => toggleEntry(entry, "reactivate")}>Reactivate</Button>
+                                  ) : (
+                                    <Button size="sm" variant="outline" onClick={() => toggleEntry(entry, "revoke")}>Revoke</Button>
+                                  )}
+                                  <Button size="sm" variant="destructive" onClick={() => deleteEntry(entry)}>Delete</Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )) : (
+                            <TableRow>
+                              <TableCell colSpan={6}><LoadingState message="Belum ada entry IP." copy="Coba ubah filter atau buat entry baru." /></TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="bg-[var(--panel-strong)]">
+                <CardHeader>
+                  <Badge variant="accent">Buat Entry</Badge>
+                  <CardTitle className="mt-3">Create Operator Entry</CardTitle>
+                  <CardDescription className="mt-2">Panel input ini diposisikan seperti composer: identity, expiry, dan operator note dalam satu alur.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <EntryFormSummary formState={formState} mode="create" />
+                  <form className="space-y-4" onSubmit={handleCreateEntry}>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <Field label="IPv4 VPS" hint="Wajib. Gunakan IP publik final yang akan dicek oleh autoscript client.">
+                        <Input value={formState.ip} onChange={(event) => setFormState((state) => ({ ...state, ip: event.target.value }))} placeholder="123.45.67.89" required />
+                      </Field>
+                      <Field label="Expires At" hint="Opsional. Kosongkan jika ingin mengikuti perilaku default backend.">
+                        <Input type="datetime-local" value={formState.expires_at} onChange={(event) => setFormState((state) => ({ ...state, expires_at: event.target.value }))} />
+                      </Field>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <Field label="Label" hint="Nama singkat server atau cluster.">
+                        <Input value={formState.label} onChange={(event) => setFormState((state) => ({ ...state, label: event.target.value }))} placeholder="Server SG-01" />
+                      </Field>
+                      <Field label="Owner" hint="Nama operator, client, atau penyedia host.">
+                        <Input value={formState.owner} onChange={(event) => setFormState((state) => ({ ...state, owner: event.target.value }))} placeholder="Nama owner" />
+                      </Field>
+                    </div>
+                    <Field label="Notes" hint="Catatan internal. Tidak untuk jalur publik.">
+                      <Textarea value={formState.notes} onChange={(event) => setFormState((state) => ({ ...state, notes: event.target.value }))} placeholder="Keterangan operator" />
+                    </Field>
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                      <Button className="flex-1"><Plus className="size-4" />Buat Entry</Button>
+                      <Button type="button" variant="secondary" onClick={() => setFormState(emptyEntryForm())}>Reset</Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
+          ) : null}
+
+          {activeView === "audit" ? (
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <Badge variant="accent">Audit</Badge>
+                    <CardTitle className="mt-3">Audit Ledger</CardTitle>
+                    <CardDescription className="mt-2">Log disusun sebagai ledger operasional: waktu, event, actor, dan payload singkat yang masih bisa dipindai cepat.</CardDescription>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Input value={auditIp} onChange={(event) => setAuditIp(event.target.value)} placeholder="Filter IP audit" />
+                    <Input value={auditEvent} onChange={(event) => setAuditEvent(event.target.value)} placeholder="Filter event" />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                  <StatBox label="Rows" value={auditLogs.length} />
+                  <StatBox label="IP Filter" value={auditIp.trim() || "All"} mono={Boolean(auditIp.trim())} />
+                  <StatBox label="Event Filter" value={auditEvent.trim() || "All"} mono={Boolean(auditEvent.trim())} />
+                </div>
+                {auditLoading ? (
+                  <LoadingState message="Memuat audit log..." />
+                ) : (
+                  <>
+                  <div className="space-y-3 md:hidden">
+                    {auditLogs.length ? auditLogs.map((log) => (
+                      <AuditMobileCard key={log.id} log={log} />
+                    )) : (
+                      <LoadingState message="Belum ada audit log." copy="Activity akan muncul setelah ada check atau perubahan." />
+                    )}
+                  </div>
+                  <div className="hidden overflow-x-auto rounded-[1.5rem] border border-[var(--line)] bg-[rgba(255,255,255,0.03)] p-2 md:block">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>IP Address</TableHead>
-                          <TableHead>Label</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Expiry</TableHead>
+                          <TableHead>When</TableHead>
+                          <TableHead>Event</TableHead>
+                          <TableHead>IP</TableHead>
+                          <TableHead>Stage</TableHead>
+                          <TableHead>Actor</TableHead>
+                          <TableHead>Payload</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {entries.map((entry) => (
-                          <TableRow key={entry.id}>
-                            <TableCell className="font-mono text-indigo-400 font-medium">{entry.ip}</TableCell>
-                            <TableCell>{entry.label}</TableCell>
-                            <TableCell>
-                              <Badge variant={statusTone(entry.effective_status)}>{entry.effective_status}</Badge>
-                            </TableCell>
-                            <TableCell className="text-slate-400">{formatDate(entry.expires_at)}</TableCell>
+                        {auditLogs.length ? auditLogs.map((log) => (
+                          <TableRow key={log.id}>
+                            <TableCell>{formatDate(log.created_at)}</TableCell>
+                            <TableCell><Badge variant={statusTone(log.decision)}>{log.event_type || "-"}</Badge></TableCell>
+                            <TableCell className="font-mono text-xs">{log.ip || "-"}</TableCell>
+                            <TableCell>{log.stage || "-"}</TableCell>
+                            <TableCell>{log.actor_email || "worker"}</TableCell>
+                            <TableCell className="max-w-md text-xs leading-5 text-[var(--muted)]">{JSON.stringify(log.payload_json || {})}</TableCell>
                           </TableRow>
-                        ))}
+                        )) : (
+                          <TableRow>
+                            <TableCell colSpan={6}><LoadingState message="Belum ada audit log." copy="Activity akan muncul setelah ada check atau perubahan." /></TableCell>
+                          </TableRow>
+                        )}
                       </TableBody>
                     </Table>
+                  </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {activeView === "settings" ? (
+            <div className="grid gap-5 xl:grid-cols-[0.75fr,1.25fr]">
+              <Card>
+                <CardHeader>
+                  <Badge variant="accent">Admin</Badge>
+                  <CardTitle className="mt-3">Control Actions</CardTitle>
+                  <CardDescription className="mt-2">Aksi berisiko ditempatkan di sini: refresh backup, buat snapshot, dan import restore source baru.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-3">
+                    <StatBox label="Admin" value={session?.admin_email || "-"} />
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Button variant="secondary" onClick={refreshBackups}><RefreshCw className="size-4" />Refresh Backups</Button>
+                    <Button onClick={createBackup}><ShieldCheck className="size-4" />Create Backup</Button>
+                  </div>
+                  <div>
+                    <input id="import-backup-input" type="file" accept="application/json,.json" hidden onChange={handleImportBackupFile} />
+                    <Button variant="outline" onClick={() => document.getElementById("import-backup-input")?.click()}>Import Backup</Button>
                   </div>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Audit Summary</CardTitle>
-                  <CardDescription>Recent system activities.</CardDescription>
+                  <div className="flex flex-col gap-4">
+                    <div>
+                      <Badge variant="accent">Recovery</Badge>
+                      <CardTitle className="mt-3">Recovery Studio</CardTitle>
+                      <CardDescription className="mt-2">Mode restore v1 mengganti hanya `license_entries`. Gunakan Validate lebih dulu.</CardDescription>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-[1fr,180px,180px]">
+                      <div className="relative">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--muted)]" />
+                        <Input className="pl-9" value={backupSearch} onChange={(event) => setBackupSearch(event.target.value)} placeholder="Cari backup berdasarkan waktu, actor, atau key" />
+                      </div>
+                      <Select value={backupSourceFilter} onValueChange={setBackupSourceFilter}>
+                        <SelectTrigger><SelectValue placeholder="Semua Sumber" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Semua Sumber</SelectItem>
+                          <SelectItem value="r2">Manual</SelectItem>
+                          <SelectItem value="scheduled">Scheduled</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select value={backupSort} onValueChange={setBackupSort}>
+                        <SelectTrigger><SelectValue placeholder="Newest First" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="created_desc">Newest First</SelectItem>
+                          <SelectItem value="created_asc">Oldest First</SelectItem>
+                          <SelectItem value="rows_desc">Largest Entries</SelectItem>
+                          <SelectItem value="size_desc">Largest Size</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                  <ActivityItem type="Activation" ip="123.45.67.89" time="2 mins ago" />
-                  <ActivityItem type="Status Check" ip="45.11.2.9" time="15 mins ago" />
-                  <ActivityItem type="Renewal" ip="192.168.1.1" time="1 hour ago" />
-                  <ActivityItem type="Revocation" ip="8.8.8.8" time="3 hours ago" />
-                  <Button variant="ghost" className="w-full text-xs" onClick={() => setActiveView("audit")}>
-                    View All Activity
-                  </Button>
+                <CardContent className="space-y-4">
+                  {!backupsLoading && filteredBackups.length ? (
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <StatBox label="Visible" value={filteredBackups.length} />
+                      <StatBox label="Latest Source" value={humanizeBackupSource(filteredBackups[0]?.source)} />
+                      <StatBox label="Latest Size" value={formatBytes(filteredBackups[0]?.size || 0)} />
+                    </div>
+                  ) : null}
+                  {backupsLoading ? (
+                    <LoadingState message="Memuat snapshot backup..." />
+                  ) : filteredBackups.length ? (
+                    <div className="space-y-3">
+                      {filteredBackups.map((backup) => (
+                        <div key={backup.key} className="rounded-[1.5rem] border border-[var(--line)] bg-white/75 p-4">
+                          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="space-y-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge variant={backup.source === "scheduled" ? "amber" : "emerald"}>{humanizeBackupSource(backup.source)}</Badge>
+                                <span className="text-sm text-[var(--muted)]">{formatDate(backup.created_at)}</span>
+                              </div>
+                              <div className="font-medium">{backup.created_by || "-"}</div>
+                              <div className="break-all font-mono text-xs text-[var(--muted)]">{backup.key}</div>
+                              <div className="flex flex-wrap gap-3 text-sm text-[var(--muted)]">
+                                <span>{formatBackupRows(backup.row_counts)}</span>
+                                <span>{formatBytes(backup.size || 0)}</span>
+                                <span>{shortChecksum(backup.checksum_sha256)}</span>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2 lg:max-w-[360px] lg:justify-end">
+                              <Button size="sm" variant="secondary" onClick={() => loadBackupPreview(backup.key)}><Eye className="size-4" />Preview</Button>
+                              <Button size="sm" variant="ghost" onClick={() => openBackupPreviewDialog(backup.key)}>Detail</Button>
+                              <Button size="sm" variant="secondary" onClick={() => validateBackupRestore(backup.key)}>Validate</Button>
+                              <Button size="sm" variant="outline" onClick={() => downloadBackupManifest(backup.key)}><FileJson className="size-4" />Manifest</Button>
+                              <Button size="sm" variant="outline" onClick={() => downloadBackup(backup.key)}><Download className="size-4" />Download</Button>
+                              <Button size="sm" onClick={() => restoreBackup(backup.key)}>Restore</Button>
+                              <Button size="sm" variant="destructive" onClick={() => deleteBackup(backup.key)}><Trash2 className="size-4" />Delete</Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <LoadingState message="Belum ada snapshot backup." copy="Buat backup pertama dari panel admin." />
+                  )}
+
+                  <Card className="border-[var(--line-strong)] bg-[var(--panel-strong)] shadow-none">
+                    <CardHeader>
+                      <CardTitle>Backup Preview</CardTitle>
+                      <CardDescription>{backupPreview ? `${formatDate(backupPreview.created_at)} • ${backupPreview.created_by || "-"} • ${formatBackupRows(backupPreview.row_counts)} • ${formatBytes(backupPreview.size || 0)}` : "Pilih preview snapshot untuk melihat ringkasan isi sebelum restore."}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {backupPreview ? (
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <StatBox label="Key" value={backupPreview.key} mono />
+                          <StatBox label="Checksum" value={backupPreview.checksum_sha256 || "-"} mono />
+                          <div className="md:col-span-2 rounded-2xl border border-[var(--line)] bg-white/70 p-4">
+                            <div className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">License Sample</div>
+                            <div className="mt-3 space-y-2 text-sm">
+                              {(backupPreview.preview?.license_entries || []).length ? (
+                                backupPreview.preview.license_entries.map((item) => (
+                                  <div key={`${item.id}-${item.ip}`} className="rounded-xl border border-[var(--line)] px-3 py-2">
+                                    <div className="font-medium">{item.ip || "-"}</div>
+                                    <div className="text-xs text-[var(--muted)]">
+                                      {item.label || "-"} • {item.status || "-"} • {formatDate(item.expires_at)}
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="text-[var(--muted)]">Tidak ada sample.</div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="md:col-span-2">
+                            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setBackupPreviewOpen(true)}>Open Full Preview</Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <LoadingState message="Belum ada preview snapshot yang dipilih." />
+                      )}
+                    </CardContent>
+                  </Card>
                 </CardContent>
               </Card>
             </div>
-          </div>
-        )}
+          ) : null}
+        </main>
+      </div>
 
-        {activeView === "entries" && (
-          <div className="space-y-6 page-enter stagger-1">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 max-w-md relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
-                    <Input className="pl-10" placeholder="Search by IP, label, or owner..." />
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Select defaultValue="all">
-                      <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All</SelectItem>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="expired">Expired</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Entry</DialogTitle>
+            <DialogDescription>Perbarui IP, masa aktif, dan catatan tanpa mengubah alur backend.</DialogDescription>
+          </DialogHeader>
+          <EntryFormSummary formState={editFormState} mode="edit" />
+          <form className="space-y-4" onSubmit={handleUpdateEntry}>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="IPv4 VPS" hint="Perubahan IP akan langsung memengaruhi entry yang sedang dipilih.">
+                <Input value={editFormState.ip} onChange={(event) => setEditFormState((state) => ({ ...state, ip: event.target.value }))} required />
+              </Field>
+              <Field label="Expires At" hint="Gunakan tanggal lokal operator untuk update cepat.">
+                <Input type="datetime-local" value={editFormState.expires_at} onChange={(event) => setEditFormState((state) => ({ ...state, expires_at: event.target.value }))} />
+              </Field>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Label" hint="Nama singkat entri untuk lookup cepat.">
+                <Input value={editFormState.label} onChange={(event) => setEditFormState((state) => ({ ...state, label: event.target.value }))} />
+              </Field>
+              <Field label="Owner" hint="Gunakan agar handoff operator lebih jelas.">
+                <Input value={editFormState.owner} onChange={(event) => setEditFormState((state) => ({ ...state, owner: event.target.value }))} />
+              </Field>
+            </div>
+            <Field label="Notes" hint="Catatan internal terbaru akan menggantikan isi lama.">
+              <Textarea value={editFormState.notes} onChange={(event) => setEditFormState((state) => ({ ...state, notes: event.target.value }))} />
+            </Field>
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <Button type="button" variant="secondary" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+              <Button>Update Entry</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={entryDetailOpen} onOpenChange={setEntryDetailOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Entry Detail</DialogTitle>
+            <DialogDescription>Inspeksi lengkap entry tanpa membuka mode edit.</DialogDescription>
+          </DialogHeader>
+          {entryDetail ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              <StatBox label="IP" value={entryDetail.ip || "-"} mono />
+              <StatBox label="Status" value={statusLabel(entryDetail.effective_status)} />
+              <StatBox label="Label" value={entryDetail.label || "-"} />
+              <StatBox label="Owner" value={entryDetail.owner || "-"} />
+              <StatBox label="Expires" value={formatDate(entryDetail.expires_at)} />
+              <StatBox label="Updated" value={formatDate(entryDetail.updated_at)} />
+              <div className="md:col-span-2 rounded-2xl border border-[var(--line)] bg-white/70 p-4">
+                <div className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">Notes</div>
+                <div className="mt-2 text-sm leading-6 text-[var(--fg)]">{entryDetail.notes || "Tidak ada catatan operator."}</div>
+              </div>
+              <div className="md:col-span-2 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setEditFormState({
+                      id: entryDetail.id,
+                      ip: entryDetail.ip || "",
+                      label: entryDetail.label || "",
+                      owner: entryDetail.owner || "",
+                      notes: entryDetail.notes || "",
+                      expires_at: formatForDateTimeLocal(entryDetail.expires_at || ""),
+                    });
+                    setEntryDetailOpen(false);
+                    setEditDialogOpen(true);
+                  }}
+                >
+                  Edit Entry
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setEntryDetailOpen(false)}>Close</Button>
+              </div>
+            </div>
+          ) : (
+            <LoadingState message="Belum ada entry yang dipilih." />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={backupPreviewOpen} onOpenChange={setBackupPreviewOpen}>
+        <DialogContent className="max-h-[88vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Backup Preview</DialogTitle>
+            <DialogDescription>Metadata dan sample snapshot untuk validasi cepat sebelum restore.</DialogDescription>
+          </DialogHeader>
+          {backupPreview ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              <StatBox label="Key" value={backupPreview.key} mono />
+              <StatBox label="Checksum" value={backupPreview.checksum_sha256 || "-"} mono />
+              <StatBox label="Created" value={formatDate(backupPreview.created_at)} />
+              <StatBox label="Actor" value={backupPreview.created_by || "-"} />
+              <StatBox label="Source" value={humanizeBackupSource(backupPreview.source)} />
+              <StatBox label="Rows" value={formatBackupRows(backupPreview.row_counts)} />
+              <StatBox label="Size" value={formatBytes(backupPreview.size || 0)} />
+              <StatBox label="Latest Status Sample" value={backupPreview.preview?.license_entries?.[0]?.status || "-"} />
+              <div className="md:col-span-2 rounded-2xl border border-[var(--line)] bg-white/70 p-4">
+                <div className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">License Sample</div>
+                <div className="mt-3 space-y-2 text-sm">
+                  {(backupPreview.preview?.license_entries || []).length ? (
+                    backupPreview.preview.license_entries.map((item) => (
+                      <div key={`${item.id}-${item.ip}`} className="rounded-xl border border-[var(--line)] px-3 py-2">
+                        <div className="font-medium">{item.ip || "-"}</div>
+                        <div className="text-xs text-[var(--muted)]">
+                          {item.label || "-"} • {item.status || "-"} • {formatDate(item.expires_at)}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-[var(--muted)]">Tidak ada sample.</div>
+                  )}
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="rounded-xl border border-white/5 overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Identity</TableHead>
-                        <TableHead>Owner</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Expires</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {entries.map((entry) => (
-                        <TableRow key={entry.id}>
-                          <TableCell>
-                            <div className="font-mono text-indigo-400 font-medium">{entry.ip}</div>
-                            <div className="text-xs text-slate-500 mt-0.5">{entry.label}</div>
-                          </TableCell>
-                          <TableCell>{entry.owner}</TableCell>
-                          <TableCell>
-                            <Badge variant={statusTone(entry.effective_status)}>{entry.effective_status}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="text-sm">{formatDate(entry.expires_at)}</div>
-                            <div className="text-[10px] text-slate-500 uppercase mt-0.5">{formatRelativeTime(entry.expires_at)}</div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button variant="ghost" size="sm">Manage</Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-      </main>
+              </div>
+            </div>
+          ) : (
+            <LoadingState message="Belum ada preview snapshot yang dipilih." />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function StatCard({ title, value, icon: Icon, color }) {
-  const colors = {
-    emerald: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
-    amber: "text-amber-400 bg-amber-500/10 border-amber-500/20",
-    rose: "text-rose-400 bg-rose-500/10 border-rose-500/20",
-    indigo: "text-indigo-400 bg-indigo-500/10 border-indigo-500/20",
-  };
+function SidebarButton({ icon: Icon, active, children, ...props }) {
   return (
-    <Card className="hover:translate-y-[-4px]">
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className={cn("size-10 rounded-xl flex items-center justify-center border", colors[color])}>
-            <Icon className="size-5" />
-          </div>
-          <Badge variant="slate">+12%</Badge>
+    <button className={`flex min-w-max items-center gap-3 rounded-[1.3rem] border px-4 py-3 text-left text-sm transition xl:min-w-0 ${active ? "border-white/14 bg-[linear-gradient(135deg,rgba(91,183,255,0.2),rgba(123,104,255,0.22))] text-white shadow-[0_16px_34px_rgba(0,0,0,0.24)]" : "border-transparent text-white/72 hover:border-white/10 hover:bg-white/6 hover:text-white"}`} {...props}>
+      <Icon className="size-4" />
+      <span>{children}</span>
+    </button>
+  );
+}
+
+function MetricCard({ title, value, tone, meta }) {
+  return (
+    <Card className="bg-[var(--panel-strong)]">
+      <CardContent className="p-5">
+        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{title}</div>
+        <div className="mt-3 flex items-end justify-between gap-4">
+          <div className="text-4xl font-semibold tracking-[-0.04em]">{value}</div>
+          <Badge variant={tone}>{title}</Badge>
         </div>
-        <div className="text-2xl font-bold text-white mb-1">{value}</div>
-        <div className="text-sm text-slate-500">{title}</div>
+        <div className="mt-3 text-sm text-[var(--muted)]">{meta || "Operational snapshot"}</div>
       </CardContent>
     </Card>
   );
 }
 
-function ActivityItem({ type, ip, time }) {
+function QuickSignal({ icon: Icon, label, value, meta }) {
   return (
-    <div className="flex items-start gap-3">
-      <div className="size-2 rounded-full bg-indigo-500 mt-2" />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-slate-200">{type}</p>
-        <p className="text-xs text-indigo-400 font-mono mt-0.5">{ip}</p>
-        <p className="text-[10px] text-slate-500 uppercase mt-1 tracking-wider">{time}</p>
+    <div className="rounded-[1.45rem] border border-[var(--line)] bg-[rgba(255,255,255,0.04)] p-4 xl:bg-white/[0.03]">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
+        <Icon className="size-4 text-[var(--accent)]" />
+      </div>
+      <div className="mt-3 text-2xl font-semibold leading-none tracking-[-0.04em]">{value}</div>
+      <div className="mt-2 text-sm text-[var(--muted)]">{meta}</div>
+    </div>
+  );
+}
+
+function MiniToneCard({ label, value, meta, tone = "slate" }) {
+  const borderTone = tone === "emerald"
+    ? "border-emerald-300/60"
+    : tone === "amber"
+      ? "border-amber-300/60"
+      : tone === "accent"
+        ? "border-[var(--accent)]/35"
+        : "border-[var(--line)]";
+  return (
+    <div className={`rounded-[1.4rem] border bg-white/72 p-4 ${borderTone}`}>
+      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
+      <div className="mt-3 text-2xl font-semibold leading-none tracking-[-0.04em]">{value}</div>
+      <div className="mt-2 text-sm text-[var(--muted)]">{meta}</div>
+    </div>
+  );
+}
+
+function OperationalHealthCard({ latestChecks, latestMutations, summary, metricsWindowDays }) {
+  const allow = Number(latestChecks.allow || 0);
+  const deny = Number(latestChecks.deny || 0);
+  const totalChecks = allow + deny;
+  const adminMutations = Number(latestMutations.admin_mutations || 0);
+  const publicActivations = Number(latestMutations.public_activations || 0);
+  const publicRenewals = Number(latestMutations.public_renewals || 0);
+  const publicEntries = Number(summary.public_entries || 0);
+  const manualEntries = Number(summary.admin_entries || 0);
+  return (
+    <Card>
+      <CardHeader>
+        <Badge variant="accent">Health</Badge>
+        <CardTitle className="mt-3">Health</CardTitle>
+        <CardDescription className="mt-2">Ringkasan kualitas traffic publik dan intensitas perubahan pada window {metricsWindowDays} hari.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <MiniToneCard
+            label="Allow Ratio"
+            value={totalChecks ? `${Math.round((allow / totalChecks) * 100)}%` : "0%"}
+            meta={`${allow} allow / ${deny} deny`}
+            tone="emerald"
+          />
+          <MiniToneCard
+            label="Mutation Mix"
+            value={adminMutations + publicActivations + publicRenewals}
+            meta={`${adminMutations} admin • ${publicActivations} create • ${publicRenewals} renew`}
+            tone="amber"
+          />
+          <MiniToneCard
+            label="Public Surface"
+            value={publicEntries}
+            meta="Entry dari jalur publik"
+            tone="slate"
+          />
+          <MiniToneCard
+            label="Manual Surface"
+            value={manualEntries}
+            meta="Entry/operator manual"
+            tone="accent"
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RecentRecoveryCard({ backups, onOpenSettings }) {
+  const recent = backups.slice(0, 3);
+  return (
+    <Card className="bg-[var(--panel-strong)]">
+      <CardHeader>
+        <Badge variant="accent">Recovery</Badge>
+        <CardTitle className="mt-3">Recent Backup Activity</CardTitle>
+        <CardDescription className="mt-2">Snapshot terbaru yang paling relevan untuk restore cepat atau audit operator.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {recent.length ? recent.map((backup) => (
+          <div key={backup.key} className="rounded-2xl border border-[var(--line)] bg-white/75 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <Badge variant={backup.source === "scheduled" ? "amber" : "emerald"}>{humanizeBackupSource(backup.source)}</Badge>
+              <div className="text-xs text-[var(--muted)]">{formatRelativeTime(backup.created_at)}</div>
+            </div>
+            <div className="mt-3 font-medium">{backup.created_by || "-"}</div>
+            <div className="mt-1 text-xs text-[var(--muted)]">{backup.key}</div>
+            <div className="mt-3 flex flex-wrap gap-3 text-sm text-[var(--muted)]">
+              <span>{formatBackupRows(backup.row_counts)}</span>
+              <span>{formatBytes(backup.size || 0)}</span>
+            </div>
+          </div>
+        )) : (
+          <LoadingState message="Belum ada snapshot terbaru." copy="Buat backup dari Settings untuk mengisi panel ini." />
+        )}
+        <Button variant="outline" className="w-full" onClick={onOpenSettings}>Buka Backup</Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TrendCard({ title, caption, loading, points, series }) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <Badge variant="accent">Trend</Badge>
+            <CardTitle className="mt-3">{title}</CardTitle>
+          </div>
+          <Badge variant="slate">{caption}</Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <LoadingState message="Memuat trend..." />
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+            {series.map((item) => {
+              const values = points.map((point) => Number(point[item.key] || 0));
+              const total = values.reduce((sum, value) => sum + value, 0);
+              const latest = values.at(-1) || 0;
+              return (
+                <div key={item.key} className="rounded-[1.4rem] border border-[var(--line)] bg-white/70 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-medium">{item.label}</div>
+                      <div className="text-sm text-[var(--muted)]">{total} total</div>
+                    </div>
+                    <Badge variant={item.tone}>{latest} latest</Badge>
+                  </div>
+                  <svg className="mt-4 h-14 w-full" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
+                    <path d={buildSparklinePath(values)} fill="none" stroke="currentColor" strokeWidth="1.75" className={item.tone === "emerald" ? "text-emerald-600" : item.tone === "rose" ? "text-rose-600" : item.tone === "amber" ? "text-amber-600" : "text-slate-600"} vectorEffect="non-scaling-stroke" />
+                  </svg>
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
+                    {points.slice(-6).map((point) => (
+                      <span key={`${item.key}-${point.day}`}>{formatShortDay(point.day)}</span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function TopEventsCard({ items }) {
+  return (
+    <Card>
+      <CardHeader>
+        <Badge variant="accent">Activity</Badge>
+        <CardTitle className="mt-3">Top Events</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {items.length ? (
+          <div className="space-y-3">
+            {items.map((item) => {
+              const width = Math.max(8, Math.round((Number(item.count || 0) / Math.max(...items.map((entry) => Number(entry.count || 0)), 1)) * 100));
+              return (
+                <div key={item.event_type} className="space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="font-medium">{item.event_type || "-"}</div>
+                    <div className="text-sm text-[var(--muted)]">{item.count} events</div>
+                  </div>
+                  <div className="h-2 rounded-full bg-black/5">
+                    <div className="h-2 rounded-full bg-[var(--accent)]" style={{ width: `${width}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <LoadingState message="Belum ada event historis." copy="Window ini belum memiliki cukup data." />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SourceSplitCard({ summary }) {
+  const publicEntries = Number(summary.public_entries || 0);
+  const adminEntries = Number(summary.admin_entries || 0);
+  const total = Math.max(publicEntries + adminEntries, 1);
+  const publicWidth = Math.round((publicEntries / total) * 100);
+  const adminWidth = 100 - publicWidth;
+  return (
+    <Card>
+      <CardHeader>
+        <Badge variant="accent">Source Split</Badge>
+        <CardTitle className="mt-3">Entry Source</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex h-4 overflow-hidden rounded-full bg-black/5">
+          <div className="bg-emerald-500" style={{ width: `${publicWidth}%` }} />
+          <div className="bg-[var(--accent)]" style={{ width: `${adminWidth}%` }} />
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <StatBox label="Public Entry" value={publicEntries} />
+          <StatBox label="Manual Entry" value={adminEntries} />
+          <StatBox label="Manual Updates" value={Number(summary.admin_mutations || 0)} />
+          <StatBox label="Audit Rows Window" value={Number(summary.audit_rows_window || 0)} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function StatBox({ label, value, mono = false }) {
+  return (
+    <div className="rounded-[1.35rem] border border-[var(--line)] bg-white/70 p-4">
+      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
+      <div className={`mt-2 text-sm ${mono ? "font-mono break-all" : "font-medium"}`}>{String(value ?? "-")}</div>
+    </div>
+  );
+}
+
+function CompactSidebarStat({ label, value }) {
+  return (
+    <div className="rounded-[1.3rem] border border-white/10 bg-white/5 px-4 py-3">
+      <div className="text-[11px] uppercase tracking-[0.18em] text-white/42">{label}</div>
+      <div className="mt-2 text-sm font-medium text-white">{value}</div>
+    </div>
+  );
+}
+
+function EntryFormSummary({ formState, mode }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <StatBox label="Mode" value={mode === "edit" ? "Update Existing Entry" : "Create New Entry"} />
+      <StatBox label="Target IP" value={formState.ip?.trim() || "Belum diisi"} mono={Boolean(formState.ip?.trim())} />
+      <StatBox label="Label / Owner" value={buildFormIdentity(formState)} />
+      <StatBox label="Expiry Preview" value={formState.expires_at ? formatDate(formState.expires_at) : "Default backend behavior"} />
+    </div>
+  );
+}
+
+function Field({ label, hint = "", children }) {
+  return (
+    <label className="block space-y-2">
+      <div className="text-sm font-medium">{label}</div>
+      {children}
+      {hint ? <div className="text-xs leading-5 text-[var(--muted)]">{hint}</div> : null}
+    </label>
+  );
+}
+
+function LoadingState({ message, copy = "Tunggu sebentar." }) {
+  return (
+    <div className="rounded-[1.5rem] border border-dashed border-[var(--line)] bg-[rgba(255,255,255,0.03)] p-10 text-center text-sm text-[var(--muted)]">
+      <div className="font-medium tracking-[-0.02em] text-[var(--fg)]">{message}</div>
+      <div className="mt-2">{copy}</div>
+    </div>
+  );
+}
+
+function EntryMobileCard({ entry, onInspect, onEdit, onToggle, onDelete }) {
+  const toggleLabel = entry.effective_status === "revoked" ? "Reactivate" : "Revoke";
+  return (
+    <div className="rounded-[1.5rem] border border-[var(--line)] bg-white/75 p-4 shadow-[0_12px_28px_rgba(2,6,20,0.08)]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="font-semibold tracking-[-0.02em]">{entry.ip}</div>
+          <div className="mt-1 text-sm text-[var(--muted)]">{entry.label || "Tanpa label"}</div>
+        </div>
+        <Badge variant={statusTone(entry.effective_status)}>{statusLabel(entry.effective_status)}</Badge>
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <MiniMeta label="Owner" value={entry.owner || "-"} />
+        <MiniMeta label="Expires" value={formatDate(entry.expires_at)} />
+        <MiniMeta label="Updated" value={formatDate(entry.updated_at)} />
+        <MiniMeta label="Notes" value={entry.notes || "-"} />
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <Button size="sm" variant="ghost" onClick={onInspect}>Detail</Button>
+        <Button size="sm" variant="secondary" onClick={onEdit}>Edit</Button>
+        <Button size="sm" variant="outline" onClick={onToggle}>{toggleLabel}</Button>
+        <Button size="sm" variant="destructive" className="col-span-2" onClick={onDelete}>Delete Entry</Button>
       </div>
     </div>
   );
+}
+
+function AuditMobileCard({ log }) {
+  return (
+    <div className="rounded-[1.5rem] border border-[var(--line)] bg-white/75 p-4 shadow-[0_12px_28px_rgba(2,6,20,0.08)]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="text-sm font-medium">{log.event_type || "-"}</div>
+        <Badge variant={statusTone(log.decision)}>{log.stage || "log"}</Badge>
+      </div>
+      <div className="mt-2 text-sm text-[var(--muted)]">{formatDate(log.created_at)}</div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <MiniMeta label="IP" value={log.ip || "-"} mono />
+        <MiniMeta label="Actor" value={log.actor_email || "worker"} />
+      </div>
+      <div className="mt-4 rounded-2xl border border-[var(--line)] bg-white/70 p-3">
+        <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--muted)]">Payload</div>
+        <div className="mt-2 break-all font-mono text-xs leading-5 text-[var(--muted)]">
+          {formatPayloadSummary(log.payload_json)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MiniMeta({ label, value, mono = false }) {
+  return (
+    <div className="rounded-[1.2rem] border border-[var(--line)] bg-white/70 px-3 py-2">
+      <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
+      <div className={`mt-1 text-sm ${mono ? "break-all font-mono" : "font-medium"}`}>{String(value ?? "-")}</div>
+    </div>
+  );
+}
+
+function emptyEntryForm() {
+  return { id: "", ip: "", label: "", owner: "", notes: "", expires_at: "" };
+}
+
+function humanizeBackupSource(value) {
+  const source = String(value || "r2").trim().toLowerCase();
+  if (source === "scheduled") return "Scheduled";
+  if (source === "r2") return "Manual";
+  return source || "Unknown";
+}
+
+function getFilteredBackups(backups, query, sourceFilter, sortKey) {
+  const normalizedQuery = String(query || "").trim().toLowerCase();
+  const filtered = backups.filter((backup) => {
+    const source = String(backup.source || "r2").trim().toLowerCase();
+    if (sourceFilter !== "all" && source !== sourceFilter) return false;
+    if (!normalizedQuery) return true;
+    const haystack = [
+      backup.key,
+      backup.created_at,
+      backup.created_by,
+      formatDate(backup.created_at || ""),
+      formatBackupRows(backup.row_counts),
+      backup.checksum_sha256,
+      humanizeBackupSource(backup.source),
+    ].join(" ").toLowerCase();
+    return haystack.includes(normalizedQuery);
+  });
+  return filtered.sort((left, right) => {
+    if (sortKey === "created_asc") return Date.parse(String(left.created_at || "")) - Date.parse(String(right.created_at || ""));
+    if (sortKey === "rows_desc") return Number(right.row_counts?.license_entries || 0) - Number(left.row_counts?.license_entries || 0);
+    if (sortKey === "size_desc") return Number(right.size || 0) - Number(left.size || 0);
+    return Date.parse(String(right.created_at || "")) - Date.parse(String(left.created_at || ""));
+  });
+}
+
+function triggerDownload(blob, fileName) {
+  const downloadUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = downloadUrl;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(downloadUrl);
+}
+
+function formatPayloadSummary(payload) {
+  try {
+    return JSON.stringify(payload || {}, null, 2);
+  } catch (_error) {
+    return "{}";
+  }
+}
+
+function buildFormIdentity(formState) {
+  const parts = [formState.label, formState.owner].map((value) => String(value || "").trim()).filter(Boolean);
+  return parts.length ? parts.join(" / ") : "Belum ada identitas tambahan";
 }
 
 createRoot(document.getElementById("root")).render(<AdminApp />);
