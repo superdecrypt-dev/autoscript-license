@@ -618,7 +618,7 @@ function AdminApp() {
   return (
     <div className="min-h-screen bg-slate-50 flex font-sans">
       {/* Fixed Sidebar */}
-      <aside className="w-64 bg-slate-900 flex flex-col fixed inset-y-0 z-10 shadow-xl shadow-slate-900/20">
+      <aside className="hidden md:flex w-64 bg-slate-900 flex-col fixed inset-y-0 z-10 shadow-xl shadow-slate-900/20">
         <div className="p-6 border-b border-slate-800">
           <div className="flex items-center gap-3 text-white font-bold text-xl">
             <div className="bg-blue-600 p-1.5 rounded-lg shadow-md shadow-blue-900/50">
