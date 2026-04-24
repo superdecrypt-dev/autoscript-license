@@ -50,6 +50,7 @@ import {
   Eye,
   FileJson,
   LayoutDashboard,
+  LogOut,
   Plus,
   RefreshCw,
   Search,

@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input } from "../shared/ui.jsx";
 import { getPublicConfig } from "../shared/config.js";
 import { formatDate, formatDaysRemaining, statusLabel, statusTone } from "../shared/utils.js";
-import { ArrowRight, Clock3, RotateCcw, Signal } from "lucide-react";
+import { ArrowRight, Clock3, Cpu, RotateCcw, Search, ShieldCheck, Signal } from "lucide-react";
 
 function PublicApp() {
   const config = useMemo(() => getPublicConfig(), []);
