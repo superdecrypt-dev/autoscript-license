@@ -191,7 +191,7 @@ function PublicApp() {
               <span className="text-blue-400">Infrastruktur Anda.</span>
             </h1>
             <p className="text-slate-400 text-lg max-w-md leading-relaxed">
-              Kelola lisensi IP VPS Anda dengan aman. Sistem terintegrasi dengan validasi otomatis dan proteksi anti-bot.
+              Kelola lisensi IP VPS Anda dengan aman. Sistem terintegrasi dengan validasi otomatis khusus untuk repositori <a href="https://github.com/superdecrypt-dev/autoscript" target="_blank" rel="noreferrer" className="font-semibold text-blue-400 hover:text-blue-300 transition-colors">superdecrypt-dev/autoscript</a> dan <a href="https://github.com/superdecrypt-dev/autoscript-lite" target="_blank" rel="noreferrer" className="font-semibold text-blue-400 hover:text-blue-300 transition-colors">autoscript-lite</a>.
             </p>
           </div>
         </div>
