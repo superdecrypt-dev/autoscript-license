@@ -752,7 +752,9 @@ function AdminApp() {
                                     <Button size="sm" variant="outline" className={entry.effective_status === 'revoked' ? 'text-emerald-600 border-emerald-200 hover:bg-emerald-50' : 'text-rose-600 border-rose-200 hover:bg-rose-50'} onClick={() => toggleEntry(entry, entry.effective_status === "revoked" ? "reactivate" : "revoke")}>
                                       {entry.effective_status === "revoked" ? "Reactivate" : "Revoke"}
                                     </Button>
-                                    <Button size="sm" variant="destructive" onClick={() => deleteEntry(entry)}><Trash2 className="size-4" /></Button>
+                                    <Button size="sm" variant="destructive" className="bg-rose-50 text-rose-600 border-rose-100 hover:bg-rose-100" onClick={() => deleteEntry(entry)}>
+                                      <Trash2 className="size-4" />
+                                    </Button>
                                   </div>
                                 </TableCell>
                               </TableRow>
@@ -786,23 +788,28 @@ function AdminApp() {
                               </div>
                             </div>
 
-                            <div className="flex gap-2 pt-2">
-                              <Button size="sm" variant="secondary" className="flex-1 h-9 bg-slate-100 border-slate-200 shadow-sm" onClick={() => openEntryDetail(entry)}>
+                            <div className="grid grid-cols-2 gap-2 pt-2">
+                              <Button size="sm" variant="secondary" className="h-9 bg-slate-100 border-slate-200 shadow-sm" onClick={() => openEntryDetail(entry)}>
                                 <Eye className="size-4 mr-2" /> Detail
                               </Button>
-                              <Button size="sm" variant="secondary" className="flex-1 h-9 bg-slate-100 border-slate-200 shadow-sm" onClick={() => {
+                              <Button size="sm" variant="secondary" className="h-9 bg-slate-100 border-slate-200 shadow-sm" onClick={() => {
                                 setEditFormState({
                                   id: entry.id, ip: entry.ip || "", label: entry.label || "", owner: entry.owner || "", notes: entry.notes || "", expires_at: formatForDateTimeLocal(entry.expires_at || ""),
                                 });
                                 setEditDialogOpen(true);
-                              }}>Edit</Button>
+                              }}>
+                                <Settings className="size-4 mr-2" /> Edit
+                              </Button>
                               <Button 
                                 size="sm" 
                                 variant="outline" 
-                                className={`flex-1 h-9 ${entry.effective_status === 'revoked' ? 'text-emerald-600 border-emerald-200' : 'text-rose-600 border-rose-200'}`} 
+                                className={`h-9 ${entry.effective_status === 'revoked' ? 'text-emerald-600 border-emerald-200' : 'text-rose-600 border-rose-200'}`} 
                                 onClick={() => toggleEntry(entry, entry.effective_status === "revoked" ? "reactivate" : "revoke")}
                               >
-                                {entry.effective_status === "revoked" ? "ON" : "OFF"}
+                                {entry.effective_status === "revoked" ? "ACTIVATE" : "REVOKE"}
+                              </Button>
+                              <Button size="sm" variant="destructive" className="h-9 bg-rose-50 text-rose-600 border-rose-100 hover:bg-rose-100" onClick={() => deleteEntry(entry)}>
+                                <Trash2 className="size-4 mr-2" /> Hapus
                               </Button>
                             </div>
                           </div>
