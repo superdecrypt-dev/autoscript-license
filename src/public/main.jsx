@@ -211,16 +211,22 @@ function PublicApp() {
           <Card className="border-slate-200 shadow-xl shadow-slate-200/40 bg-white">
             <div className="flex border-b border-slate-100 bg-slate-50 rounded-t-xl overflow-hidden">
                 <button 
-                  className={`flex-1 py-4 text-sm font-bold transition-colors ${processMode !== "status" ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:bg-slate-100'}`}
-                  onClick={() => setProcessMode("activate")}
+                  className={`flex-1 py-4 text-sm font-bold transition-colors ${processMode === "activate" ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:bg-slate-100'}`}
+                  onClick={() => { setProcessMode("activate"); setCreateResult(null); }}
                 >
-                  Proses IP
+                  Register IP
+                </button>
+                <button 
+                  className={`flex-1 py-4 text-sm font-bold transition-colors ${processMode === "renew" ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:bg-slate-100'}`}
+                  onClick={() => { setProcessMode("renew"); setCreateResult(null); }}
+                >
+                  Perpanjang
                 </button>
                 <button 
                   className={`flex-1 py-4 text-sm font-bold transition-colors ${processMode === "status" ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:bg-slate-100'}`}
                   onClick={() => setProcessMode("status")}
                 >
-                  Cek Status
+                  Status
                 </button>
             </div>
 
@@ -229,24 +235,17 @@ function PublicApp() {
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-lg font-bold text-slate-900">Aktivasi & Perpanjangan</h3>
+                      <h3 className="text-lg font-bold text-slate-900">
+                        {processMode === "renew" ? "Perpanjang Lisensi" : "Register IP Baru"}
+                      </h3>
                       <p className="text-sm text-slate-500">
-                        {processMode === "renew" ? "Mode perpanjangan lisensi publik aktif." : "Daftarkan IP baru ke sistem."}
+                        {processMode === "renew" ? "Perpanjang masa aktif lisensi IP VPS Anda." : "Daftarkan IP baru ke dalam sistem."}
                       </p>
                     </div>
                     <Badge variant={processMode === "renew" ? "amber" : "emerald"}>
-                      {processMode === "renew" ? "Renew Mode" : "Activate Mode"}
+                      {processMode === "renew" ? "Renew" : "Register"}
                     </Badge>
                   </div>
-
-                  {processMode === "renew" && (
-                    <div className="bg-amber-50 text-amber-800 p-3 rounded-xl border border-amber-200 text-sm flex justify-between items-center">
-                      <span>Anda sedang memperpanjang lisensi.</span>
-                      <Button type="button" size="sm" variant="ghost" className="h-8 hover:bg-amber-100" onClick={() => setProcessMode("activate")}>
-                        <RotateCcw className="size-3 mr-1" /> Batal
-                      </Button>
-                    </div>
-                  )}
 
                   <form onSubmit={handleCreateSubmit} className="space-y-5">
                     <div className="space-y-2">
@@ -257,7 +256,7 @@ function PublicApp() {
                         onChange={e => setCreateIp(e.target.value)}
                         className="font-mono text-lg py-6"
                       />
-                      <p className="text-xs text-slate-500">Masukkan IP publik VPS yang akan digunakan.</p>
+                      <p className="text-xs text-slate-500">Masukkan IP publik VPS yang akan {processMode === "renew" ? "diperpanjang" : "didaftarkan"}.</p>
                     </div>
 
                     <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
@@ -269,7 +268,7 @@ function PublicApp() {
                     </div>
 
                     <Button className="w-full h-12 text-base font-bold" disabled={createLoading || !turnstileToken}>
-                      {createLoading ? "Memproses..." : processMode === "renew" ? "Perpanjang Lisensi" : "Aktivasi Lisensi"}
+                      {createLoading ? "Memproses..." : processMode === "renew" ? "Perpanjang Lisensi" : "Register Lisensi"}
                       <ArrowRight className="ml-2 size-4" />
                     </Button>
                   </form>
@@ -281,8 +280,8 @@ function PublicApp() {
               {processMode === "status" && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                   <div>
-                    <h3 className="text-lg font-bold text-slate-900">Pengecekan Status</h3>
-                    <p className="text-sm text-slate-500">Periksa detail lisensi IP tanpa modifikasi data.</p>
+                    <h3 className="text-lg font-bold text-slate-900">Cek Status Lisensi</h3>
+                    <p className="text-sm text-slate-500">Periksa detail masa aktif lisensi IP Anda.</p>
                   </div>
 
                   <form onSubmit={handleStatusSubmit} className="space-y-5">
@@ -297,7 +296,7 @@ function PublicApp() {
                     </div>
                     <Button variant="secondary" className="w-full h-12 text-base font-bold bg-slate-100 hover:bg-slate-200 border-slate-300" disabled={statusLoading}>
                       <Search className="mr-2 size-4" />
-                      {statusLoading ? "Memeriksa..." : "Cek Status Lisensi"}
+                      {statusLoading ? "Memeriksa..." : "Cek Status"}
                     </Button>
                   </form>
 
