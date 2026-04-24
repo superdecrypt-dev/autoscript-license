@@ -647,8 +647,8 @@ function AdminApp() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 ml-64 min-h-screen flex flex-col">
-        <header className="bg-white border-b border-slate-200 px-8 py-5 flex justify-between items-center sticky top-0 z-10 shadow-sm shadow-slate-100/50">
+      <main className="flex-1 md:ml-64 min-h-screen flex flex-col pb-20 md:pb-0">
+        <header className="bg-white border-b border-slate-200 px-4 md:px-8 py-4 md:py-5 flex justify-between items-center sticky top-0 z-10 shadow-sm shadow-slate-100/50">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">{VIEW_META[activeView].title}</h1>
             <p className="text-sm text-slate-500 mt-1">{VIEW_META[activeView].description}</p>
@@ -660,7 +660,7 @@ function AdminApp() {
           </div>
         </header>
 
-        <div className="flex-1 p-8 overflow-y-auto page-enter">
+        <div className="flex-1 p-4 md:p-8 overflow-y-auto page-enter">
           <Alert className="mb-6 bg-white border-slate-200 shadow-sm" tone={banner.tone}>{banner.message}</Alert>
 
           {activeView === "dashboard" && (
@@ -901,6 +901,14 @@ function AdminApp() {
         </div>
       </main>
 
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 flex justify-around items-center p-2 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <MobileNavButton icon={LayoutDashboard} label="Dashboard" active={activeView === "dashboard"} onClick={() => setActiveView("dashboard")} />
+        <MobileNavButton icon={Database} label="Licenses" active={activeView === "entries"} onClick={() => setActiveView("entries")} />
+        <MobileNavButton icon={Activity} label="Audit" active={activeView === "audit"} onClick={() => setActiveView("audit")} />
+        <MobileNavButton icon={Settings} label="Settings" active={activeView === "settings"} onClick={() => setActiveView("settings")} />
+      </nav>
+
       {/* Dialogs */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -988,6 +996,17 @@ function SidebarButton({ icon: Icon, active, children, ...props }) {
     <button className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${active ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white hover:bg-slate-800"}`} {...props}>
       <Icon className="size-4" />
       <span>{children}</span>
+    </button>
+  );
+}
+
+function MobileNavButton({ icon: Icon, active, label, ...props }) {
+  return (
+    <button className={`flex-1 flex flex-col items-center justify-center py-2 px-1 gap-1 transition-colors ${active ? "text-blue-600" : "text-slate-500 hover:text-slate-900"}`} {...props}>
+      <div className={`p-1 rounded-full ${active ? "bg-blue-50" : ""}`}>
+        <Icon className="size-5" />
+      </div>
+      <span className="text-[10px] font-bold">{label}</span>
     </button>
   );
 }
