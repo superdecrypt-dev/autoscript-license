@@ -614,21 +614,28 @@ function AdminApp() {
 
   return (
     <div className="min-h-screen page-enter">
-      <div className="mx-auto grid min-h-screen max-w-[1600px] gap-5 p-4 lg:grid-cols-[280px,1fr] lg:p-6">
-        <aside className="rounded-[2rem] border border-white/10 bg-gradient-to-b from-[var(--sidebar-2)] to-[var(--sidebar)] p-4 text-white shadow-[var(--shadow)] lg:p-5">
-          <Badge variant="accent">Ops Console</Badge>
-          <div className="mt-4">
-            <h1 className="text-2xl font-semibold">Autoscript License</h1>
-            <p className="mt-2 text-sm leading-6 text-white/65">Kelola lisensi, audit, metrics, dan recovery dengan stack React modern.</p>
+      <div className="mx-auto grid min-h-screen max-w-[1640px] gap-5 p-4 xl:grid-cols-[320px,1fr] xl:p-6">
+        <aside className="rounded-[2rem] border border-[var(--line)] bg-[linear-gradient(180deg,rgba(10,16,32,0.96),rgba(7,11,22,0.98))] p-4 text-white shadow-[var(--shadow)] xl:p-5">
+          <Badge variant="accent">Admin Signal Deck</Badge>
+          <div className="mt-5">
+            <h1 className="text-3xl font-semibold tracking-[-0.04em]">Autoscript License</h1>
+            <p className="mt-3 text-sm leading-6 text-white/65">
+              Dashboard operasi untuk lisensi, audit trail, backup, dan recovery. Fokusnya cepat dibaca saat ramai, bukan sekadar banyak tabel.
+            </p>
           </div>
-          <nav className="mt-6 flex gap-2 overflow-x-auto pb-1 lg:mt-8 lg:flex-col lg:overflow-visible lg:pb-0">
+          <div className="mt-6 grid gap-3">
+            <CompactSidebarStat label="Session" value={session?.admin_email || "Not Connected"} />
+            <CompactSidebarStat label="Entries" value={`${summary.active_entries || 0} active / ${totalEntries} total`} />
+            <CompactSidebarStat label="Recovery" value={`${backups.length} snapshot`} />
+          </div>
+          <nav className="mt-6 flex gap-2 overflow-x-auto pb-1 xl:mt-8 xl:flex-col xl:overflow-visible xl:pb-0">
             <SidebarButton icon={LayoutDashboard} active={activeView === "dashboard"} onClick={() => setActiveView("dashboard")}>Dashboard</SidebarButton>
             <SidebarButton icon={ShieldCheck} active={activeView === "entries"} onClick={() => setActiveView("entries")}>Entries</SidebarButton>
             <SidebarButton icon={RefreshCw} active={activeView === "audit"} onClick={() => setActiveView("audit")}>Audit Log</SidebarButton>
             <SidebarButton icon={Settings} active={activeView === "settings"} onClick={() => setActiveView("settings")}>Settings</SidebarButton>
           </nav>
-          <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 lg:mt-8">
-            <div className="text-xs uppercase tracking-[0.16em] text-white/55">Access Identity</div>
+          <div className="mt-6 rounded-[1.6rem] border border-white/10 bg-white/5 p-4 xl:mt-8">
+            <div className="text-xs uppercase tracking-[0.16em] text-white/45">Access Identity</div>
             <div className="mt-3">
               <Badge variant="emerald">{session?.admin_email || "Not Connected"}</Badge>
             </div>
@@ -639,13 +646,24 @@ function AdminApp() {
         </aside>
 
         <main className="space-y-5">
-          <div className="rounded-[2rem] border border-[var(--line)] bg-[var(--panel)] p-5 shadow-[var(--shadow)] page-enter stagger-1">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <h2 className="text-3xl font-semibold">{VIEW_META[activeView].title}</h2>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">{VIEW_META[activeView].description}</p>
+          <div className="page-enter stagger-1 overflow-hidden rounded-[2rem] border border-[var(--line)] bg-[var(--panel)] p-5 shadow-[var(--shadow)]">
+            <div className="grid gap-5 xl:grid-cols-[1fr,auto] xl:items-end">
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Badge variant="accent">Operations Frame</Badge>
+                  <Badge variant="slate">Last sync {lastSyncedAt ? formatRelativeTime(lastSyncedAt) : "belum ada"}</Badge>
+                </div>
+                <div>
+                  <h2 className="text-4xl font-semibold tracking-[-0.05em]">{VIEW_META[activeView].title}</h2>
+                  <p className="mt-3 max-w-4xl text-sm leading-6 text-[var(--muted)]">{VIEW_META[activeView].description}</p>
+                </div>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <QuickSignal icon={Activity} label="Checks" value={`${Number(latestChecks.allow || 0) + Number(latestChecks.deny || 0)}`} meta={`${latestChecks.allow || 0} allow / ${latestChecks.deny || 0} deny`} />
+                  <QuickSignal icon={Database} label="Active Entries" value={summary.active_entries || 0} meta={`${summary.revoked_entries || 0} revoked / ${summary.expired_entries || 0} expired`} />
+                  <QuickSignal icon={Clock3} label="Snapshots" value={backups.length} meta={lastSyncedAt ? `Synced ${formatRelativeTime(lastSyncedAt)}` : "Belum pernah refresh"} />
+                </div>
               </div>
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-3 xl:justify-end">
                 <Button variant="secondary" onClick={refreshDashboard}><RefreshCw className="size-4" />Refresh</Button>
                 <Button variant="outline" onClick={logoutAccess}>Logout Access</Button>
               </div>
@@ -715,7 +733,8 @@ function AdminApp() {
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                       <Badge variant="accent">Lookup</Badge>
-                      <CardTitle className="mt-3">Entries</CardTitle>
+                      <CardTitle className="mt-3">License Registry</CardTitle>
+                      <CardDescription className="mt-2">Daftar entry dibuat untuk scanning cepat: identity di kiri, state di tengah, tindakan di kanan.</CardDescription>
                     </div>
                     <div className="flex flex-col gap-3 md:flex-row">
                       <div className="relative w-full md:w-72">
@@ -768,7 +787,7 @@ function AdminApp() {
                         <LoadingState message="Belum ada entry IP." copy="Coba ubah filter atau buat entry baru." />
                       )}
                     </div>
-                    <div className="hidden overflow-x-auto md:block">
+                    <div className="hidden overflow-x-auto rounded-[1.5rem] border border-[var(--line)] bg-[rgba(255,255,255,0.03)] p-2 md:block">
                       <Table>
                         <TableHeader>
                           <TableRow>
@@ -785,14 +804,14 @@ function AdminApp() {
                             <TableRow key={entry.id}>
                               <TableCell>
                                 <div className="space-y-1">
-                                  <div className="font-semibold">{entry.ip}</div>
-                                  <div className="text-xs text-[var(--muted)]">{entry.label || "-"}</div>
+                                  <div className="font-semibold tracking-[-0.02em]">{entry.ip}</div>
+                                  <div className="text-xs text-[var(--muted)]">{entry.label || "Tanpa label"}</div>
                                 </div>
                               </TableCell>
                               <TableCell>
                                 <div className="space-y-1">
                                   <div>{entry.owner || "-"}</div>
-                                  <div className="text-xs text-[var(--muted)]">{entry.notes || "-"}</div>
+                                  <div className="line-clamp-2 text-xs leading-5 text-[var(--muted)]">{entry.notes || "-"}</div>
                                 </div>
                               </TableCell>
                               <TableCell><Badge variant={statusTone(entry.effective_status)}>{statusLabel(entry.effective_status)}</Badge></TableCell>
@@ -837,8 +856,8 @@ function AdminApp() {
               <Card className="bg-[var(--panel-strong)]">
                 <CardHeader>
                   <Badge variant="accent">Buat Entry</Badge>
-                  <CardTitle className="mt-3">Buat IP Entry</CardTitle>
-                  <CardDescription className="mt-2">Masukkan IP, masa aktif, dan catatan operator.</CardDescription>
+                  <CardTitle className="mt-3">Create Operator Entry</CardTitle>
+                  <CardDescription className="mt-2">Panel input ini diposisikan seperti composer: identity, expiry, dan operator note dalam satu alur.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <EntryFormSummary formState={formState} mode="create" />
@@ -878,7 +897,8 @@ function AdminApp() {
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                   <div>
                     <Badge variant="accent">Audit</Badge>
-                    <CardTitle className="mt-3">Audit Log</CardTitle>
+                    <CardTitle className="mt-3">Audit Ledger</CardTitle>
+                    <CardDescription className="mt-2">Log disusun sebagai ledger operasional: waktu, event, actor, dan payload singkat yang masih bisa dipindai cepat.</CardDescription>
                   </div>
                   <div className="grid gap-3 md:grid-cols-2">
                     <Input value={auditIp} onChange={(event) => setAuditIp(event.target.value)} placeholder="Filter IP audit" />
@@ -903,7 +923,7 @@ function AdminApp() {
                       <LoadingState message="Belum ada audit log." copy="Activity akan muncul setelah ada check atau perubahan." />
                     )}
                   </div>
-                  <div className="hidden overflow-x-auto md:block">
+                  <div className="hidden overflow-x-auto rounded-[1.5rem] border border-[var(--line)] bg-[rgba(255,255,255,0.03)] p-2 md:block">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -923,7 +943,7 @@ function AdminApp() {
                             <TableCell className="font-mono text-xs">{log.ip || "-"}</TableCell>
                             <TableCell>{log.stage || "-"}</TableCell>
                             <TableCell>{log.actor_email || "worker"}</TableCell>
-                            <TableCell className="max-w-md text-xs text-[var(--muted)]">{JSON.stringify(log.payload_json || {})}</TableCell>
+                            <TableCell className="max-w-md text-xs leading-5 text-[var(--muted)]">{JSON.stringify(log.payload_json || {})}</TableCell>
                           </TableRow>
                         )) : (
                           <TableRow>
@@ -944,7 +964,8 @@ function AdminApp() {
               <Card>
                 <CardHeader>
                   <Badge variant="accent">Admin</Badge>
-                  <CardTitle className="mt-3">Panel</CardTitle>
+                  <CardTitle className="mt-3">Control Actions</CardTitle>
+                  <CardDescription className="mt-2">Aksi berisiko ditempatkan di sini: refresh backup, buat snapshot, dan import restore source baru.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-3">
@@ -966,7 +987,7 @@ function AdminApp() {
                   <div className="flex flex-col gap-4">
                     <div>
                       <Badge variant="accent">Recovery</Badge>
-                      <CardTitle className="mt-3">Backup & Restore</CardTitle>
+                      <CardTitle className="mt-3">Recovery Studio</CardTitle>
                       <CardDescription className="mt-2">Mode restore v1 mengganti hanya `license_entries`. Gunakan Validate lebih dulu.</CardDescription>
                     </div>
                     <div className="grid gap-3 md:grid-cols-[1fr,180px,180px]">
@@ -1007,7 +1028,7 @@ function AdminApp() {
                   ) : filteredBackups.length ? (
                     <div className="space-y-3">
                       {filteredBackups.map((backup) => (
-                        <div key={backup.key} className="rounded-2xl border border-[var(--line)] bg-white/75 p-4">
+                        <div key={backup.key} className="rounded-[1.5rem] border border-[var(--line)] bg-white/75 p-4">
                           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                             <div className="space-y-2">
                               <div className="flex flex-wrap items-center gap-2">
@@ -1015,14 +1036,14 @@ function AdminApp() {
                                 <span className="text-sm text-[var(--muted)]">{formatDate(backup.created_at)}</span>
                               </div>
                               <div className="font-medium">{backup.created_by || "-"}</div>
-                              <div className="font-mono text-xs text-[var(--muted)]">{backup.key}</div>
+                              <div className="break-all font-mono text-xs text-[var(--muted)]">{backup.key}</div>
                               <div className="flex flex-wrap gap-3 text-sm text-[var(--muted)]">
                                 <span>{formatBackupRows(backup.row_counts)}</span>
                                 <span>{formatBytes(backup.size || 0)}</span>
                                 <span>{shortChecksum(backup.checksum_sha256)}</span>
                               </div>
                             </div>
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-wrap gap-2 lg:max-w-[360px] lg:justify-end">
                               <Button size="sm" variant="secondary" onClick={() => loadBackupPreview(backup.key)}><Eye className="size-4" />Preview</Button>
                               <Button size="sm" variant="ghost" onClick={() => openBackupPreviewDialog(backup.key)}>Detail</Button>
                               <Button size="sm" variant="secondary" onClick={() => validateBackupRestore(backup.key)}>Validate</Button>
@@ -1039,7 +1060,7 @@ function AdminApp() {
                     <LoadingState message="Belum ada snapshot backup." copy="Buat backup pertama dari panel admin." />
                   )}
 
-                  <Card className="bg-[var(--panel-strong)] shadow-none">
+                  <Card className="border-[var(--line-strong)] bg-[var(--panel-strong)] shadow-none">
                     <CardHeader>
                       <CardTitle>Backup Preview</CardTitle>
                       <CardDescription>{backupPreview ? `${formatDate(backupPreview.created_at)} • ${backupPreview.created_by || "-"} • ${formatBackupRows(backupPreview.row_counts)} • ${formatBytes(backupPreview.size || 0)}` : "Pilih preview snapshot untuk melihat ringkasan isi sebelum restore."}</CardDescription>
@@ -1207,7 +1228,7 @@ function AdminApp() {
 
 function SidebarButton({ icon: Icon, active, children, ...props }) {
   return (
-    <button className={`flex min-w-max items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm transition lg:min-w-0 ${active ? "bg-white/12 text-white" : "text-white/70 hover:bg-white/8 hover:text-white"}`} {...props}>
+    <button className={`flex min-w-max items-center gap-3 rounded-[1.3rem] border px-4 py-3 text-left text-sm transition xl:min-w-0 ${active ? "border-white/14 bg-[linear-gradient(135deg,rgba(91,183,255,0.2),rgba(123,104,255,0.22))] text-white shadow-[0_16px_34px_rgba(0,0,0,0.24)]" : "border-transparent text-white/72 hover:border-white/10 hover:bg-white/6 hover:text-white"}`} {...props}>
       <Icon className="size-4" />
       <span>{children}</span>
     </button>
@@ -1218,9 +1239,9 @@ function MetricCard({ title, value, tone, meta }) {
   return (
     <Card className="bg-[var(--panel-strong)]">
       <CardContent className="p-5">
-        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">{title}</div>
+        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{title}</div>
         <div className="mt-3 flex items-end justify-between gap-4">
-          <div className="text-4xl font-semibold">{value}</div>
+          <div className="text-4xl font-semibold tracking-[-0.04em]">{value}</div>
           <Badge variant={tone}>{title}</Badge>
         </div>
         <div className="mt-3 text-sm text-[var(--muted)]">{meta || "Operational snapshot"}</div>
@@ -1231,12 +1252,12 @@ function MetricCard({ title, value, tone, meta }) {
 
 function QuickSignal({ icon: Icon, label, value, meta }) {
   return (
-    <div className="rounded-2xl border border-[var(--line)] bg-white/72 p-4">
+    <div className="rounded-[1.45rem] border border-[var(--line)] bg-[rgba(255,255,255,0.04)] p-4 xl:bg-white/[0.03]">
       <div className="flex items-center justify-between gap-3">
-        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
-        <Icon className="size-4 text-[var(--accent-strong)]" />
+        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
+        <Icon className="size-4 text-[var(--accent)]" />
       </div>
-      <div className="mt-3 text-2xl font-semibold leading-none">{value}</div>
+      <div className="mt-3 text-2xl font-semibold leading-none tracking-[-0.04em]">{value}</div>
       <div className="mt-2 text-sm text-[var(--muted)]">{meta}</div>
     </div>
   );
@@ -1251,9 +1272,9 @@ function MiniToneCard({ label, value, meta, tone = "slate" }) {
         ? "border-[var(--accent)]/35"
         : "border-[var(--line)]";
   return (
-    <div className={`rounded-2xl border bg-white/72 p-4 ${borderTone}`}>
-      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
-      <div className="mt-3 text-2xl font-semibold leading-none">{value}</div>
+    <div className={`rounded-[1.4rem] border bg-white/72 p-4 ${borderTone}`}>
+      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
+      <div className="mt-3 text-2xl font-semibold leading-none tracking-[-0.04em]">{value}</div>
       <div className="mt-2 text-sm text-[var(--muted)]">{meta}</div>
     </div>
   );
@@ -1361,7 +1382,7 @@ function TrendCard({ title, caption, loading, points, series }) {
               const total = values.reduce((sum, value) => sum + value, 0);
               const latest = values.at(-1) || 0;
               return (
-                <div key={item.key} className="rounded-2xl border border-[var(--line)] bg-white/70 p-4">
+                <div key={item.key} className="rounded-[1.4rem] border border-[var(--line)] bg-white/70 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="font-medium">{item.label}</div>
@@ -1450,8 +1471,8 @@ function SourceSplitCard({ summary }) {
 
 function StatBox({ label, value, mono = false }) {
   return (
-    <div className="rounded-2xl border border-[var(--line)] bg-white/70 p-4">
-      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
+    <div className="rounded-[1.35rem] border border-[var(--line)] bg-white/70 p-4">
+      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
       <div className={`mt-2 text-sm ${mono ? "font-mono break-all" : "font-medium"}`}>{String(value ?? "-")}</div>
     </div>
   );
@@ -1459,8 +1480,8 @@ function StatBox({ label, value, mono = false }) {
 
 function CompactSidebarStat({ label, value }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-      <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">{label}</div>
+    <div className="rounded-[1.3rem] border border-white/10 bg-white/5 px-4 py-3">
+      <div className="text-[11px] uppercase tracking-[0.18em] text-white/42">{label}</div>
       <div className="mt-2 text-sm font-medium text-white">{value}</div>
     </div>
   );
@@ -1489,8 +1510,8 @@ function Field({ label, hint = "", children }) {
 
 function LoadingState({ message, copy = "Tunggu sebentar." }) {
   return (
-    <div className="rounded-2xl border border-dashed border-[var(--line)] p-10 text-center text-sm text-[var(--muted)]">
-      <div className="font-medium text-[var(--fg)]">{message}</div>
+    <div className="rounded-[1.5rem] border border-dashed border-[var(--line)] bg-[rgba(255,255,255,0.03)] p-10 text-center text-sm text-[var(--muted)]">
+      <div className="font-medium tracking-[-0.02em] text-[var(--fg)]">{message}</div>
       <div className="mt-2">{copy}</div>
     </div>
   );
@@ -1499,10 +1520,10 @@ function LoadingState({ message, copy = "Tunggu sebentar." }) {
 function EntryMobileCard({ entry, onInspect, onEdit, onToggle, onDelete }) {
   const toggleLabel = entry.effective_status === "revoked" ? "Reactivate" : "Revoke";
   return (
-    <div className="rounded-2xl border border-[var(--line)] bg-white/75 p-4">
+    <div className="rounded-[1.5rem] border border-[var(--line)] bg-white/75 p-4 shadow-[0_12px_28px_rgba(2,6,20,0.08)]">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="font-semibold">{entry.ip}</div>
+          <div className="font-semibold tracking-[-0.02em]">{entry.ip}</div>
           <div className="mt-1 text-sm text-[var(--muted)]">{entry.label || "Tanpa label"}</div>
         </div>
         <Badge variant={statusTone(entry.effective_status)}>{statusLabel(entry.effective_status)}</Badge>
@@ -1525,7 +1546,7 @@ function EntryMobileCard({ entry, onInspect, onEdit, onToggle, onDelete }) {
 
 function AuditMobileCard({ log }) {
   return (
-    <div className="rounded-2xl border border-[var(--line)] bg-white/75 p-4">
+    <div className="rounded-[1.5rem] border border-[var(--line)] bg-white/75 p-4 shadow-[0_12px_28px_rgba(2,6,20,0.08)]">
       <div className="flex items-start justify-between gap-3">
         <div className="text-sm font-medium">{log.event_type || "-"}</div>
         <Badge variant={statusTone(log.decision)}>{log.stage || "log"}</Badge>
@@ -1547,8 +1568,8 @@ function AuditMobileCard({ log }) {
 
 function MiniMeta({ label, value, mono = false }) {
   return (
-    <div className="rounded-2xl border border-[var(--line)] bg-white/70 px-3 py-2">
-      <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
+    <div className="rounded-[1.2rem] border border-[var(--line)] bg-white/70 px-3 py-2">
+      <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
       <div className={`mt-1 text-sm ${mono ? "break-all font-mono" : "font-medium"}`}>{String(value ?? "-")}</div>
     </div>
   );

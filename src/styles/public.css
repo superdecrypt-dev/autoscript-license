@@ -8,61 +8,79 @@
 
 @layer base {
   :root {
-    --bg: #f4e8d6;
-    --panel: rgba(255, 251, 246, 0.88);
-    --panel-strong: rgba(255, 255, 255, 0.96);
-    --fg: #26170f;
-    --muted: #745745;
-    --line: rgba(88, 50, 24, 0.12);
-    --accent: #d45c20;
-    --accent-strong: #a34017;
-    --danger: #b83f24;
-    --shadow: 0 28px 72px rgba(66, 41, 18, 0.12);
-    --shadow-sm: 0 10px 20px rgba(66, 41, 18, 0.1);
+    --bg: #f3efe7;
+    --panel: rgba(250, 247, 240, 0.78);
+    --panel-strong: rgba(255, 255, 255, 0.92);
+    --input: rgba(255, 255, 255, 0.82);
+    --fg: #13182b;
+    --muted: #5f6577;
+    --line: rgba(30, 44, 79, 0.1);
+    --line-strong: rgba(30, 44, 79, 0.18);
+    --accent: #ea6d2f;
+    --accent-strong: #0f4c81;
+    --danger: #bb3248;
+    --shadow: 0 20px 60px rgba(17, 24, 39, 0.12);
+    --shadow-strong: 0 24px 80px rgba(17, 24, 39, 0.18);
   }
 
   html {
     color-scheme: light;
+    scroll-behavior: smooth;
   }
 
   body {
     min-height: 100vh;
-    background-image:
-      radial-gradient(circle at top left, rgba(255, 194, 145, 0.44), transparent 24%),
-      radial-gradient(circle at top right, rgba(255, 223, 167, 0.55), transparent 22%),
-      linear-gradient(180deg, #fbf4e8 0%, #efe0c7 100%);
+    background:
+      radial-gradient(circle at 0% 0%, rgba(234, 109, 47, 0.16), transparent 28%),
+      radial-gradient(circle at 100% 0%, rgba(15, 76, 129, 0.18), transparent 24%),
+      radial-gradient(circle at 50% 100%, rgba(21, 172, 166, 0.12), transparent 28%),
+      linear-gradient(180deg, #f7f3ed 0%, #efe8dd 100%);
     background-color: var(--bg);
     color: var(--fg);
     font-family: var(--font-sans);
   }
 
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.3) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.3) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.32), transparent 85%);
+    opacity: 0.5;
+  }
+
   #root {
     min-height: 100vh;
+    position: relative;
   }
 }
 
 @layer components {
   .page-enter {
-    animation: page-enter 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: page-enter 540ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
   .stagger-1 {
-    animation-delay: 60ms;
+    animation-delay: 70ms;
   }
 
   .stagger-2 {
-    animation-delay: 120ms;
+    animation-delay: 140ms;
   }
 
   .stagger-3 {
-    animation-delay: 180ms;
+    animation-delay: 210ms;
   }
 }
 
 @keyframes page-enter {
   from {
     opacity: 0;
-    transform: translateY(18px);
+    transform: translateY(20px);
   }
 
   to {
@@ -72,8 +90,13 @@
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes panelIn {
