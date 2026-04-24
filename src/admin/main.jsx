@@ -715,50 +715,102 @@ function AdminApp() {
                   {entriesLoading ? (
                     <LoadingState message="Memuat entry..." />
                   ) : (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-slate-50 hover:bg-slate-50 border-slate-200">
-                            <TableHead>IP / Label</TableHead>
-                            <TableHead className="hidden sm:table-cell">Owner</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="hidden md:table-cell">Expires</TableHead>
-                            <TableHead className="text-right">Aksi</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {entries.length ? entries.map((entry) => (
-                            <TableRow key={entry.id} className="hover:bg-slate-50 transition-colors border-slate-100">
-                              <TableCell className="py-3 px-2 sm:px-4">
-                                <div className="font-mono font-bold text-xs sm:text-sm text-slate-900">{entry.ip}</div>
-                                <div className="text-[10px] sm:text-xs text-slate-500 truncate max-w-[100px] sm:max-w-none">{entry.label || "-"}</div>
-                              </TableCell>
-                              <TableCell className="hidden sm:table-cell text-sm text-slate-700">{entry.owner || "-"}</TableCell>
-                              <TableCell className="py-3 px-1 sm:px-4"><Badge variant={statusTone(entry.effective_status)} className="text-[10px] px-1.5 py-0">{statusLabel(entry.effective_status)}</Badge></TableCell>
-                              <TableCell className="hidden md:table-cell text-sm text-slate-600">{formatDate(entry.expires_at)}</TableCell>
-                              <TableCell className="text-right py-3 px-2">
-                                <div className="flex justify-end gap-1 sm:gap-2">
-                                  <Button size="sm" variant="secondary" className="h-7 w-7 sm:h-8 sm:w-auto p-0 sm:px-3 bg-slate-100 border-slate-300" onClick={() => openEntryDetail(entry)}>
-                                    <Eye className="size-3 sm:size-4" />
-                                  </Button>
-                                  <Button size="sm" variant="secondary" className="h-7 w-7 sm:h-8 sm:w-auto p-0 sm:px-3 bg-slate-100 border-slate-300" onClick={() => {
-                                    setEditFormState({
-                                      id: entry.id, ip: entry.ip || "", label: entry.label || "", owner: entry.owner || "", notes: entry.notes || "", expires_at: formatForDateTimeLocal(entry.expires_at || ""),
-                                    });
-                                    setEditDialogOpen(true);
-                                  }}><RefreshCw className="size-3 sm:size-4" /></Button>
-                                  <Button size="sm" variant="outline" className={`h-7 px-1.5 sm:h-8 sm:px-3 text-[10px] sm:text-xs ${entry.effective_status === 'revoked' ? 'text-emerald-600 border-emerald-200 hover:bg-emerald-50' : 'text-rose-600 border-rose-200 hover:bg-rose-50'}`} onClick={() => toggleEntry(entry, entry.effective_status === "revoked" ? "reactivate" : "revoke")}>
-                                    {entry.effective_status === "revoked" ? "ON" : "OFF"}
-                                  </Button>
-                                </div>
-                              </TableCell>
+                    <>
+                      {/* Desktop Table */}
+                      <div className="hidden md:block overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-slate-50 hover:bg-slate-50 border-slate-200">
+                              <TableHead>IP / Label</TableHead>
+                              <TableHead>Owner</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Expires</TableHead>
+                              <TableHead className="text-right">Aksi</TableHead>
                             </TableRow>
-                          )) : (
-                            <TableRow><TableCell colSpan={5}><LoadingState message="Data tidak ditemukan." /></TableCell></TableRow>
-                          )}
-                        </TableBody>
-                      </Table>
-                    </div>
+                          </TableHeader>
+                          <TableBody>
+                            {entries.map((entry) => (
+                              <TableRow key={entry.id} className="hover:bg-slate-50 transition-colors border-slate-100">
+                                <TableCell>
+                                  <div className="font-mono font-bold text-slate-900">{entry.ip}</div>
+                                  <div className="text-xs text-slate-500">{entry.label || "-"}</div>
+                                </TableCell>
+                                <TableCell className="text-sm text-slate-700">{entry.owner || "-"}</TableCell>
+                                <TableCell><Badge variant={statusTone(entry.effective_status)}>{statusLabel(entry.effective_status)}</Badge></TableCell>
+                                <TableCell className="text-sm text-slate-600">{formatDate(entry.expires_at)}</TableCell>
+                                <TableCell className="text-right">
+                                  <div className="flex justify-end gap-2">
+                                    <Button size="sm" variant="secondary" className="bg-slate-100 hover:bg-slate-200 border-slate-300" onClick={() => openEntryDetail(entry)}>
+                                      <Eye className="size-4" />
+                                    </Button>
+                                    <Button size="sm" variant="secondary" className="bg-slate-100 hover:bg-slate-200 border-slate-300" onClick={() => {
+                                      setEditFormState({
+                                        id: entry.id, ip: entry.ip || "", label: entry.label || "", owner: entry.owner || "", notes: entry.notes || "", expires_at: formatForDateTimeLocal(entry.expires_at || ""),
+                                      });
+                                      setEditDialogOpen(true);
+                                    }}>Edit</Button>
+                                    <Button size="sm" variant="outline" className={entry.effective_status === 'revoked' ? 'text-emerald-600 border-emerald-200 hover:bg-emerald-50' : 'text-rose-600 border-rose-200 hover:bg-rose-50'} onClick={() => toggleEntry(entry, entry.effective_status === "revoked" ? "reactivate" : "revoke")}>
+                                      {entry.effective_status === "revoked" ? "Reactivate" : "Revoke"}
+                                    </Button>
+                                    <Button size="sm" variant="destructive" onClick={() => deleteEntry(entry)}><Trash2 className="size-4" /></Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+
+                      {/* Mobile Card List */}
+                      <div className="md:hidden divide-y divide-slate-100">
+                        {entries.length ? entries.map((entry) => (
+                          <div key={entry.id} className="p-4 space-y-4 active:bg-slate-50 transition-colors">
+                            <div className="flex justify-between items-start">
+                              <div className="space-y-1">
+                                <div className="font-mono font-bold text-base text-blue-600">{entry.ip}</div>
+                                <div className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded w-fit">{entry.label || "No Label"}</div>
+                              </div>
+                              <Badge variant={statusTone(entry.effective_status)} className="shadow-sm">
+                                {statusLabel(entry.effective_status)}
+                              </Badge>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4 text-xs">
+                              <div>
+                                <div className="text-slate-400 uppercase tracking-wider font-bold mb-0.5">Owner</div>
+                                <div className="text-slate-700">{entry.owner || "-"}</div>
+                              </div>
+                              <div>
+                                <div className="text-slate-400 uppercase tracking-wider font-bold mb-0.5">Expires</div>
+                                <div className="text-slate-700 font-medium">{formatDate(entry.expires_at)}</div>
+                              </div>
+                            </div>
+
+                            <div className="flex gap-2 pt-2">
+                              <Button size="sm" variant="secondary" className="flex-1 h-9 bg-slate-100 border-slate-200 shadow-sm" onClick={() => openEntryDetail(entry)}>
+                                <Eye className="size-4 mr-2" /> Detail
+                              </Button>
+                              <Button size="sm" variant="secondary" className="flex-1 h-9 bg-slate-100 border-slate-200 shadow-sm" onClick={() => {
+                                setEditFormState({
+                                  id: entry.id, ip: entry.ip || "", label: entry.label || "", owner: entry.owner || "", notes: entry.notes || "", expires_at: formatForDateTimeLocal(entry.expires_at || ""),
+                                });
+                                setEditDialogOpen(true);
+                              }}>Edit</Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className={`flex-1 h-9 ${entry.effective_status === 'revoked' ? 'text-emerald-600 border-emerald-200' : 'text-rose-600 border-rose-200'}`} 
+                                onClick={() => toggleEntry(entry, entry.effective_status === "revoked" ? "reactivate" : "revoke")}
+                              >
+                                {entry.effective_status === "revoked" ? "ON" : "OFF"}
+                              </Button>
+                            </div>
+                          </div>
+                        )) : (
+                          <div className="p-8 text-center text-slate-400 text-sm">Tidak ada data.</div>
+                        )}
+                      </div>
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -813,33 +865,57 @@ function AdminApp() {
                 {auditLoading ? (
                   <LoadingState message="Memuat log..." />
                 ) : (
-                  <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-slate-50 hover:bg-slate-50 border-slate-200">
-                        <TableHead>Waktu / IP</TableHead>
-                        <TableHead>Event</TableHead>
-                        <TableHead className="hidden md:table-cell">Actor</TableHead>
-                        <TableHead className="hidden lg:table-cell">Detail</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                  <>
+                    {/* Desktop Table */}
+                    <div className="hidden md:block overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-slate-50 hover:bg-slate-50 border-slate-200">
+                            <TableHead>Waktu / IP</TableHead>
+                            <TableHead>Event</TableHead>
+                            <TableHead className="hidden md:table-cell">Actor</TableHead>
+                            <TableHead className="hidden lg:table-cell">Detail</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {auditLogs.length ? auditLogs.map((log) => (
+                            <TableRow key={log.id} className="hover:bg-slate-50 border-slate-100">
+                              <TableCell className="py-3 px-2 sm:px-4">
+                                <div className="text-[10px] sm:text-sm text-slate-600 font-medium">{formatDate(log.created_at)}</div>
+                                <div className="font-mono text-[10px] sm:text-xs font-bold text-blue-600 mt-0.5">{log.ip || "-"}</div>
+                              </TableCell>
+                              <TableCell className="py-3 px-1 sm:px-4">
+                                <Badge variant={statusTone(log.decision)} className="text-[9px] sm:text-xs px-1.5 py-0 truncate max-w-[80px] sm:max-w-none">{log.event_type || "-"}</Badge>
+                              </TableCell>
+                              <TableCell className="hidden md:table-cell text-sm text-slate-700">{log.actor_email || "worker"}</TableCell>
+                              <TableCell className="hidden lg:table-cell text-xs text-slate-500 font-mono truncate max-w-xs" title={JSON.stringify(log.payload_json)}>{JSON.stringify(log.payload_json || {})}</TableCell>
+                            </TableRow>
+                          )) : <TableRow><TableCell colSpan={5}><LoadingState message="Tidak ada log."/></TableCell></TableRow>}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    {/* Mobile Log Feed */}
+                    <div className="md:hidden divide-y divide-slate-100">
                       {auditLogs.length ? auditLogs.map((log) => (
-                        <TableRow key={log.id} className="hover:bg-slate-50 border-slate-100">
-                          <TableCell className="py-3 px-2 sm:px-4">
-                            <div className="text-[10px] sm:text-sm text-slate-600 font-medium">{formatDate(log.created_at)}</div>
-                            <div className="font-mono text-[10px] sm:text-xs font-bold text-blue-600 mt-0.5">{log.ip || "-"}</div>
-                          </TableCell>
-                          <TableCell className="py-3 px-1 sm:px-4">
-                            <Badge variant={statusTone(log.decision)} className="text-[9px] sm:text-xs px-1.5 py-0 truncate max-w-[80px] sm:max-w-none">{log.event_type || "-"}</Badge>
-                          </TableCell>
-                          <TableCell className="hidden md:table-cell text-sm text-slate-700">{log.actor_email || "worker"}</TableCell>
-                          <TableCell className="hidden lg:table-cell text-xs text-slate-500 font-mono truncate max-w-xs" title={JSON.stringify(log.payload_json)}>{JSON.stringify(log.payload_json || {})}</TableCell>
-                        </TableRow>
-                      )) : <TableRow><TableCell colSpan={5}><LoadingState message="Tidak ada log."/></TableCell></TableRow>}
-                    </TableBody>
-                  </Table>
-                  </div>
+                        <div key={log.id} className="p-4 flex gap-4 items-start active:bg-slate-50 transition-colors">
+                          <div className={`mt-1 size-2 shrink-0 rounded-full ${log.decision === 'allow' || log.decision === 'ok' ? 'bg-emerald-500' : 'bg-rose-500'} shadow-[0_0_8px_rgba(0,0,0,0.1)]`} />
+                          <div className="flex-1 space-y-1 min-w-0">
+                            <div className="flex justify-between items-center gap-2">
+                              <div className="font-mono font-bold text-xs text-slate-900 truncate">{log.ip || "System"}</div>
+                              <div className="text-[10px] text-slate-400 font-medium whitespace-nowrap">{formatDate(log.created_at).split(',')[1]}</div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={statusTone(log.decision)} className="text-[9px] px-1 py-0">{log.event_type}</Badge>
+                              <span className="text-[10px] text-slate-500 truncate">{log.actor_email || "worker"}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )) : (
+                        <div className="p-8 text-center text-slate-400 text-sm">Tidak ada log.</div>
+                      )}
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>
