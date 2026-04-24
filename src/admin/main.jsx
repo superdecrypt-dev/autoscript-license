@@ -118,15 +118,15 @@ function AdminApp() {
       if (activeView === "audit") refreshAuditLogs();
       if (activeView === "settings") refreshBackups();
     }
-  }, [activeView]);
+  }, [activeView, authStatus]);
 
   useEffect(() => {
     if (authStatus === "authenticated" && activeView === "audit") refreshAuditLogs();
-  }, [auditIp, auditEvent]);
+  }, [auditIp, auditEvent, authStatus]);
 
   useEffect(() => {
     if (authStatus === "authenticated" && activeView === "entries") refreshEntries();
-  }, [search, statusFilter]);
+  }, [search, statusFilter, authStatus]);
 
   async function authenticateWithAccess() {
     setAuthStatus("authenticating");
