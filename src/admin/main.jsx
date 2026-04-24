@@ -69,7 +69,7 @@ const VIEW_META = {
 
 function AdminApp() {
   const config = useMemo(() => getAdminConfig(), []);
-  const adminApiOrigin = useMemo(() => new URL(config.adminApiBaseUrl).origin, [config.adminApiBaseUrl]);
+  const adminApiOrigin = config.adminApiBaseUrl;
   const usesCrossOriginAdminApi = adminApiOrigin !== window.location.origin;
   const [activeView, setActiveView] = useState(localStorage.getItem("autoscriptLicenseAdminActiveView") || "dashboard");
   const [authStatus, setAuthStatus] = useState("authenticating");
@@ -625,6 +625,17 @@ function AdminApp() {
     Number(summary.active_entries || 0) + Number(summary.expired_entries || 0) + Number(summary.revoked_entries || 0),
     1
   );
+
+  if (authStatus === "authenticating") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--bg)] px-4 py-10 font-sans text-[var(--fg)]">
+        <div className="flex flex-col items-center gap-4">
+           <RefreshCw className="size-10 text-[var(--accent)] animate-spin" />
+           <p className="text-sm font-medium opacity-70">Memverifikasi akses...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (authStatus !== "authenticated") {
     return (
