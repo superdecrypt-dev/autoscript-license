@@ -694,13 +694,13 @@ function AdminApp() {
                 <CardHeader className="bg-slate-50 border-b border-slate-200 pb-4">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <CardTitle className="text-lg font-bold">Daftar IP</CardTitle>
-                    <div className="flex gap-3 w-full md:w-auto">
+                    <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                       <div className="relative flex-1 md:w-64">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
-                        <Input className="pl-9 bg-white" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari IP, label..." />
+                        <Input className="pl-9 bg-white w-full" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari IP, label..." />
                       </div>
                       <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-40 bg-white"><SelectValue placeholder="Status" /></SelectTrigger>
+                        <SelectTrigger className="w-full sm:w-40 bg-white"><SelectValue placeholder="Status" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">Semua Status</SelectItem>
                           <SelectItem value="active">Active</SelectItem>
@@ -720,37 +720,36 @@ function AdminApp() {
                         <TableHeader>
                           <TableRow className="bg-slate-50 hover:bg-slate-50 border-slate-200">
                             <TableHead>IP / Label</TableHead>
-                            <TableHead>Owner</TableHead>
+                            <TableHead className="hidden sm:table-cell">Owner</TableHead>
                             <TableHead>Status</TableHead>
-                            <TableHead>Expires</TableHead>
+                            <TableHead className="hidden md:table-cell">Expires</TableHead>
                             <TableHead className="text-right">Aksi</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {entries.length ? entries.map((entry) => (
                             <TableRow key={entry.id} className="hover:bg-slate-50 transition-colors border-slate-100">
-                              <TableCell>
-                                <div className="font-mono font-bold text-slate-900">{entry.ip}</div>
-                                <div className="text-xs text-slate-500">{entry.label || "-"}</div>
+                              <TableCell className="py-3 px-2 sm:px-4">
+                                <div className="font-mono font-bold text-xs sm:text-sm text-slate-900">{entry.ip}</div>
+                                <div className="text-[10px] sm:text-xs text-slate-500 truncate max-w-[100px] sm:max-w-none">{entry.label || "-"}</div>
                               </TableCell>
-                              <TableCell className="text-sm text-slate-700">{entry.owner || "-"}</TableCell>
-                              <TableCell><Badge variant={statusTone(entry.effective_status)}>{statusLabel(entry.effective_status)}</Badge></TableCell>
-                              <TableCell className="text-sm text-slate-600">{formatDate(entry.expires_at)}</TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex justify-end gap-2">
-                                  <Button size="sm" variant="secondary" className="bg-slate-100 hover:bg-slate-200 border-slate-300" onClick={() => openEntryDetail(entry)}>
-                                    <Eye className="size-4" />
+                              <TableCell className="hidden sm:table-cell text-sm text-slate-700">{entry.owner || "-"}</TableCell>
+                              <TableCell className="py-3 px-1 sm:px-4"><Badge variant={statusTone(entry.effective_status)} className="text-[10px] px-1.5 py-0">{statusLabel(entry.effective_status)}</Badge></TableCell>
+                              <TableCell className="hidden md:table-cell text-sm text-slate-600">{formatDate(entry.expires_at)}</TableCell>
+                              <TableCell className="text-right py-3 px-2">
+                                <div className="flex justify-end gap-1 sm:gap-2">
+                                  <Button size="sm" variant="secondary" className="h-7 w-7 sm:h-8 sm:w-auto p-0 sm:px-3 bg-slate-100 border-slate-300" onClick={() => openEntryDetail(entry)}>
+                                    <Eye className="size-3 sm:size-4" />
                                   </Button>
-                                  <Button size="sm" variant="secondary" className="bg-slate-100 hover:bg-slate-200 border-slate-300" onClick={() => {
+                                  <Button size="sm" variant="secondary" className="h-7 w-7 sm:h-8 sm:w-auto p-0 sm:px-3 bg-slate-100 border-slate-300" onClick={() => {
                                     setEditFormState({
                                       id: entry.id, ip: entry.ip || "", label: entry.label || "", owner: entry.owner || "", notes: entry.notes || "", expires_at: formatForDateTimeLocal(entry.expires_at || ""),
                                     });
                                     setEditDialogOpen(true);
-                                  }}>Edit</Button>
-                                  <Button size="sm" variant="outline" className={entry.effective_status === 'revoked' ? 'text-emerald-600 border-emerald-200 hover:bg-emerald-50' : 'text-rose-600 border-rose-200 hover:bg-rose-50'} onClick={() => toggleEntry(entry, entry.effective_status === "revoked" ? "reactivate" : "revoke")}>
-                                    {entry.effective_status === "revoked" ? "Reactivate" : "Revoke"}
+                                  }}><RefreshCw className="size-3 sm:size-4" /></Button>
+                                  <Button size="sm" variant="outline" className={`h-7 px-1.5 sm:h-8 sm:px-3 text-[10px] sm:text-xs ${entry.effective_status === 'revoked' ? 'text-emerald-600 border-emerald-200 hover:bg-emerald-50' : 'text-rose-600 border-rose-200 hover:bg-rose-50'}`} onClick={() => toggleEntry(entry, entry.effective_status === "revoked" ? "reactivate" : "revoke")}>
+                                    {entry.effective_status === "revoked" ? "ON" : "OFF"}
                                   </Button>
-                                  <Button size="sm" variant="destructive" onClick={() => deleteEntry(entry)}><Trash2 className="size-4" /></Button>
                                 </div>
                               </TableCell>
                             </TableRow>
@@ -805,9 +804,9 @@ function AdminApp() {
                   <CardTitle className="text-lg font-bold">Audit Logs</CardTitle>
                   <CardDescription>Jejak digital seluruh aktivitas di dalam sistem.</CardDescription>
                 </div>
-                <div className="flex gap-3">
-                  <Input className="w-48 bg-white" value={auditIp} onChange={e => setAuditIp(e.target.value)} placeholder="Filter IP" />
-                  <Input className="w-48 bg-white" value={auditEvent} onChange={e => setAuditEvent(e.target.value)} placeholder="Filter Event" />
+                <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                  <Input className="w-full sm:w-48 bg-white" value={auditIp} onChange={e => setAuditIp(e.target.value)} placeholder="Filter IP" />
+                  <Input className="w-full sm:w-48 bg-white" value={auditEvent} onChange={e => setAuditEvent(e.target.value)} placeholder="Filter Event" />
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -818,21 +817,24 @@ function AdminApp() {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-slate-50 hover:bg-slate-50 border-slate-200">
-                        <TableHead>Waktu</TableHead>
+                        <TableHead>Waktu / IP</TableHead>
                         <TableHead>Event</TableHead>
-                        <TableHead>IP</TableHead>
-                        <TableHead>Actor</TableHead>
-                        <TableHead>Detail</TableHead>
+                        <TableHead className="hidden md:table-cell">Actor</TableHead>
+                        <TableHead className="hidden lg:table-cell">Detail</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {auditLogs.length ? auditLogs.map((log) => (
                         <TableRow key={log.id} className="hover:bg-slate-50 border-slate-100">
-                          <TableCell className="whitespace-nowrap text-sm text-slate-600">{formatDate(log.created_at)}</TableCell>
-                          <TableCell><Badge variant={statusTone(log.decision)}>{log.event_type || "-"}</Badge></TableCell>
-                          <TableCell className="font-mono text-sm font-bold text-slate-900">{log.ip || "-"}</TableCell>
-                          <TableCell className="text-sm text-slate-700">{log.actor_email || "worker"}</TableCell>
-                          <TableCell className="text-xs text-slate-500 font-mono truncate max-w-xs" title={JSON.stringify(log.payload_json)}>{JSON.stringify(log.payload_json || {})}</TableCell>
+                          <TableCell className="py-3 px-2 sm:px-4">
+                            <div className="text-[10px] sm:text-sm text-slate-600 font-medium">{formatDate(log.created_at)}</div>
+                            <div className="font-mono text-[10px] sm:text-xs font-bold text-blue-600 mt-0.5">{log.ip || "-"}</div>
+                          </TableCell>
+                          <TableCell className="py-3 px-1 sm:px-4">
+                            <Badge variant={statusTone(log.decision)} className="text-[9px] sm:text-xs px-1.5 py-0 truncate max-w-[80px] sm:max-w-none">{log.event_type || "-"}</Badge>
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell text-sm text-slate-700">{log.actor_email || "worker"}</TableCell>
+                          <TableCell className="hidden lg:table-cell text-xs text-slate-500 font-mono truncate max-w-xs" title={JSON.stringify(log.payload_json)}>{JSON.stringify(log.payload_json || {})}</TableCell>
                         </TableRow>
                       )) : <TableRow><TableCell colSpan={5}><LoadingState message="Tidak ada log."/></TableCell></TableRow>}
                     </TableBody>
