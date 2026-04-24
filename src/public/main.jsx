@@ -155,148 +155,163 @@ function PublicApp() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
-      <section className="page-enter overflow-hidden rounded-[2rem] border border-[var(--line)] bg-[var(--panel)] shadow-[var(--shadow)]">
-        <div className="px-6 py-8 md:px-10 md:py-12">
-          <div className="space-y-5">
-            <Badge variant="accent">IP Access</Badge>
-            <div className="space-y-4">
-              <h1 className="max-w-3xl text-4xl font-semibold tracking-tight md:text-6xl">Autoscript IP License</h1>
-              <p className="max-w-2xl text-base leading-7 text-[var(--muted)] md:text-lg">
-                Aktivasi, perpanjang, dan cek status lisensi IP VPS dalam satu halaman. Masa aktif default tetap <strong>{licenseDurationDays} hari</strong>.
-              </p>
+    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row font-sans text-slate-900">
+      {/* Left Branding Panel */}
+      <div className="md:w-5/12 bg-slate-900 text-white p-8 md:p-12 flex flex-col justify-between relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 20% 30%, #3b82f6 0%, transparent 50%), radial-gradient(circle at 80% 70%, #8b5cf6 0%, transparent 50%)' }} />
+        
+        <div className="relative z-10 space-y-6">
+          <div className="flex items-center gap-2">
+            <div className="size-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-900/50">
+              <ShieldCheck className="size-6 text-white" />
             </div>
-            <div className="flex flex-wrap gap-3">
-              <Button onClick={() => document.getElementById("process-card")?.scrollIntoView({ behavior: "smooth" })}>Proses IP</Button>
-              <Button variant="secondary" onClick={() => document.getElementById("status-card")?.scrollIntoView({ behavior: "smooth" })}>Cek Status</Button>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <HeroStat label="Worker" value={statusBadge.message} icon={Signal} />
-              <HeroStat label="Renew Window" value={`${renewOpenBeforeDays} hari`} icon={Clock3} />
-            </div>
+            <span className="text-xl font-bold tracking-tight">Autoscript</span>
+          </div>
+          
+          <div className="mt-16 space-y-4">
+            <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30">License Portal</Badge>
+            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight leading-tight">
+              Akses Instan ke <br />
+              <span className="text-blue-400">Infrastruktur Anda.</span>
+            </h1>
+            <p className="text-slate-400 text-lg max-w-md leading-relaxed">
+              Kelola lisensi IP VPS Anda dengan aman. Sistem terintegrasi dengan validasi otomatis dan proteksi anti-bot.
+            </p>
           </div>
         </div>
-      </section>
 
-      <Alert className="page-enter stagger-1" tone={banner.tone}>{banner.message}</Alert>
-
-      <div className="page-enter stagger-3 grid gap-6 lg:grid-cols-2">
-        <Card id="process-card" className="bg-[var(--panel-strong)]">
-          <CardHeader>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <Badge variant="accent">Proses</Badge>
-                <CardTitle className="mt-3 text-2xl">Proses IP</CardTitle>
-                <CardDescription className="mt-2">
-                  {processMode === "renew"
-                    ? "Mode renew publik aktif. Gunakan untuk IP yang masih aktif dan sudah masuk jendela perpanjangan."
-                    : "Untuk IP baru atau IP yang sudah expired."}
-                </CardDescription>
-              </div>
-              <Badge variant={processMode === "renew" ? "amber" : "emerald"}>{processMode === "renew" ? "Renew" : "Aktivasi"}</Badge>
+        <div className="relative z-10 mt-12 grid grid-cols-2 gap-4">
+          <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-4 backdrop-blur-sm">
+            <div className="flex items-center gap-2 text-slate-400 mb-2">
+              <Cpu className="size-4 text-blue-400" />
+              <span className="text-xs font-semibold uppercase tracking-wider">Worker Status</span>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            {processMode === "renew" ? (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--line)] bg-white/60 px-4 py-3 text-sm text-[var(--muted)]">
-                <span>Mode sekarang: renew publik.</span>
-                <Button type="button" size="sm" variant="ghost" onClick={() => setProcessMode("activate")}>
-                  <RotateCcw className="size-4" />
-                  Pakai Aktivasi
-                </Button>
-              </div>
-            ) : null}
-            <form className="space-y-4" onSubmit={handleCreateSubmit}>
-              <Field label="IPv4 VPS" help="Masukkan public IPv4 VPS yang dipakai server.">
-                <Input value={createIp} onChange={(event) => setCreateIp(event.target.value)} placeholder="123.45.67.89" />
-              </Field>
-              <div className="space-y-3 rounded-2xl border border-dashed border-[var(--line)] bg-white/60 p-4">
-                <div className="text-sm font-medium">Verifikasi Keamanan</div>
-                <div ref={turnstileSlotRef} className="min-h-16" />
-                <p className="text-sm text-[var(--muted)]">
-                  {config.turnstileSiteKey
-                    ? turnstileToken
-                      ? "Verifikasi selesai. Anda bisa memproses IP."
-                      : "Selesaikan verifikasi keamanan sebelum aktivasi."
-                    : "Turnstile belum dikonfigurasi."}
-                </p>
-              </div>
-              <Button className="w-full" disabled={createLoading || !turnstileToken}>
-                {createLoading ? "Memproses..." : processMode === "renew" ? "Renew IP" : "Proses IP"}
-              </Button>
-            </form>
-            <ResultPanel result={createResult} />
-          </CardContent>
-        </Card>
-
-        <Card id="status-card" className="bg-[var(--panel-strong)]">
-          <CardHeader>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <Badge variant="slate">Status</Badge>
-                <CardTitle className="mt-3 text-2xl">Cek Status</CardTitle>
-                <CardDescription className="mt-2">Lihat apakah IP aktif, expired, atau revoked tanpa mengubah state lisensi.</CardDescription>
-              </div>
-              <Badge variant="slate">Cek Saja</Badge>
+            <div className="font-medium flex items-center gap-2">
+              <div className={`size-2 rounded-full ${statusBadge.tone === 'emerald' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+              {statusBadge.message}
             </div>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <form className="space-y-4" onSubmit={handleStatusSubmit}>
-              <Field label="IPv4 VPS" help="Gunakan IP yang sama dengan yang ingin dicek.">
-                <Input value={statusIp} onChange={(event) => setStatusIp(event.target.value)} placeholder="123.45.67.89" />
-              </Field>
-              <Button className="w-full" variant="secondary" disabled={statusLoading}>
-                {statusLoading ? "Memeriksa..." : "Cek Status"}
-              </Button>
-            </form>
-            <StatusResultPanel result={statusResult} onAction={applyStatusAction} />
-          </CardContent>
-        </Card>
+          </div>
+          <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-4 backdrop-blur-sm">
+            <div className="flex items-center gap-2 text-slate-400 mb-2">
+              <Clock3 className="size-4 text-blue-400" />
+              <span className="text-xs font-semibold uppercase tracking-wider">Default Duration</span>
+            </div>
+            <div className="font-medium text-white">{licenseDurationDays} Hari</div>
+          </div>
+        </div>
       </div>
 
-      <Card className="page-enter stagger-3">
-        <CardHeader>
-          <Badge variant="slate">Aturan Singkat</Badge>
-          <CardTitle className="mt-3">Aturan</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2">
-          <RuleItem>Aktivasi ulang ditolak jika IP masih aktif.</RuleItem>
-          <RuleItem>Renew publik baru dibuka saat sisa aktif {renewOpenBeforeDays} hari atau kurang.</RuleItem>
-          <RuleItem>Jika VPS pindah IP, aktifkan ulang dengan IP baru.</RuleItem>
-          <RuleItem>
-            Support:{" "}
-            <a className="font-medium text-[var(--accent-strong)] underline underline-offset-4" href="mailto:autoscript@atomicmail.io">
-              autoscript@atomicmail.io
-            </a>
-          </RuleItem>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
+      {/* Right Interaction Panel */}
+      <div className="flex-1 p-6 md:p-12 overflow-y-auto flex items-center justify-center">
+        <div className="w-full max-w-xl space-y-6">
+          <Alert tone={banner.tone} className="shadow-sm bg-white">
+            {banner.message}
+          </Alert>
 
-function Field({ label, help, children }) {
-  return (
-    <label className="block space-y-2">
-      <div className="text-sm font-medium">{label}</div>
-      {children}
-      <div className="text-sm text-[var(--muted)]">{help}</div>
-    </label>
-  );
-}
+          <Card className="border-slate-200 shadow-xl shadow-slate-200/40 bg-white">
+            <div className="flex border-b border-slate-100 bg-slate-50 rounded-t-xl overflow-hidden">
+                <button 
+                  className={`flex-1 py-4 text-sm font-bold transition-colors ${processMode !== "status" ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:bg-slate-100'}`}
+                  onClick={() => setProcessMode("activate")}
+                >
+                  Proses IP
+                </button>
+                <button 
+                  className={`flex-1 py-4 text-sm font-bold transition-colors ${processMode === "status" ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:bg-slate-100'}`}
+                  onClick={() => setProcessMode("status")}
+                >
+                  Cek Status
+                </button>
+            </div>
 
-function RuleItem({ children }) {
-  return <div className="rounded-2xl border border-[var(--line)] bg-white/60 px-4 py-3 text-sm leading-6 text-[var(--muted)]">{children}</div>;
-}
+            <CardContent className="p-6 pt-8">
+              {processMode !== "status" && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900">Aktivasi & Perpanjangan</h3>
+                      <p className="text-sm text-slate-500">
+                        {processMode === "renew" ? "Mode perpanjangan lisensi publik aktif." : "Daftarkan IP baru ke sistem."}
+                      </p>
+                    </div>
+                    <Badge variant={processMode === "renew" ? "amber" : "emerald"}>
+                      {processMode === "renew" ? "Renew Mode" : "Activate Mode"}
+                    </Badge>
+                  </div>
 
-function HeroStat({ label, value, icon: Icon }) {
-  return (
-    <div className="rounded-2xl border border-[var(--line)] bg-white/70 px-4 py-3 shadow-[var(--shadow-sm)]">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
-        <Icon className="size-4 text-[var(--accent-strong)]" />
+                  {processMode === "renew" && (
+                    <div className="bg-amber-50 text-amber-800 p-3 rounded-xl border border-amber-200 text-sm flex justify-between items-center">
+                      <span>Anda sedang memperpanjang lisensi.</span>
+                      <Button type="button" size="sm" variant="ghost" className="h-8 hover:bg-amber-100" onClick={() => setProcessMode("activate")}>
+                        <RotateCcw className="size-3 mr-1" /> Batal
+                      </Button>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleCreateSubmit} className="space-y-5">
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-slate-700">Alamat IPv4</label>
+                      <Input 
+                        placeholder="e.g. 103.45.67.89" 
+                        value={createIp}
+                        onChange={e => setCreateIp(e.target.value)}
+                        className="font-mono text-lg py-6"
+                      />
+                      <p className="text-xs text-slate-500">Masukkan IP publik VPS yang akan digunakan.</p>
+                    </div>
+
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-semibold text-slate-700">Verifikasi Keamanan</span>
+                        <Badge variant={turnstileToken ? "emerald" : "slate"}>{turnstileToken ? "Verified" : "Pending"}</Badge>
+                      </div>
+                      <div ref={turnstileSlotRef} className="min-h-[65px] flex justify-center" />
+                    </div>
+
+                    <Button className="w-full h-12 text-base font-bold" disabled={createLoading || !turnstileToken}>
+                      {createLoading ? "Memproses..." : processMode === "renew" ? "Perpanjang Lisensi" : "Aktivasi Lisensi"}
+                      <ArrowRight className="ml-2 size-4" />
+                    </Button>
+                  </form>
+
+                  <ResultPanel result={createResult} />
+                </div>
+              )}
+
+              {processMode === "status" && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900">Pengecekan Status</h3>
+                    <p className="text-sm text-slate-500">Periksa detail lisensi IP tanpa modifikasi data.</p>
+                  </div>
+
+                  <form onSubmit={handleStatusSubmit} className="space-y-5">
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-slate-700">Alamat IPv4</label>
+                      <Input 
+                        placeholder="e.g. 103.45.67.89" 
+                        value={statusIp}
+                        onChange={e => setStatusIp(e.target.value)}
+                        className="font-mono text-lg py-6"
+                      />
+                    </div>
+                    <Button variant="secondary" className="w-full h-12 text-base font-bold bg-slate-100 hover:bg-slate-200 border-slate-300" disabled={statusLoading}>
+                      <Search className="mr-2 size-4" />
+                      {statusLoading ? "Memeriksa..." : "Cek Status Lisensi"}
+                    </Button>
+                  </form>
+
+                  <StatusResultPanel result={statusResult} onAction={applyStatusAction} />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          
+          <div className="text-center text-sm text-slate-500 pt-4">
+             Support: <a href="mailto:autoscript@atomicmail.io" className="font-bold text-blue-600 hover:underline">autoscript@atomicmail.io</a>
+          </div>
+        </div>
       </div>
-      <div className="mt-2 text-sm font-medium">{value}</div>
     </div>
   );
 }
@@ -306,29 +321,27 @@ function ResultPanel({ result }) {
   const body = result.body || {};
   const item = body.item || body;
   return (
-    <div className="space-y-4 rounded-2xl border border-[var(--line)] bg-white/70 p-4 shadow-[var(--shadow-sm)]">
+    <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">Result</div>
-          <h3 className="mt-2 text-lg font-semibold">{result.title}</h3>
+          <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Hasil</div>
+          <h3 className="mt-1 text-base font-bold text-slate-900">{result.title}</h3>
         </div>
         <Badge variant={result.tone}>{statusLabel(item.status || result.tone)}</Badge>
       </div>
-      {item.message ? (
-        <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-2 text-sm text-[var(--muted)]">
+      {item.message && (
+        <div className="rounded-lg bg-white border border-slate-200 px-3 py-2 text-sm text-slate-600">
           {item.message}
         </div>
-      ) : null}
-      {item.ip ? (
-        <div className="grid gap-3 md:grid-cols-2">
-          <Stat label="IP" value={item.ip} />
-          {"entry_id" in item ? <Stat label="Entry ID" value={item.entry_id || "-"} mono /> : null}
-          {"expires_at" in item ? <Stat label="Aktif Sampai" value={formatDate(item.expires_at)} /> : null}
-          {"days_remaining" in item ? <Stat label="Sisa Waktu" value={formatDaysRemaining(item.days_remaining)} /> : null}
-          {"renewable" in item ? <Stat label="Bisa Renew" value={item.renewable ? "Ya" : "Tidak"} /> : null}
-          {"allowed" in item ? <Stat label="Akses Publik" value={item.allowed ? "Diizinkan" : "Tidak"} /> : null}
+      )}
+      {item.ip && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Stat label="IP" value={item.ip} mono />
+          {"expires_at" in item && <Stat label="Aktif Sampai" value={formatDate(item.expires_at)} />}
+          {"days_remaining" in item && <Stat label="Sisa Waktu" value={formatDaysRemaining(item.days_remaining)} />}
+          {"allowed" in item && <Stat label="Akses Publik" value={item.allowed ? "Diizinkan" : "Ditolak"} />}
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
@@ -339,44 +352,41 @@ function StatusResultPanel({ result, onAction }) {
   const nextAction = item.next_action || {};
   const statusBadgeLabel = statusLabel(item.status || result.tone);
   return (
-    <div className="space-y-4 rounded-2xl border border-[var(--line)] bg-white/70 p-4 shadow-[var(--shadow-sm)]">
+    <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">Status</div>
-          <h3 className="mt-2 text-lg font-semibold">{result.title}</h3>
+          <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Status</div>
+          <h3 className="mt-1 text-base font-bold text-slate-900">{result.title}</h3>
         </div>
         <Badge variant={result.tone}>{statusBadgeLabel}</Badge>
       </div>
 
-      {item.detail_message ? (
-        <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-2 text-sm text-[var(--muted)]">
+      {item.detail_message && (
+        <div className="rounded-lg bg-white border border-slate-200 px-3 py-2 text-sm text-slate-600">
           {item.detail_message}
         </div>
-      ) : null}
+      )}
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2">
         <Stat label="IP Dicek" value={item.ip} mono />
-        <Stat label="Akses Publik" value={item.allowed ? "Diizinkan" : "Tidak"} />
+        <Stat label="Akses Publik" value={item.allowed ? "Diizinkan" : "Ditolak"} />
         <Stat label="Aktif Sampai" value={formatDate(item.expires_at)} />
         <Stat label="Sisa Waktu" value={formatDaysRemaining(item.days_remaining)} />
         <Stat label="Bisa Renew" value={item.renewable ? "Ya" : "Tidak"} />
         <Stat label="Jendela Renew" value={`${item.renew_open_before_days || 0} hari`} />
-        {Number(item.renew_opens_in_days || 0) > 0 ? (
-          <Stat label="Renew Dibuka Dalam" value={formatDaysRemaining(item.renew_opens_in_days)} />
-        ) : null}
       </div>
 
-      <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4">
-        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">Tindakan Berikutnya</div>
-        <div className="mt-2 text-sm text-[var(--muted)]">{nextAction.help || "Tidak ada tindakan lanjutan."}</div>
-        {nextAction.kind && nextAction.kind !== "none" ? (
+      <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Tindakan Berikutnya</div>
+        <div className="mt-1 text-sm text-slate-600">{nextAction.help || "Tidak ada tindakan lanjutan."}</div>
+        {nextAction.kind && nextAction.kind !== "none" && (
           <div className="mt-4">
-            <Button type="button" onClick={() => onAction?.(item)}>
-              {nextAction.kind === "renew" ? <RotateCcw className="size-4" /> : <ArrowRight className="size-4" />}
+            <Button type="button" size="sm" onClick={() => onAction?.(item)}>
+              {nextAction.kind === "renew" ? <RotateCcw className="size-4 mr-2" /> : <ArrowRight className="size-4 mr-2" />}
               {nextAction.label || "Lanjut"}
             </Button>
           </div>
-        ) : null}
+        )}
       </div>
     </div>
   );
@@ -384,9 +394,9 @@ function StatusResultPanel({ result, onAction }) {
 
 function Stat({ label, value, mono = false }) {
   return (
-    <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-2">
-      <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">{label}</div>
-      <div className={`mt-1 text-sm ${mono ? "font-mono" : ""}`}>{value || "-"}</div>
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</div>
+      <div className={`mt-1 text-sm text-slate-900 ${mono ? "font-mono" : "font-medium"}`}>{value || "-"}</div>
     </div>
   );
 }

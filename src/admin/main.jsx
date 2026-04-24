@@ -597,15 +597,17 @@ function AdminApp() {
 
   if (authStatus !== "authenticated") {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4 py-10">
-        <Card className="w-full max-w-lg">
-          <CardHeader>
-            <Badge variant="accent">Access</Badge>
-            <CardTitle className="mt-3 text-3xl">Memverifikasi Akses</CardTitle>
-            <CardDescription className="mt-2">Halaman ini dilindungi Cloudflare Access. Jika sesi gagal, muat ulang setelah sesi Access aktif.</CardDescription>
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10 font-sans">
+        <Card className="w-full max-w-md shadow-xl shadow-slate-200/50 border-slate-200">
+          <CardHeader className="text-center pt-8">
+            <div className="mx-auto bg-blue-100 text-blue-600 size-14 rounded-full flex items-center justify-center mb-4">
+              <ShieldCheck className="size-7" />
+            </div>
+            <CardTitle className="text-2xl font-bold text-slate-900">Operator Console</CardTitle>
+            <CardDescription className="text-slate-500 mt-2">Sistem manajemen lisensi terpusat.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <Alert tone={banner.tone}>{banner.message}</Alert>
+          <CardContent className="pb-8">
+            <Alert tone={banner.tone} className="bg-slate-50 border-slate-200 text-slate-700 shadow-sm">{banner.message}</Alert>
           </CardContent>
         </Card>
       </div>
@@ -613,117 +615,91 @@ function AdminApp() {
   }
 
   return (
-    <div className="min-h-screen page-enter">
-      <div className="mx-auto grid min-h-screen max-w-[1600px] gap-5 p-4 lg:grid-cols-[280px,1fr] lg:p-6">
-        <aside className="rounded-[2rem] border border-white/10 bg-gradient-to-b from-[var(--sidebar-2)] to-[var(--sidebar)] p-4 text-white shadow-[var(--shadow)] lg:p-5">
-          <Badge variant="accent">Ops Console</Badge>
-          <div className="mt-4">
-            <h1 className="text-2xl font-semibold">Autoscript License</h1>
-            <p className="mt-2 text-sm leading-6 text-white/65">Kelola lisensi, audit, metrics, dan recovery dengan stack React modern.</p>
-          </div>
-          <nav className="mt-6 flex gap-2 overflow-x-auto pb-1 lg:mt-8 lg:flex-col lg:overflow-visible lg:pb-0">
-            <SidebarButton icon={LayoutDashboard} active={activeView === "dashboard"} onClick={() => setActiveView("dashboard")}>Dashboard</SidebarButton>
-            <SidebarButton icon={ShieldCheck} active={activeView === "entries"} onClick={() => setActiveView("entries")}>Entries</SidebarButton>
-            <SidebarButton icon={RefreshCw} active={activeView === "audit"} onClick={() => setActiveView("audit")}>Audit Log</SidebarButton>
-            <SidebarButton icon={Settings} active={activeView === "settings"} onClick={() => setActiveView("settings")}>Settings</SidebarButton>
-          </nav>
-          <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 lg:mt-8">
-            <div className="text-xs uppercase tracking-[0.16em] text-white/55">Access Identity</div>
-            <div className="mt-3">
-              <Badge variant="emerald">{session?.admin_email || "Not Connected"}</Badge>
+    <div className="min-h-screen bg-slate-50 flex font-sans">
+      {/* Fixed Sidebar */}
+      <aside className="w-64 bg-slate-900 flex flex-col fixed inset-y-0 z-10 shadow-xl shadow-slate-900/20">
+        <div className="p-6 border-b border-slate-800">
+          <div className="flex items-center gap-3 text-white font-bold text-xl">
+            <div className="bg-blue-600 p-1.5 rounded-lg shadow-md shadow-blue-900/50">
+              <ShieldCheck className="size-5 text-white" />
             </div>
-            <div className="mt-3 text-xs leading-5 text-white/55">
-              API origin: <span className="font-mono text-white/80">{adminApiOrigin}</span>
-            </div>
+            <span>License Ops</span>
           </div>
-        </aside>
+        </div>
+        
+        <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
+          <SidebarButton icon={LayoutDashboard} active={activeView === "dashboard"} onClick={() => setActiveView("dashboard")}>Dashboard</SidebarButton>
+          <SidebarButton icon={Database} active={activeView === "entries"} onClick={() => setActiveView("entries")}>License Entries</SidebarButton>
+          <SidebarButton icon={Activity} active={activeView === "audit"} onClick={() => setActiveView("audit")}>Audit Logs</SidebarButton>
+          <SidebarButton icon={Settings} active={activeView === "settings"} onClick={() => setActiveView("settings")}>Settings & Backup</SidebarButton>
+        </nav>
 
-        <main className="space-y-5">
-          <div className="rounded-[2rem] border border-[var(--line)] bg-[var(--panel)] p-5 shadow-[var(--shadow)] page-enter stagger-1">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <h2 className="text-3xl font-semibold">{VIEW_META[activeView].title}</h2>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">{VIEW_META[activeView].description}</p>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <Button variant="secondary" onClick={refreshDashboard}><RefreshCw className="size-4" />Refresh</Button>
-                <Button variant="outline" onClick={logoutAccess}>Logout Access</Button>
-              </div>
-            </div>
+        <div className="p-4 border-t border-slate-800 bg-slate-900/50 space-y-4">
+          <div className="px-3 py-2 bg-slate-800 rounded-lg border border-slate-700 shadow-inner">
+            <div className="text-[10px] uppercase text-slate-500 font-semibold tracking-wider">Identity</div>
+            <div className="text-sm font-medium text-slate-200 truncate" title={session?.admin_email}>{session?.admin_email || "Offline"}</div>
           </div>
+          <Button variant="ghost" className="w-full text-slate-400 hover:text-white hover:bg-slate-800 justify-start" onClick={logoutAccess}>
+             Logout
+          </Button>
+        </div>
+      </aside>
 
-          <Alert className="page-enter stagger-1" tone={banner.tone}>{banner.message}</Alert>
+      {/* Main Content */}
+      <main className="flex-1 ml-64 min-h-screen flex flex-col">
+        <header className="bg-white border-b border-slate-200 px-8 py-5 flex justify-between items-center sticky top-0 z-10 shadow-sm shadow-slate-100/50">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">{VIEW_META[activeView].title}</h1>
+            <p className="text-sm text-slate-500 mt-1">{VIEW_META[activeView].description}</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button variant="secondary" onClick={refreshDashboard} className="bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700">
+              <RefreshCw className="size-4 mr-2" /> Refresh
+            </Button>
+          </div>
+        </header>
 
-          {activeView === "dashboard" ? (
-            <div className="space-y-5">
-              <Card className="bg-[var(--panel-strong)]">
-                <CardContent className="p-5">
-                  <div className="grid gap-3 lg:grid-cols-[1fr,auto] lg:items-center">
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                      <QuickSignal icon={Activity} label="Checks Today" value={`${Number(latestChecks.allow || 0) + Number(latestChecks.deny || 0)}`} meta={`${latestChecks.allow || 0} allow / ${latestChecks.deny || 0} deny`} />
-                      <QuickSignal icon={RefreshCw} label="Mutations Today" value={`${Number(latestMutations.admin_mutations || 0) + Number(latestMutations.public_activations || 0) + Number(latestMutations.public_renewals || 0)}`} meta={`${latestMutations.admin_mutations || 0} admin / ${latestMutations.public_activations || 0} activate`} />
-                      <QuickSignal icon={Database} label="Backups" value={backups.length} meta={`${filteredBackups.length} visible snapshots`} />
-                      <QuickSignal icon={Clock3} label="Live Entries" value={`${activeEntryRatio}/${totalEntries}`} meta={lastSyncedAt ? `Updated ${formatRelativeTime(lastSyncedAt)}` : "Belum pernah refresh"} />
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-[200px,1fr] lg:w-[360px]">
-                      <Select value={metricsWindowDays} onValueChange={setMetricsWindowDays}>
-                        <SelectTrigger><SelectValue placeholder="Metrics Window" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="7">Last 7 days</SelectItem>
-                          <SelectItem value="14">Last 14 days</SelectItem>
-                          <SelectItem value="30">Last 30 days</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <div className="grid grid-cols-2 gap-3">
-                        <Button variant="secondary" onClick={refreshMetrics}>Refresh Metrics</Button>
-                        <Button variant="outline" onClick={() => setActiveView("settings")}>Open Recovery</Button>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <MetricCard title="Active" value={summary.active_entries || 0} tone="emerald" meta={`${Math.round((activeEntryRatio / totalEntries) * 100)}% dari total entry`} />
-                <MetricCard title="Expired" value={summary.expired_entries || 0} tone="amber" meta="Perlu review atau renew" />
-                <MetricCard title="Revoked" value={summary.revoked_entries || 0} tone="rose" meta="Sedang diblokir dari alur publik" />
-                <MetricCard title="Audit Rows" value={summary.audit_rows_window || 0} tone="slate" meta={`Window ${metricsWindowDays} hari`} />
+        <div className="flex-1 p-8 overflow-y-auto page-enter">
+          <Alert className="mb-6 bg-white border-slate-200 shadow-sm" tone={banner.tone}>{banner.message}</Alert>
+
+          {activeView === "dashboard" && (
+            <div className="space-y-6">
+              {/* Top Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                <MetricCard title="Active Licenses" value={summary.active_entries || 0} tone="emerald" meta={`${Math.round((activeEntryRatio / totalEntries) * 100)}% active`} />
+                <MetricCard title="Expired" value={summary.expired_entries || 0} tone="amber" meta="Needs review" />
+                <MetricCard title="Revoked" value={summary.revoked_entries || 0} tone="rose" meta="Blocked IPs" />
+                <MetricCard title="Audit Rows" value={summary.audit_rows_window || 0} tone="slate" meta={`${metricsWindowDays} days window`} />
               </div>
-              <div className="grid gap-5 xl:grid-cols-2">
-                <TrendCard title="License Check Trend" caption={`Last ${metricsWindowDays} days`} loading={metricsLoading} points={checksTrend} series={[{ key: "allow", label: "Allow", tone: "emerald" }, { key: "deny", label: "Deny", tone: "rose" }]} />
-                <TrendCard title="Mutations Trend" caption={`Last ${metricsWindowDays} days`} loading={metricsLoading} points={mutationsTrend} series={[{ key: "admin_mutations", label: "Admin", tone: "amber" }, { key: "public_activations", label: "Activation", tone: "emerald" }, { key: "public_renewals", label: "Renew", tone: "slate" }]} />
+
+              {/* Charts & Activity */}
+              <div className="grid gap-6 xl:grid-cols-2">
+                <TrendCard title="Check Trend" caption={`Last ${metricsWindowDays} days`} loading={metricsLoading} points={checksTrend} series={[{ key: "allow", label: "Allow", tone: "emerald" }, { key: "deny", label: "Deny", tone: "rose" }]} />
+                <TrendCard title="Mutation Trend" caption={`Last ${metricsWindowDays} days`} loading={metricsLoading} points={mutationsTrend} series={[{ key: "admin_mutations", label: "Admin", tone: "amber" }, { key: "public_activations", label: "Activate", tone: "emerald" }, { key: "public_renewals", label: "Renew", tone: "slate" }]} />
               </div>
-              <div className="grid gap-5 xl:grid-cols-2">
-                <TopEventsCard items={topEvents} />
-                <SourceSplitCard summary={summary} />
-              </div>
-              <div className="grid gap-5 xl:grid-cols-[1.15fr,0.85fr]">
-                <OperationalHealthCard
-                  latestChecks={latestChecks}
-                  latestMutations={latestMutations}
-                  summary={summary}
-                  metricsWindowDays={metricsWindowDays}
-                />
+
+              {/* Health & Backups */}
+              <div className="grid gap-6 xl:grid-cols-[1fr,1fr]">
+                <OperationalHealthCard latestChecks={latestChecks} latestMutations={latestMutations} summary={summary} metricsWindowDays={metricsWindowDays} />
                 <RecentRecoveryCard backups={filteredBackups} onOpenSettings={() => setActiveView("settings")} />
               </div>
             </div>
-          ) : null}
+          )}
 
-          {activeView === "entries" ? (
-            <div className="grid gap-5 xl:grid-cols-[1.45fr,0.85fr]">
-              <Card>
-                <CardHeader>
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                      <Badge variant="accent">Lookup</Badge>
-                      <CardTitle className="mt-3">Entries</CardTitle>
-                    </div>
-                    <div className="flex flex-col gap-3 md:flex-row">
-                      <div className="relative w-full md:w-72">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--muted)]" />
-                        <Input className="pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari IP, label, owner, notes" />
+          {activeView === "entries" && (
+            <div className="grid gap-6 xl:grid-cols-[1.5fr,1fr]">
+              {/* Left Column: Table */}
+              <Card className="border-slate-200 shadow-sm flex flex-col">
+                <CardHeader className="bg-slate-50 border-b border-slate-200 pb-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <CardTitle className="text-lg font-bold">Daftar IP</CardTitle>
+                    <div className="flex gap-3 w-full md:w-auto">
+                      <div className="relative flex-1 md:w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
+                        <Input className="pl-9 bg-white" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari IP, label..." />
                       </div>
                       <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-full md:w-48"><SelectValue placeholder="Semua Status" /></SelectTrigger>
+                        <SelectTrigger className="w-40 bg-white"><SelectValue placeholder="Status" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">Semua Status</SelectItem>
                           <SelectItem value="active">Active</SelectItem>
@@ -734,471 +710,272 @@ function AdminApp() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="mb-4 grid gap-3 sm:grid-cols-3">
-                    <StatBox label="Visible" value={entries.length} />
-                    <StatBox label="Filter Status" value={statusFilter === "all" ? "Semua" : statusLabel(statusFilter)} />
-                    <StatBox label="Query" value={search.trim() || "Semua"} mono={Boolean(search.trim())} />
-                  </div>
-                {entriesLoading ? (
-                  <LoadingState message="Memuat entry lisensi..." />
-                ) : (
-                    <>
-                    <div className="space-y-3 md:hidden">
-                      {entries.length ? entries.map((entry) => (
-                        <EntryMobileCard
-                          key={entry.id}
-                          entry={entry}
-                          onInspect={() => openEntryDetail(entry)}
-                          onEdit={() => {
-                            setEditFormState({
-                              id: entry.id,
-                              ip: entry.ip || "",
-                              label: entry.label || "",
-                              owner: entry.owner || "",
-                              notes: entry.notes || "",
-                              expires_at: formatForDateTimeLocal(entry.expires_at || ""),
-                            });
-                            setEditDialogOpen(true);
-                          }}
-                          onToggle={() => toggleEntry(entry, entry.effective_status === "revoked" ? "reactivate" : "revoke")}
-                          onDelete={() => deleteEntry(entry)}
-                        />
-                      )) : (
-                        <LoadingState message="Belum ada entry IP." copy="Coba ubah filter atau buat entry baru." />
-                      )}
-                    </div>
-                    <div className="hidden overflow-x-auto md:block">
+                <CardContent className="p-0 flex-1 overflow-hidden">
+                  {entriesLoading ? (
+                    <LoadingState message="Memuat entry..." />
+                  ) : (
+                    <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
-                          <TableRow>
+                          <TableRow className="bg-slate-50 hover:bg-slate-50 border-slate-200">
                             <TableHead>IP / Label</TableHead>
-                            <TableHead>Owner / Notes</TableHead>
+                            <TableHead>Owner</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Expires</TableHead>
-                            <TableHead>Updated</TableHead>
-                            <TableHead>Actions</TableHead>
+                            <TableHead className="text-right">Aksi</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {entries.length ? entries.map((entry) => (
-                            <TableRow key={entry.id}>
+                            <TableRow key={entry.id} className="hover:bg-slate-50 transition-colors border-slate-100">
                               <TableCell>
-                                <div className="space-y-1">
-                                  <div className="font-semibold">{entry.ip}</div>
-                                  <div className="text-xs text-[var(--muted)]">{entry.label || "-"}</div>
-                                </div>
+                                <div className="font-mono font-bold text-slate-900">{entry.ip}</div>
+                                <div className="text-xs text-slate-500">{entry.label || "-"}</div>
                               </TableCell>
-                              <TableCell>
-                                <div className="space-y-1">
-                                  <div>{entry.owner || "-"}</div>
-                                  <div className="text-xs text-[var(--muted)]">{entry.notes || "-"}</div>
-                                </div>
-                              </TableCell>
+                              <TableCell className="text-sm text-slate-700">{entry.owner || "-"}</TableCell>
                               <TableCell><Badge variant={statusTone(entry.effective_status)}>{statusLabel(entry.effective_status)}</Badge></TableCell>
-                              <TableCell>{formatDate(entry.expires_at)}</TableCell>
-                              <TableCell>{formatDate(entry.updated_at)}</TableCell>
-                              <TableCell>
-                                <div className="flex flex-wrap gap-2">
-                                  <Button size="sm" variant="ghost" onClick={() => openEntryDetail(entry)}>Detail</Button>
-                                  <Button size="sm" variant="secondary" onClick={() => {
+                              <TableCell className="text-sm text-slate-600">{formatDate(entry.expires_at)}</TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-2">
+                                  <Button size="sm" variant="secondary" className="bg-slate-100 hover:bg-slate-200 border-slate-300" onClick={() => openEntryDetail(entry)}>
+                                    <Eye className="size-4" />
+                                  </Button>
+                                  <Button size="sm" variant="secondary" className="bg-slate-100 hover:bg-slate-200 border-slate-300" onClick={() => {
                                     setEditFormState({
-                                      id: entry.id,
-                                      ip: entry.ip || "",
-                                      label: entry.label || "",
-                                      owner: entry.owner || "",
-                                      notes: entry.notes || "",
-                                      expires_at: formatForDateTimeLocal(entry.expires_at || ""),
+                                      id: entry.id, ip: entry.ip || "", label: entry.label || "", owner: entry.owner || "", notes: entry.notes || "", expires_at: formatForDateTimeLocal(entry.expires_at || ""),
                                     });
                                     setEditDialogOpen(true);
                                   }}>Edit</Button>
-                                  {entry.effective_status === "revoked" ? (
-                                    <Button size="sm" variant="outline" onClick={() => toggleEntry(entry, "reactivate")}>Reactivate</Button>
-                                  ) : (
-                                    <Button size="sm" variant="outline" onClick={() => toggleEntry(entry, "revoke")}>Revoke</Button>
-                                  )}
-                                  <Button size="sm" variant="destructive" onClick={() => deleteEntry(entry)}>Delete</Button>
+                                  <Button size="sm" variant="outline" className={entry.effective_status === 'revoked' ? 'text-emerald-600 border-emerald-200 hover:bg-emerald-50' : 'text-rose-600 border-rose-200 hover:bg-rose-50'} onClick={() => toggleEntry(entry, entry.effective_status === "revoked" ? "reactivate" : "revoke")}>
+                                    {entry.effective_status === "revoked" ? "Reactivate" : "Revoke"}
+                                  </Button>
+                                  <Button size="sm" variant="destructive" onClick={() => deleteEntry(entry)}><Trash2 className="size-4" /></Button>
                                 </div>
                               </TableCell>
                             </TableRow>
                           )) : (
-                            <TableRow>
-                              <TableCell colSpan={6}><LoadingState message="Belum ada entry IP." copy="Coba ubah filter atau buat entry baru." /></TableCell>
-                            </TableRow>
+                            <TableRow><TableCell colSpan={5}><LoadingState message="Data tidak ditemukan." /></TableCell></TableRow>
                           )}
                         </TableBody>
                       </Table>
                     </div>
-                    </>
                   )}
                 </CardContent>
               </Card>
 
-              <Card className="bg-[var(--panel-strong)]">
-                <CardHeader>
-                  <Badge variant="accent">Buat Entry</Badge>
-                  <CardTitle className="mt-3">Buat IP Entry</CardTitle>
-                  <CardDescription className="mt-2">Masukkan IP, masa aktif, dan catatan operator.</CardDescription>
+              {/* Right Column: Create Entry */}
+              <Card className="border-slate-200 shadow-sm h-fit">
+                <CardHeader className="bg-slate-50 border-b border-slate-200">
+                  <CardTitle className="text-lg font-bold">Buat Entry Baru</CardTitle>
+                  <CardDescription>Tambahkan IP manual ke dalam sistem.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <EntryFormSummary formState={formState} mode="create" />
+                <CardContent className="p-6">
                   <form className="space-y-4" onSubmit={handleCreateEntry}>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <Field label="IPv4 VPS" hint="Wajib. Gunakan IP publik final yang akan dicek oleh autoscript client.">
-                        <Input value={formState.ip} onChange={(event) => setFormState((state) => ({ ...state, ip: event.target.value }))} placeholder="123.45.67.89" required />
-                      </Field>
-                      <Field label="Expires At" hint="Opsional. Kosongkan jika ingin mengikuti perilaku default backend.">
-                        <Input type="datetime-local" value={formState.expires_at} onChange={(event) => setFormState((state) => ({ ...state, expires_at: event.target.value }))} />
-                      </Field>
-                    </div>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <Field label="Label" hint="Nama singkat server atau cluster.">
-                        <Input value={formState.label} onChange={(event) => setFormState((state) => ({ ...state, label: event.target.value }))} placeholder="Server SG-01" />
-                      </Field>
-                      <Field label="Owner" hint="Nama operator, client, atau penyedia host.">
-                        <Input value={formState.owner} onChange={(event) => setFormState((state) => ({ ...state, owner: event.target.value }))} placeholder="Nama owner" />
-                      </Field>
-                    </div>
-                    <Field label="Notes" hint="Catatan internal. Tidak untuk jalur publik.">
-                      <Textarea value={formState.notes} onChange={(event) => setFormState((state) => ({ ...state, notes: event.target.value }))} placeholder="Keterangan operator" />
+                    <Field label="Alamat IPv4" hint="IP VPS tujuan.">
+                      <Input value={formState.ip} onChange={(e) => setFormState(s => ({...s, ip: e.target.value}))} placeholder="1.2.3.4" required className="font-mono" />
                     </Field>
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <Button className="flex-1"><Plus className="size-4" />Buat Entry</Button>
-                      <Button type="button" variant="secondary" onClick={() => setFormState(emptyEntryForm())}>Reset</Button>
+                    <Field label="Tanggal Expired" hint="Kosongkan untuk durasi default.">
+                      <Input type="datetime-local" value={formState.expires_at} onChange={(e) => setFormState(s => ({...s, expires_at: e.target.value}))} />
+                    </Field>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Field label="Label">
+                        <Input value={formState.label} onChange={(e) => setFormState(s => ({...s, label: e.target.value}))} placeholder="Server Name" />
+                      </Field>
+                      <Field label="Owner">
+                        <Input value={formState.owner} onChange={(e) => setFormState(s => ({...s, owner: e.target.value}))} placeholder="Client Name" />
+                      </Field>
+                    </div>
+                    <Field label="Catatan">
+                      <Textarea value={formState.notes} onChange={(e) => setFormState(s => ({...s, notes: e.target.value}))} placeholder="Keterangan tambahan..." className="min-h-[80px]" />
+                    </Field>
+                    <div className="pt-2">
+                      <Button className="w-full" type="submit"><Plus className="size-4 mr-2"/> Simpan Entry</Button>
                     </div>
                   </form>
                 </CardContent>
               </Card>
             </div>
-          ) : null}
+          )}
 
-          {activeView === "audit" ? (
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                  <div>
-                    <Badge variant="accent">Audit</Badge>
-                    <CardTitle className="mt-3">Audit Log</CardTitle>
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <Input value={auditIp} onChange={(event) => setAuditIp(event.target.value)} placeholder="Filter IP audit" />
-                    <Input value={auditEvent} onChange={(event) => setAuditEvent(event.target.value)} placeholder="Filter event" />
-                  </div>
+          {activeView === "audit" && (
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader className="flex flex-col md:flex-row justify-between gap-4 bg-slate-50 border-b border-slate-200 pb-4">
+                <div>
+                  <CardTitle className="text-lg font-bold">Audit Logs</CardTitle>
+                  <CardDescription>Jejak digital seluruh aktivitas di dalam sistem.</CardDescription>
+                </div>
+                <div className="flex gap-3">
+                  <Input className="w-48 bg-white" value={auditIp} onChange={e => setAuditIp(e.target.value)} placeholder="Filter IP" />
+                  <Input className="w-48 bg-white" value={auditEvent} onChange={e => setAuditEvent(e.target.value)} placeholder="Filter Event" />
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="mb-4 grid gap-3 sm:grid-cols-3">
-                  <StatBox label="Rows" value={auditLogs.length} />
-                  <StatBox label="IP Filter" value={auditIp.trim() || "All"} mono={Boolean(auditIp.trim())} />
-                  <StatBox label="Event Filter" value={auditEvent.trim() || "All"} mono={Boolean(auditEvent.trim())} />
-                </div>
+              <CardContent className="p-0">
                 {auditLoading ? (
-                  <LoadingState message="Memuat audit log..." />
+                  <LoadingState message="Memuat log..." />
                 ) : (
-                  <>
-                  <div className="space-y-3 md:hidden">
-                    {auditLogs.length ? auditLogs.map((log) => (
-                      <AuditMobileCard key={log.id} log={log} />
-                    )) : (
-                      <LoadingState message="Belum ada audit log." copy="Activity akan muncul setelah ada check atau perubahan." />
-                    )}
-                  </div>
-                  <div className="hidden overflow-x-auto md:block">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>When</TableHead>
-                          <TableHead>Event</TableHead>
-                          <TableHead>IP</TableHead>
-                          <TableHead>Stage</TableHead>
-                          <TableHead>Actor</TableHead>
-                          <TableHead>Payload</TableHead>
+                  <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50 hover:bg-slate-50 border-slate-200">
+                        <TableHead>Waktu</TableHead>
+                        <TableHead>Event</TableHead>
+                        <TableHead>IP</TableHead>
+                        <TableHead>Actor</TableHead>
+                        <TableHead>Detail</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {auditLogs.length ? auditLogs.map((log) => (
+                        <TableRow key={log.id} className="hover:bg-slate-50 border-slate-100">
+                          <TableCell className="whitespace-nowrap text-sm text-slate-600">{formatDate(log.created_at)}</TableCell>
+                          <TableCell><Badge variant={statusTone(log.decision)}>{log.event_type || "-"}</Badge></TableCell>
+                          <TableCell className="font-mono text-sm font-bold text-slate-900">{log.ip || "-"}</TableCell>
+                          <TableCell className="text-sm text-slate-700">{log.actor_email || "worker"}</TableCell>
+                          <TableCell className="text-xs text-slate-500 font-mono truncate max-w-xs" title={JSON.stringify(log.payload_json)}>{JSON.stringify(log.payload_json || {})}</TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {auditLogs.length ? auditLogs.map((log) => (
-                          <TableRow key={log.id}>
-                            <TableCell>{formatDate(log.created_at)}</TableCell>
-                            <TableCell><Badge variant={statusTone(log.decision)}>{log.event_type || "-"}</Badge></TableCell>
-                            <TableCell className="font-mono text-xs">{log.ip || "-"}</TableCell>
-                            <TableCell>{log.stage || "-"}</TableCell>
-                            <TableCell>{log.actor_email || "worker"}</TableCell>
-                            <TableCell className="max-w-md text-xs text-[var(--muted)]">{JSON.stringify(log.payload_json || {})}</TableCell>
-                          </TableRow>
-                        )) : (
-                          <TableRow>
-                            <TableCell colSpan={6}><LoadingState message="Belum ada audit log." copy="Activity akan muncul setelah ada check atau perubahan." /></TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
+                      )) : <TableRow><TableCell colSpan={5}><LoadingState message="Tidak ada log."/></TableCell></TableRow>}
+                    </TableBody>
+                  </Table>
                   </div>
-                  </>
                 )}
               </CardContent>
             </Card>
-          ) : null}
+          )}
 
-          {activeView === "settings" ? (
-            <div className="grid gap-5 xl:grid-cols-[0.75fr,1.25fr]">
-              <Card>
-                <CardHeader>
-                  <Badge variant="accent">Admin</Badge>
-                  <CardTitle className="mt-3">Panel</CardTitle>
+          {activeView === "settings" && (
+            <div className="grid gap-6 xl:grid-cols-[1fr,2fr]">
+              <Card className="border-slate-200 shadow-sm h-fit">
+                <CardHeader className="bg-slate-50 border-b border-slate-200">
+                  <CardTitle className="text-lg font-bold">System Actions</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-3">
-                    <StatBox label="Admin" value={session?.admin_email || "-"} />
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Button variant="secondary" onClick={refreshBackups}><RefreshCw className="size-4" />Refresh Backups</Button>
-                    <Button onClick={createBackup}><ShieldCheck className="size-4" />Create Backup</Button>
-                  </div>
-                  <div>
+                <CardContent className="p-6 space-y-4">
+                  <Button className="w-full justify-start" onClick={createBackup}><Database className="size-4 mr-3" /> Buat Snapshot Backup</Button>
+                  <Button variant="secondary" className="w-full justify-start bg-slate-100 border-slate-300" onClick={refreshBackups}><RefreshCw className="size-4 mr-3" /> Refresh List</Button>
+                  
+                  <div className="pt-4 border-t border-slate-200">
                     <input id="import-backup-input" type="file" accept="application/json,.json" hidden onChange={handleImportBackupFile} />
-                    <Button variant="outline" onClick={() => document.getElementById("import-backup-input")?.click()}>Import Backup</Button>
+                    <Button variant="outline" className="w-full justify-start border-blue-200 text-blue-700 hover:bg-blue-50" onClick={() => document.getElementById("import-backup-input")?.click()}>
+                       <Download className="size-4 mr-3" /> Import Backup File
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
-                  <div className="flex flex-col gap-4">
-                    <div>
-                      <Badge variant="accent">Recovery</Badge>
-                      <CardTitle className="mt-3">Backup & Restore</CardTitle>
-                      <CardDescription className="mt-2">Mode restore v1 mengganti hanya `license_entries`. Gunakan Validate lebih dulu.</CardDescription>
-                    </div>
-                    <div className="grid gap-3 md:grid-cols-[1fr,180px,180px]">
-                      <div className="relative">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--muted)]" />
-                        <Input className="pl-9" value={backupSearch} onChange={(event) => setBackupSearch(event.target.value)} placeholder="Cari backup berdasarkan waktu, actor, atau key" />
-                      </div>
-                      <Select value={backupSourceFilter} onValueChange={setBackupSourceFilter}>
-                        <SelectTrigger><SelectValue placeholder="Semua Sumber" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Semua Sumber</SelectItem>
-                          <SelectItem value="r2">Manual</SelectItem>
-                          <SelectItem value="scheduled">Scheduled</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Select value={backupSort} onValueChange={setBackupSort}>
-                        <SelectTrigger><SelectValue placeholder="Newest First" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="created_desc">Newest First</SelectItem>
-                          <SelectItem value="created_asc">Oldest First</SelectItem>
-                          <SelectItem value="rows_desc">Largest Entries</SelectItem>
-                          <SelectItem value="size_desc">Largest Size</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
+              <Card className="border-slate-200 shadow-sm">
+                <CardHeader className="bg-slate-50 border-b border-slate-200">
+                  <CardTitle className="text-lg font-bold">Daftar Snapshot</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  {!backupsLoading && filteredBackups.length ? (
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <StatBox label="Visible" value={filteredBackups.length} />
-                      <StatBox label="Latest Source" value={humanizeBackupSource(filteredBackups[0]?.source)} />
-                      <StatBox label="Latest Size" value={formatBytes(filteredBackups[0]?.size || 0)} />
-                    </div>
-                  ) : null}
-                  {backupsLoading ? (
-                    <LoadingState message="Memuat snapshot backup..." />
-                  ) : filteredBackups.length ? (
-                    <div className="space-y-3">
-                      {filteredBackups.map((backup) => (
-                        <div key={backup.key} className="rounded-2xl border border-[var(--line)] bg-white/75 p-4">
-                          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                            <div className="space-y-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Badge variant={backup.source === "scheduled" ? "amber" : "emerald"}>{humanizeBackupSource(backup.source)}</Badge>
-                                <span className="text-sm text-[var(--muted)]">{formatDate(backup.created_at)}</span>
-                              </div>
-                              <div className="font-medium">{backup.created_by || "-"}</div>
-                              <div className="font-mono text-xs text-[var(--muted)]">{backup.key}</div>
-                              <div className="flex flex-wrap gap-3 text-sm text-[var(--muted)]">
-                                <span>{formatBackupRows(backup.row_counts)}</span>
-                                <span>{formatBytes(backup.size || 0)}</span>
-                                <span>{shortChecksum(backup.checksum_sha256)}</span>
-                              </div>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              <Button size="sm" variant="secondary" onClick={() => loadBackupPreview(backup.key)}><Eye className="size-4" />Preview</Button>
-                              <Button size="sm" variant="ghost" onClick={() => openBackupPreviewDialog(backup.key)}>Detail</Button>
-                              <Button size="sm" variant="secondary" onClick={() => validateBackupRestore(backup.key)}>Validate</Button>
-                              <Button size="sm" variant="outline" onClick={() => downloadBackupManifest(backup.key)}><FileJson className="size-4" />Manifest</Button>
-                              <Button size="sm" variant="outline" onClick={() => downloadBackup(backup.key)}><Download className="size-4" />Download</Button>
-                              <Button size="sm" onClick={() => restoreBackup(backup.key)}>Restore</Button>
-                              <Button size="sm" variant="destructive" onClick={() => deleteBackup(backup.key)}><Trash2 className="size-4" />Delete</Button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <LoadingState message="Belum ada snapshot backup." copy="Buat backup pertama dari panel admin." />
-                  )}
-
-                  <Card className="bg-[var(--panel-strong)] shadow-none">
-                    <CardHeader>
-                      <CardTitle>Backup Preview</CardTitle>
-                      <CardDescription>{backupPreview ? `${formatDate(backupPreview.created_at)} • ${backupPreview.created_by || "-"} • ${formatBackupRows(backupPreview.row_counts)} • ${formatBytes(backupPreview.size || 0)}` : "Pilih preview snapshot untuk melihat ringkasan isi sebelum restore."}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {backupPreview ? (
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <StatBox label="Key" value={backupPreview.key} mono />
-                          <StatBox label="Checksum" value={backupPreview.checksum_sha256 || "-"} mono />
-                          <div className="md:col-span-2 rounded-2xl border border-[var(--line)] bg-white/70 p-4">
-                            <div className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">License Sample</div>
-                            <div className="mt-3 space-y-2 text-sm">
-                              {(backupPreview.preview?.license_entries || []).length ? (
-                                backupPreview.preview.license_entries.map((item) => (
-                                  <div key={`${item.id}-${item.ip}`} className="rounded-xl border border-[var(--line)] px-3 py-2">
-                                    <div className="font-medium">{item.ip || "-"}</div>
-                                    <div className="text-xs text-[var(--muted)]">
-                                      {item.label || "-"} • {item.status || "-"} • {formatDate(item.expires_at)}
-                                    </div>
-                                  </div>
-                                ))
-                              ) : (
-                                <div className="text-[var(--muted)]">Tidak ada sample.</div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="md:col-span-2">
-                            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setBackupPreviewOpen(true)}>Open Full Preview</Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <LoadingState message="Belum ada preview snapshot yang dipilih." />
-                      )}
-                    </CardContent>
-                  </Card>
+                <CardContent className="p-0">
+                  {backupsLoading ? <LoadingState message="Memuat..." /> : 
+                   filteredBackups.length ? (
+                     <div className="divide-y divide-slate-100">
+                       {filteredBackups.map(backup => (
+                         <div key={backup.key} className="p-5 hover:bg-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                           <div>
+                             <div className="flex items-center gap-2 mb-1">
+                               <Badge variant={backup.source === "scheduled" ? "amber" : "emerald"}>{humanizeBackupSource(backup.source)}</Badge>
+                               <span className="text-sm font-bold text-slate-900">{formatDate(backup.created_at)}</span>
+                             </div>
+                             <div className="text-xs font-mono text-slate-500 mb-1">{backup.key}</div>
+                             <div className="text-sm text-slate-600 flex gap-3">
+                               <span>{formatBackupRows(backup.row_counts)} entries</span>
+                               <span>&bull;</span>
+                               <span>{formatBytes(backup.size)}</span>
+                             </div>
+                           </div>
+                           <div className="flex flex-wrap gap-2">
+                             <Button size="sm" variant="secondary" onClick={() => loadBackupPreview(backup.key)}><Eye className="size-4 mr-1"/> Preview</Button>
+                             <Button size="sm" variant="outline" className="text-rose-600 border-rose-200 hover:bg-rose-50" onClick={() => restoreBackup(backup.key)}>Restore</Button>
+                             <Button size="sm" variant="ghost" className="text-slate-400 hover:text-rose-600" onClick={() => deleteBackup(backup.key)}><Trash2 className="size-4" /></Button>
+                           </div>
+                         </div>
+                       ))}
+                     </div>
+                   ) : <LoadingState message="Tidak ada backup." />
+                  }
                 </CardContent>
               </Card>
             </div>
-          ) : null}
-        </main>
-      </div>
+          )}
+        </div>
+      </main>
 
+      {/* Dialogs */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Entry</DialogTitle>
-            <DialogDescription>Perbarui IP, masa aktif, dan catatan tanpa mengubah alur backend.</DialogDescription>
+            <DialogTitle>Edit License Entry</DialogTitle>
           </DialogHeader>
-          <EntryFormSummary formState={editFormState} mode="edit" />
-          <form className="space-y-4" onSubmit={handleUpdateEntry}>
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="IPv4 VPS" hint="Perubahan IP akan langsung memengaruhi entry yang sedang dipilih.">
-                <Input value={editFormState.ip} onChange={(event) => setEditFormState((state) => ({ ...state, ip: event.target.value }))} required />
-              </Field>
-              <Field label="Expires At" hint="Gunakan tanggal lokal operator untuk update cepat.">
-                <Input type="datetime-local" value={editFormState.expires_at} onChange={(event) => setEditFormState((state) => ({ ...state, expires_at: event.target.value }))} />
-              </Field>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Label" hint="Nama singkat entri untuk lookup cepat.">
-                <Input value={editFormState.label} onChange={(event) => setEditFormState((state) => ({ ...state, label: event.target.value }))} />
-              </Field>
-              <Field label="Owner" hint="Gunakan agar handoff operator lebih jelas.">
-                <Input value={editFormState.owner} onChange={(event) => setEditFormState((state) => ({ ...state, owner: event.target.value }))} />
-              </Field>
-            </div>
-            <Field label="Notes" hint="Catatan internal terbaru akan menggantikan isi lama.">
-              <Textarea value={editFormState.notes} onChange={(event) => setEditFormState((state) => ({ ...state, notes: event.target.value }))} />
+          <form className="space-y-4 pt-4" onSubmit={handleUpdateEntry}>
+            <Field label="IPv4">
+              <Input value={editFormState.ip} onChange={e => setEditFormState(s => ({...s, ip: e.target.value}))} className="font-mono" required />
             </Field>
-            <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-              <Button type="button" variant="secondary" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-              <Button>Update Entry</Button>
+            <Field label="Label">
+              <Input value={editFormState.label} onChange={e => setEditFormState(s => ({...s, label: e.target.value}))} />
+            </Field>
+            <Field label="Owner">
+              <Input value={editFormState.owner} onChange={e => setEditFormState(s => ({...s, owner: e.target.value}))} />
+            </Field>
+            <Field label="Expires At">
+              <Input type="datetime-local" value={editFormState.expires_at} onChange={e => setEditFormState(s => ({...s, expires_at: e.target.value}))} />
+            </Field>
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button type="button" variant="ghost" onClick={() => setEditDialogOpen(false)}>Batal</Button>
+              <Button type="submit">Simpan Perubahan</Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
       <Dialog open={entryDetailOpen} onOpenChange={setEntryDetailOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Entry Detail</DialogTitle>
-            <DialogDescription>Inspeksi lengkap entry tanpa membuka mode edit.</DialogDescription>
           </DialogHeader>
           {entryDetail ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              <StatBox label="IP" value={entryDetail.ip || "-"} mono />
-              <StatBox label="Status" value={statusLabel(entryDetail.effective_status)} />
-              <StatBox label="Label" value={entryDetail.label || "-"} />
-              <StatBox label="Owner" value={entryDetail.owner || "-"} />
-              <StatBox label="Expires" value={formatDate(entryDetail.expires_at)} />
-              <StatBox label="Updated" value={formatDate(entryDetail.updated_at)} />
-              <div className="md:col-span-2 rounded-2xl border border-[var(--line)] bg-white/70 p-4">
-                <div className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">Notes</div>
-                <div className="mt-2 text-sm leading-6 text-[var(--fg)]">{entryDetail.notes || "Tidak ada catatan operator."}</div>
+            <div className="space-y-4 pt-4">
+              <div className="grid grid-cols-2 gap-4">
+                <StatBox label="IP" value={entryDetail.ip || "-"} />
+                <StatBox label="Status" value={statusLabel(entryDetail.effective_status)} />
+                <StatBox label="Label" value={entryDetail.label || "-"} />
+                <StatBox label="Owner" value={entryDetail.owner || "-"} />
+                <StatBox label="Expires" value={formatDate(entryDetail.expires_at)} />
+                <StatBox label="Updated" value={formatDate(entryDetail.updated_at)} />
               </div>
-              <div className="md:col-span-2 flex flex-col gap-3 sm:flex-row sm:justify-end">
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setEditFormState({
-                      id: entryDetail.id,
-                      ip: entryDetail.ip || "",
-                      label: entryDetail.label || "",
-                      owner: entryDetail.owner || "",
-                      notes: entryDetail.notes || "",
-                      expires_at: formatForDateTimeLocal(entryDetail.expires_at || ""),
-                    });
-                    setEntryDetailOpen(false);
-                    setEditDialogOpen(true);
-                  }}
-                >
-                  Edit Entry
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setEntryDetailOpen(false)}>Close</Button>
+              <div className="border border-slate-200 rounded-xl p-3 bg-slate-50">
+                <div className="text-xs font-bold text-slate-500 uppercase">Notes</div>
+                <div className="mt-1 text-sm text-slate-900 whitespace-pre-wrap">{entryDetail.notes || "Tidak ada catatan."}</div>
               </div>
             </div>
-          ) : (
-            <LoadingState message="Belum ada entry yang dipilih." />
-          )}
+          ) : <LoadingState message="Memuat..." />}
         </DialogContent>
       </Dialog>
 
       <Dialog open={backupPreviewOpen} onOpenChange={setBackupPreviewOpen}>
-        <DialogContent className="max-h-[88vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Backup Preview</DialogTitle>
-            <DialogDescription>Metadata dan sample snapshot untuk validasi cepat sebelum restore.</DialogDescription>
+            <DialogDescription>Sample data snapshot untuk validasi.</DialogDescription>
           </DialogHeader>
           {backupPreview ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              <StatBox label="Key" value={backupPreview.key} mono />
-              <StatBox label="Checksum" value={backupPreview.checksum_sha256 || "-"} mono />
-              <StatBox label="Created" value={formatDate(backupPreview.created_at)} />
-              <StatBox label="Actor" value={backupPreview.created_by || "-"} />
-              <StatBox label="Source" value={humanizeBackupSource(backupPreview.source)} />
-              <StatBox label="Rows" value={formatBackupRows(backupPreview.row_counts)} />
-              <StatBox label="Size" value={formatBytes(backupPreview.size || 0)} />
-              <StatBox label="Latest Status Sample" value={backupPreview.preview?.license_entries?.[0]?.status || "-"} />
-              <div className="md:col-span-2 rounded-2xl border border-[var(--line)] bg-white/70 p-4">
-                <div className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">License Sample</div>
-                <div className="mt-3 space-y-2 text-sm">
-                  {(backupPreview.preview?.license_entries || []).length ? (
-                    backupPreview.preview.license_entries.map((item) => (
-                      <div key={`${item.id}-${item.ip}`} className="rounded-xl border border-[var(--line)] px-3 py-2">
-                        <div className="font-medium">{item.ip || "-"}</div>
-                        <div className="text-xs text-[var(--muted)]">
-                          {item.label || "-"} • {item.status || "-"} • {formatDate(item.expires_at)}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-[var(--muted)]">Tidak ada sample.</div>
-                  )}
+            <div className="space-y-4 pt-4">
+              <div className="grid grid-cols-2 gap-4">
+                <StatBox label="Key" value={backupPreview.key} />
+                <StatBox label="Checksum" value={backupPreview.checksum_sha256 || "-"} />
+              </div>
+              <div className="border border-slate-200 rounded-xl p-4 bg-slate-50">
+                <div className="text-xs font-bold text-slate-500 uppercase mb-2">License Sample</div>
+                <div className="space-y-2">
+                  {(backupPreview.preview?.license_entries || []).map((item) => (
+                    <div key={`${item.id}-${item.ip}`} className="bg-white border border-slate-200 p-2 rounded-lg text-sm">
+                      <span className="font-mono font-bold mr-2">{item.ip}</span>
+                      <span className="text-slate-500">{item.status}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
-          ) : (
-            <LoadingState message="Belum ada preview snapshot yang dipilih." />
-          )}
+          ) : <LoadingState message="Memuat..." />}
         </DialogContent>
       </Dialog>
     </div>
@@ -1207,7 +984,7 @@ function AdminApp() {
 
 function SidebarButton({ icon: Icon, active, children, ...props }) {
   return (
-    <button className={`flex min-w-max items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm transition lg:min-w-0 ${active ? "bg-white/12 text-white" : "text-white/70 hover:bg-white/8 hover:text-white"}`} {...props}>
+    <button className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${active ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white hover:bg-slate-800"}`} {...props}>
       <Icon className="size-4" />
       <span>{children}</span>
     </button>
@@ -1216,124 +993,52 @@ function SidebarButton({ icon: Icon, active, children, ...props }) {
 
 function MetricCard({ title, value, tone, meta }) {
   return (
-    <Card className="bg-[var(--panel-strong)]">
+    <Card className="border-slate-200 shadow-sm bg-white">
       <CardContent className="p-5">
-        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">{title}</div>
-        <div className="mt-3 flex items-end justify-between gap-4">
-          <div className="text-4xl font-semibold">{value}</div>
-          <Badge variant={tone}>{title}</Badge>
+        <div className="text-xs font-bold uppercase text-slate-500 mb-2">{title}</div>
+        <div className="flex items-end justify-between">
+          <div className="text-3xl font-extrabold text-slate-900">{value}</div>
+          <Badge variant={tone}>{meta}</Badge>
         </div>
-        <div className="mt-3 text-sm text-[var(--muted)]">{meta || "Operational snapshot"}</div>
       </CardContent>
     </Card>
   );
 }
 
-function QuickSignal({ icon: Icon, label, value, meta }) {
+function OperationalHealthCard({ latestChecks, latestMutations, summary }) {
   return (
-    <div className="rounded-2xl border border-[var(--line)] bg-white/72 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
-        <Icon className="size-4 text-[var(--accent-strong)]" />
-      </div>
-      <div className="mt-3 text-2xl font-semibold leading-none">{value}</div>
-      <div className="mt-2 text-sm text-[var(--muted)]">{meta}</div>
-    </div>
-  );
-}
-
-function MiniToneCard({ label, value, meta, tone = "slate" }) {
-  const borderTone = tone === "emerald"
-    ? "border-emerald-300/60"
-    : tone === "amber"
-      ? "border-amber-300/60"
-      : tone === "accent"
-        ? "border-[var(--accent)]/35"
-        : "border-[var(--line)]";
-  return (
-    <div className={`rounded-2xl border bg-white/72 p-4 ${borderTone}`}>
-      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
-      <div className="mt-3 text-2xl font-semibold leading-none">{value}</div>
-      <div className="mt-2 text-sm text-[var(--muted)]">{meta}</div>
-    </div>
-  );
-}
-
-function OperationalHealthCard({ latestChecks, latestMutations, summary, metricsWindowDays }) {
-  const allow = Number(latestChecks.allow || 0);
-  const deny = Number(latestChecks.deny || 0);
-  const totalChecks = allow + deny;
-  const adminMutations = Number(latestMutations.admin_mutations || 0);
-  const publicActivations = Number(latestMutations.public_activations || 0);
-  const publicRenewals = Number(latestMutations.public_renewals || 0);
-  const publicEntries = Number(summary.public_entries || 0);
-  const manualEntries = Number(summary.admin_entries || 0);
-  return (
-    <Card>
-      <CardHeader>
-        <Badge variant="accent">Health</Badge>
-        <CardTitle className="mt-3">Health</CardTitle>
-        <CardDescription className="mt-2">Ringkasan kualitas traffic publik dan intensitas perubahan pada window {metricsWindowDays} hari.</CardDescription>
+    <Card className="border-slate-200 shadow-sm">
+      <CardHeader className="bg-slate-50 border-b border-slate-200">
+        <CardTitle className="text-base font-bold">Health Summary</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <MiniToneCard
-            label="Allow Ratio"
-            value={totalChecks ? `${Math.round((allow / totalChecks) * 100)}%` : "0%"}
-            meta={`${allow} allow / ${deny} deny`}
-            tone="emerald"
-          />
-          <MiniToneCard
-            label="Mutation Mix"
-            value={adminMutations + publicActivations + publicRenewals}
-            meta={`${adminMutations} admin • ${publicActivations} create • ${publicRenewals} renew`}
-            tone="amber"
-          />
-          <MiniToneCard
-            label="Public Surface"
-            value={publicEntries}
-            meta="Entry dari jalur publik"
-            tone="slate"
-          />
-          <MiniToneCard
-            label="Manual Surface"
-            value={manualEntries}
-            meta="Entry/operator manual"
-            tone="accent"
-          />
-        </div>
+      <CardContent className="p-5 grid grid-cols-2 gap-4">
+        <StatBox label="Allow Checks" value={latestChecks.allow || 0} />
+        <StatBox label="Deny Checks" value={latestChecks.deny || 0} />
+        <StatBox label="Admin Edits" value={latestMutations.admin_mutations || 0} />
+        <StatBox label="Public Acts" value={latestMutations.public_activations || 0} />
       </CardContent>
     </Card>
   );
 }
 
 function RecentRecoveryCard({ backups, onOpenSettings }) {
-  const recent = backups.slice(0, 3);
+  const recent = backups.slice(0, 2);
   return (
-    <Card className="bg-[var(--panel-strong)]">
-      <CardHeader>
-        <Badge variant="accent">Recovery</Badge>
-        <CardTitle className="mt-3">Recent Backup Activity</CardTitle>
-        <CardDescription className="mt-2">Snapshot terbaru yang paling relevan untuk restore cepat atau audit operator.</CardDescription>
+    <Card className="border-slate-200 shadow-sm">
+      <CardHeader className="bg-slate-50 border-b border-slate-200">
+        <CardTitle className="text-base font-bold">Recent Backups</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {recent.length ? recent.map((backup) => (
-          <div key={backup.key} className="rounded-2xl border border-[var(--line)] bg-white/75 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <Badge variant={backup.source === "scheduled" ? "amber" : "emerald"}>{humanizeBackupSource(backup.source)}</Badge>
-              <div className="text-xs text-[var(--muted)]">{formatRelativeTime(backup.created_at)}</div>
+      <CardContent className="p-5 space-y-3">
+        {recent.map(b => (
+          <div key={b.key} className="flex justify-between items-center text-sm border border-slate-100 rounded-lg p-3">
+            <div>
+              <div className="font-bold text-slate-900">{formatDate(b.created_at)}</div>
+              <div className="text-slate-500 font-mono text-xs">{b.key.split('/').pop()}</div>
             </div>
-            <div className="mt-3 font-medium">{backup.created_by || "-"}</div>
-            <div className="mt-1 text-xs text-[var(--muted)]">{backup.key}</div>
-            <div className="mt-3 flex flex-wrap gap-3 text-sm text-[var(--muted)]">
-              <span>{formatBackupRows(backup.row_counts)}</span>
-              <span>{formatBytes(backup.size || 0)}</span>
-            </div>
+            <Badge variant="slate">{formatBytes(b.size)}</Badge>
           </div>
-        )) : (
-          <LoadingState message="Belum ada snapshot terbaru." copy="Buat backup dari Settings untuk mengisi panel ini." />
-        )}
-        <Button variant="outline" className="w-full" onClick={onOpenSettings}>Buka Backup</Button>
+        ))}
+        <Button variant="outline" className="w-full mt-2" onClick={onOpenSettings}>Semua Backup</Button>
       </CardContent>
     </Card>
   );
@@ -1341,44 +1046,30 @@ function RecentRecoveryCard({ backups, onOpenSettings }) {
 
 function TrendCard({ title, caption, loading, points, series }) {
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <Badge variant="accent">Trend</Badge>
-            <CardTitle className="mt-3">{title}</CardTitle>
-          </div>
-          <Badge variant="slate">{caption}</Badge>
-        </div>
+    <Card className="border-slate-200 shadow-sm flex flex-col">
+      <CardHeader className="bg-slate-50 border-b border-slate-200 flex flex-row justify-between items-center">
+        <CardTitle className="text-base font-bold">{title}</CardTitle>
+        <span className="text-xs text-slate-500 font-medium">{caption}</span>
       </CardHeader>
-      <CardContent>
-        {loading ? (
-          <LoadingState message="Memuat trend..." />
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
-            {series.map((item) => {
-              const values = points.map((point) => Number(point[item.key] || 0));
-              const total = values.reduce((sum, value) => sum + value, 0);
-              const latest = values.at(-1) || 0;
-              return (
-                <div key={item.key} className="rounded-2xl border border-[var(--line)] bg-white/70 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-medium">{item.label}</div>
-                      <div className="text-sm text-[var(--muted)]">{total} total</div>
-                    </div>
-                    <Badge variant={item.tone}>{latest} latest</Badge>
-                  </div>
-                  <svg className="mt-4 h-14 w-full" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
-                    <path d={buildSparklinePath(values)} fill="none" stroke="currentColor" strokeWidth="1.75" className={item.tone === "emerald" ? "text-emerald-600" : item.tone === "rose" ? "text-rose-600" : item.tone === "amber" ? "text-amber-600" : "text-slate-600"} vectorEffect="non-scaling-stroke" />
-                  </svg>
-                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
-                    {points.slice(-6).map((point) => (
-                      <span key={`${item.key}-${point.day}`}>{formatShortDay(point.day)}</span>
-                    ))}
-                  </div>
-                </div>
-              );
+      <CardContent className="p-5 flex-1">
+        {loading ? <LoadingState message="Memuat grafik..." /> : (
+          <div className="space-y-4">
+            {series.map(s => {
+               const values = points.map(p => Number(p[s.key] || 0));
+               const max = Math.max(...values, 1);
+               return (
+                 <div key={s.key}>
+                   <div className="flex justify-between text-sm mb-1">
+                     <span className="font-bold text-slate-700">{s.label}</span>
+                     <span className="text-slate-500">{values.reduce((a,b)=>a+b,0)} total</span>
+                   </div>
+                   <div className="flex items-end h-8 gap-1">
+                     {values.slice(-14).map((v, i) => (
+                       <div key={i} className={`flex-1 rounded-t-sm ${s.tone === 'emerald' ? 'bg-emerald-400' : s.tone==='rose' ? 'bg-rose-400' : 'bg-slate-300'}`} style={{ height: `${(v/max)*100}%`, minHeight: '4px' }} title={String(v)} />
+                     ))}
+                   </div>
+                 </div>
+               )
             })}
           </div>
         )}
@@ -1387,231 +1078,39 @@ function TrendCard({ title, caption, loading, points, series }) {
   );
 }
 
-function TopEventsCard({ items }) {
+function StatBox({ label, value }) {
   return (
-    <Card>
-      <CardHeader>
-        <Badge variant="accent">Activity</Badge>
-        <CardTitle className="mt-3">Top Events</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {items.length ? (
-          <div className="space-y-3">
-            {items.map((item) => {
-              const width = Math.max(8, Math.round((Number(item.count || 0) / Math.max(...items.map((entry) => Number(entry.count || 0)), 1)) * 100));
-              return (
-                <div key={item.event_type} className="space-y-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="font-medium">{item.event_type || "-"}</div>
-                    <div className="text-sm text-[var(--muted)]">{item.count} events</div>
-                  </div>
-                  <div className="h-2 rounded-full bg-black/5">
-                    <div className="h-2 rounded-full bg-[var(--accent)]" style={{ width: `${width}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <LoadingState message="Belum ada event historis." copy="Window ini belum memiliki cukup data." />
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function SourceSplitCard({ summary }) {
-  const publicEntries = Number(summary.public_entries || 0);
-  const adminEntries = Number(summary.admin_entries || 0);
-  const total = Math.max(publicEntries + adminEntries, 1);
-  const publicWidth = Math.round((publicEntries / total) * 100);
-  const adminWidth = 100 - publicWidth;
-  return (
-    <Card>
-      <CardHeader>
-        <Badge variant="accent">Source Split</Badge>
-        <CardTitle className="mt-3">Entry Source</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex h-4 overflow-hidden rounded-full bg-black/5">
-          <div className="bg-emerald-500" style={{ width: `${publicWidth}%` }} />
-          <div className="bg-[var(--accent)]" style={{ width: `${adminWidth}%` }} />
-        </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          <StatBox label="Public Entry" value={publicEntries} />
-          <StatBox label="Manual Entry" value={adminEntries} />
-          <StatBox label="Manual Updates" value={Number(summary.admin_mutations || 0)} />
-          <StatBox label="Audit Rows Window" value={Number(summary.audit_rows_window || 0)} />
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function StatBox({ label, value, mono = false }) {
-  return (
-    <div className="rounded-2xl border border-[var(--line)] bg-white/70 p-4">
-      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
-      <div className={`mt-2 text-sm ${mono ? "font-mono break-all" : "font-medium"}`}>{String(value ?? "-")}</div>
+    <div className="border border-slate-200 rounded-xl p-3 bg-slate-50">
+      <div className="text-xs font-bold text-slate-500 uppercase">{label}</div>
+      <div className="mt-1 text-xl font-extrabold text-slate-900 truncate">{value}</div>
     </div>
   );
 }
 
-function CompactSidebarStat({ label, value }) {
+function Field({ label, hint, children }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-      <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">{label}</div>
-      <div className="mt-2 text-sm font-medium text-white">{value}</div>
-    </div>
-  );
-}
-
-function EntryFormSummary({ formState, mode }) {
-  return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      <StatBox label="Mode" value={mode === "edit" ? "Update Existing Entry" : "Create New Entry"} />
-      <StatBox label="Target IP" value={formState.ip?.trim() || "Belum diisi"} mono={Boolean(formState.ip?.trim())} />
-      <StatBox label="Label / Owner" value={buildFormIdentity(formState)} />
-      <StatBox label="Expiry Preview" value={formState.expires_at ? formatDate(formState.expires_at) : "Default backend behavior"} />
-    </div>
-  );
-}
-
-function Field({ label, hint = "", children }) {
-  return (
-    <label className="block space-y-2">
-      <div className="text-sm font-medium">{label}</div>
+    <div className="space-y-1.5">
+      <label className="text-sm font-bold text-slate-700">{label}</label>
       {children}
-      {hint ? <div className="text-xs leading-5 text-[var(--muted)]">{hint}</div> : null}
-    </label>
-  );
-}
-
-function LoadingState({ message, copy = "Tunggu sebentar." }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-[var(--line)] p-10 text-center text-sm text-[var(--muted)]">
-      <div className="font-medium text-[var(--fg)]">{message}</div>
-      <div className="mt-2">{copy}</div>
+      {hint && <p className="text-xs text-slate-500">{hint}</p>}
     </div>
   );
 }
 
-function EntryMobileCard({ entry, onInspect, onEdit, onToggle, onDelete }) {
-  const toggleLabel = entry.effective_status === "revoked" ? "Reactivate" : "Revoke";
+function LoadingState({ message }) {
   return (
-    <div className="rounded-2xl border border-[var(--line)] bg-white/75 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="font-semibold">{entry.ip}</div>
-          <div className="mt-1 text-sm text-[var(--muted)]">{entry.label || "Tanpa label"}</div>
-        </div>
-        <Badge variant={statusTone(entry.effective_status)}>{statusLabel(entry.effective_status)}</Badge>
-      </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <MiniMeta label="Owner" value={entry.owner || "-"} />
-        <MiniMeta label="Expires" value={formatDate(entry.expires_at)} />
-        <MiniMeta label="Updated" value={formatDate(entry.updated_at)} />
-        <MiniMeta label="Notes" value={entry.notes || "-"} />
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <Button size="sm" variant="ghost" onClick={onInspect}>Detail</Button>
-        <Button size="sm" variant="secondary" onClick={onEdit}>Edit</Button>
-        <Button size="sm" variant="outline" onClick={onToggle}>{toggleLabel}</Button>
-        <Button size="sm" variant="destructive" className="col-span-2" onClick={onDelete}>Delete Entry</Button>
-      </div>
+    <div className="p-8 text-center text-slate-500 text-sm border border-dashed border-slate-300 rounded-xl bg-slate-50">
+      {message}
     </div>
   );
 }
 
-function AuditMobileCard({ log }) {
-  return (
-    <div className="rounded-2xl border border-[var(--line)] bg-white/75 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="text-sm font-medium">{log.event_type || "-"}</div>
-        <Badge variant={statusTone(log.decision)}>{log.stage || "log"}</Badge>
-      </div>
-      <div className="mt-2 text-sm text-[var(--muted)]">{formatDate(log.created_at)}</div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <MiniMeta label="IP" value={log.ip || "-"} mono />
-        <MiniMeta label="Actor" value={log.actor_email || "worker"} />
-      </div>
-      <div className="mt-4 rounded-2xl border border-[var(--line)] bg-white/70 p-3">
-        <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--muted)]">Payload</div>
-        <div className="mt-2 break-all font-mono text-xs leading-5 text-[var(--muted)]">
-          {formatPayloadSummary(log.payload_json)}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MiniMeta({ label, value, mono = false }) {
-  return (
-    <div className="rounded-2xl border border-[var(--line)] bg-white/70 px-3 py-2">
-      <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
-      <div className={`mt-1 text-sm ${mono ? "break-all font-mono" : "font-medium"}`}>{String(value ?? "-")}</div>
-    </div>
-  );
-}
-
-function emptyEntryForm() {
-  return { id: "", ip: "", label: "", owner: "", notes: "", expires_at: "" };
-}
-
-function humanizeBackupSource(value) {
-  const source = String(value || "r2").trim().toLowerCase();
-  if (source === "scheduled") return "Scheduled";
-  if (source === "r2") return "Manual";
-  return source || "Unknown";
-}
-
-function getFilteredBackups(backups, query, sourceFilter, sortKey) {
-  const normalizedQuery = String(query || "").trim().toLowerCase();
-  const filtered = backups.filter((backup) => {
-    const source = String(backup.source || "r2").trim().toLowerCase();
-    if (sourceFilter !== "all" && source !== sourceFilter) return false;
-    if (!normalizedQuery) return true;
-    const haystack = [
-      backup.key,
-      backup.created_at,
-      backup.created_by,
-      formatDate(backup.created_at || ""),
-      formatBackupRows(backup.row_counts),
-      backup.checksum_sha256,
-      humanizeBackupSource(backup.source),
-    ].join(" ").toLowerCase();
-    return haystack.includes(normalizedQuery);
-  });
-  return filtered.sort((left, right) => {
-    if (sortKey === "created_asc") return Date.parse(String(left.created_at || "")) - Date.parse(String(right.created_at || ""));
-    if (sortKey === "rows_desc") return Number(right.row_counts?.license_entries || 0) - Number(left.row_counts?.license_entries || 0);
-    if (sortKey === "size_desc") return Number(right.size || 0) - Number(left.size || 0);
-    return Date.parse(String(right.created_at || "")) - Date.parse(String(left.created_at || ""));
-  });
-}
-
-function triggerDownload(blob, fileName) {
-  const downloadUrl = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = downloadUrl;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(downloadUrl);
-}
-
-function formatPayloadSummary(payload) {
-  try {
-    return JSON.stringify(payload || {}, null, 2);
-  } catch (_error) {
-    return "{}";
-  }
-}
-
-function buildFormIdentity(formState) {
-  const parts = [formState.label, formState.owner].map((value) => String(value || "").trim()).filter(Boolean);
-  return parts.length ? parts.join(" / ") : "Belum ada identitas tambahan";
+function humanizeBackupSource(v) { return v === 'scheduled' ? 'Scheduled' : 'Manual'; }
+function emptyEntryForm() { return { id: "", ip: "", label: "", owner: "", notes: "", expires_at: "" }; }
+function getFilteredBackups(b, q, sf, sort) { 
+  const sq = (q||"").toLowerCase();
+  let f = b.filter(x => (sf === 'all' || x.source === sf) && (!sq || x.key.toLowerCase().includes(sq) || x.created_by.toLowerCase().includes(sq)));
+  return f.sort((a,c) => sort === 'created_asc' ? new Date(a.created_at) - new Date(c.created_at) : new Date(c.created_at) - new Date(a.created_at));
 }
 
 createRoot(document.getElementById("root")).render(<AdminApp />);
