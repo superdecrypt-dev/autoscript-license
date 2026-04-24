@@ -98,6 +98,35 @@ function AdminApp() {
   const [entryDetail, setEntryDetail] = useState(null);
   const [backupPreviewOpen, setBackupPreviewOpen] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState("");
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const filteredEntries = useMemo(() => {
+    let data = entries;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      data = data.filter(e => 
+        (e.ip || "").toLowerCase().includes(q) || 
+        (e.label || "").toLowerCase().includes(q) || 
+        (e.owner || "").toLowerCase().includes(q)
+      );
+    }
+    if (statusFilter && statusFilter !== "all") {
+      data = data.filter(e => e.effective_status === statusFilter);
+    }
+    return data;
+  }, [entries, search, statusFilter]);
+
+  const totalPages = Math.ceil(filteredEntries.length / pageSize);
+  const paginatedEntries = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredEntries.slice(start, start + pageSize);
+  }, [filteredEntries, currentPage, pageSize]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, statusFilter, pageSize]);
 
   useEffect(() => {
     localStorage.setItem("autoscriptLicenseAdminActiveView", activeView);
@@ -423,7 +452,8 @@ function AdminApp() {
       await apiFetch("/api/admin/license-entries", { method: "POST", body: JSON.stringify(formState) });
       setBanner({ tone: "ok", message: `Entry ${formState.ip} berhasil dibuat.` });
       setFormState(emptyEntryForm());
-      await refreshDashboard();
+      setCreateDialogOpen(false);
+      await refreshEntries();
     } catch (error) {
       handleAuthFailure(error, "Gagal menyimpan entry.");
     }
@@ -688,16 +718,18 @@ function AdminApp() {
           )}
 
           {activeView === "entries" && (
-            <div className="grid gap-6 xl:grid-cols-[1.5fr,1fr]">
-              {/* Left Column: Table */}
-              <Card className="border-slate-200 shadow-sm flex flex-col">
+            <div className="space-y-6">
+              <Card className="border-slate-200 shadow-sm">
                 <CardHeader className="bg-slate-50 border-b border-slate-200 pb-4">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <CardTitle className="text-lg font-bold">Daftar IP</CardTitle>
-                    <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-                      <div className="relative flex-1 md:w-64">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div>
+                      <CardTitle className="text-lg font-bold">Daftar IP</CardTitle>
+                      <CardDescription>Total {filteredEntries.length} entri ditemukan.</CardDescription>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
-                        <Input className="pl-9 bg-white w-full" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari IP, label..." />
+                        <Input className="pl-9 bg-white w-full sm:w-64" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari IP, label..." />
                       </div>
                       <Select value={statusFilter} onValueChange={setStatusFilter}>
                         <SelectTrigger className="w-full sm:w-40 bg-white"><SelectValue placeholder="Status" /></SelectTrigger>
@@ -708,10 +740,13 @@ function AdminApp() {
                           <SelectItem value="revoked">Revoked</SelectItem>
                         </SelectContent>
                       </Select>
+                      <Button onClick={() => setCreateDialogOpen(true)} className="bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-200">
+                        <Plus className="size-4 mr-2" /> New Entry
+                      </Button>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="p-0 flex-1 overflow-hidden">
+                <CardContent className="p-0">
                   {entriesLoading ? (
                     <LoadingState message="Memuat entry..." />
                   ) : (
@@ -722,22 +757,22 @@ function AdminApp() {
                           <TableHeader>
                             <TableRow className="bg-slate-50 hover:bg-slate-50 border-slate-200">
                               <TableHead>IP / Label</TableHead>
-                              <TableHead>Owner</TableHead>
+                              <TableHead className="hidden lg:table-cell">Owner</TableHead>
                               <TableHead>Status</TableHead>
-                              <TableHead>Expires</TableHead>
+                              <TableHead className="hidden xl:table-cell">Expires</TableHead>
                               <TableHead className="text-right">Aksi</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {entries.map((entry) => (
+                            {paginatedEntries.map((entry) => (
                               <TableRow key={entry.id} className="hover:bg-slate-50 transition-colors border-slate-100">
                                 <TableCell>
                                   <div className="font-mono font-bold text-slate-900">{entry.ip}</div>
                                   <div className="text-xs text-slate-500">{entry.label || "-"}</div>
                                 </TableCell>
-                                <TableCell className="text-sm text-slate-700">{entry.owner || "-"}</TableCell>
+                                <TableCell className="hidden lg:table-cell text-sm text-slate-700">{entry.owner || "-"}</TableCell>
                                 <TableCell><Badge variant={statusTone(entry.effective_status)}>{statusLabel(entry.effective_status)}</Badge></TableCell>
-                                <TableCell className="text-sm text-slate-600">{formatDate(entry.expires_at)}</TableCell>
+                                <TableCell className="hidden xl:table-cell text-sm text-slate-600">{formatDate(entry.expires_at)}</TableCell>
                                 <TableCell className="text-right">
                                   <div className="flex justify-end gap-2">
                                     <Button size="sm" variant="secondary" className="bg-slate-100 hover:bg-slate-200 border-slate-300" onClick={() => openEntryDetail(entry)}>
@@ -765,7 +800,7 @@ function AdminApp() {
 
                       {/* Mobile Card List */}
                       <div className="md:hidden divide-y divide-slate-100">
-                        {entries.length ? entries.map((entry) => (
+                        {paginatedEntries.length ? paginatedEntries.map((entry) => (
                           <div key={entry.id} className="p-4 space-y-4 active:bg-slate-50 transition-colors">
                             <div className="flex justify-between items-start">
                               <div className="space-y-1">
@@ -817,40 +852,69 @@ function AdminApp() {
                           <div className="p-8 text-center text-slate-400 text-sm">Tidak ada data.</div>
                         )}
                       </div>
+
+                      {/* Pagination Controls */}
+                      {filteredEntries.length > 0 && (
+                        <div className="bg-slate-50 border-t border-slate-200 px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                          <div className="flex items-center gap-3 text-sm text-slate-600">
+                             <span className="hidden sm:inline">Rows per page:</span>
+                             <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+                               <SelectTrigger className="h-8 w-20 bg-white"><SelectValue /></SelectTrigger>
+                               <SelectContent>
+                                 <SelectItem value="10">10</SelectItem>
+                                 <SelectItem value="25">25</SelectItem>
+                                 <SelectItem value="50">50</SelectItem>
+                                 <SelectItem value="100">100</SelectItem>
+                               </SelectContent>
+                             </Select>
+                             <span className="ml-2 font-medium text-slate-900">
+                               Showing {(currentPage-1)*pageSize + 1} to {Math.min(currentPage*pageSize, filteredEntries.length)} of {filteredEntries.length}
+                             </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                             <Button 
+                               variant="secondary" 
+                               size="sm" 
+                               className="h-8 bg-white border-slate-200" 
+                               disabled={currentPage === 1}
+                               onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                             >
+                               Previous
+                             </Button>
+                             <div className="flex items-center gap-1">
+                                {Array.from({length: Math.min(totalPages, 5)}, (_, i) => {
+                                   let pageNum = i + 1;
+                                   if (totalPages > 5 && currentPage > 3) {
+                                     pageNum = currentPage - 2 + i;
+                                     if (pageNum + 2 > totalPages) pageNum = totalPages - 4 + i;
+                                   }
+                                   if (pageNum < 1) pageNum = i + 1;
+                                   if (pageNum > totalPages) return null;
+                                   return (
+                                     <button 
+                                       key={pageNum}
+                                       onClick={() => setCurrentPage(pageNum)}
+                                       className={`size-8 rounded-md text-xs font-bold transition-colors ${currentPage === pageNum ? 'bg-blue-600 text-white' : 'hover:bg-slate-200 text-slate-600'}`}
+                                     >
+                                       {pageNum}
+                                     </button>
+                                   )
+                                }).filter(Boolean)}
+                             </div>
+                             <Button 
+                               variant="secondary" 
+                               size="sm" 
+                               className="h-8 bg-white border-slate-200" 
+                               disabled={currentPage === totalPages || totalPages === 0}
+                               onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                             >
+                               Next
+                             </Button>
+                          </div>
+                        </div>
+                      )}
                     </>
                   )}
-                </CardContent>
-              </Card>
-
-              {/* Right Column: Create Entry */}
-              <Card className="border-slate-200 shadow-sm h-fit">
-                <CardHeader className="bg-slate-50 border-b border-slate-200">
-                  <CardTitle className="text-lg font-bold">Buat Entry Baru</CardTitle>
-                  <CardDescription>Tambahkan IP manual ke dalam sistem.</CardDescription>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <form className="space-y-4" onSubmit={handleCreateEntry}>
-                    <Field label="Alamat IPv4" hint="IP VPS tujuan.">
-                      <Input value={formState.ip} onChange={(e) => setFormState(s => ({...s, ip: e.target.value}))} placeholder="1.2.3.4" required className="font-mono" />
-                    </Field>
-                    <Field label="Tanggal Expired" hint="Kosongkan untuk durasi default.">
-                      <Input type="datetime-local" value={formState.expires_at} onChange={(e) => setFormState(s => ({...s, expires_at: e.target.value}))} />
-                    </Field>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Field label="Label">
-                        <Input value={formState.label} onChange={(e) => setFormState(s => ({...s, label: e.target.value}))} placeholder="Server Name" />
-                      </Field>
-                      <Field label="Owner">
-                        <Input value={formState.owner} onChange={(e) => setFormState(s => ({...s, owner: e.target.value}))} placeholder="Client Name" />
-                      </Field>
-                    </div>
-                    <Field label="Catatan">
-                      <Textarea value={formState.notes} onChange={(e) => setFormState(s => ({...s, notes: e.target.value}))} placeholder="Keterangan tambahan..." className="min-h-[80px]" />
-                    </Field>
-                    <div className="pt-2">
-                      <Button className="w-full" type="submit"><Plus className="size-4 mr-2"/> Simpan Entry</Button>
-                    </div>
-                  </form>
                 </CardContent>
               </Card>
             </div>
@@ -1073,6 +1137,42 @@ function AdminApp() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function CreateEntryDialog({ isOpen, onClose, formState, setFormState, onSubmit }) {
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md bg-white">
+        <DialogHeader>
+          <DialogTitle>Buat Entry Baru</DialogTitle>
+          <DialogDescription>Tambahkan IP manual ke dalam sistem.</DialogDescription>
+        </DialogHeader>
+        <form className="space-y-4 pt-4" onSubmit={onSubmit}>
+          <Field label="Alamat IPv4" hint="IP VPS tujuan.">
+            <Input value={formState.ip} onChange={(e) => setFormState(s => ({...s, ip: e.target.value}))} placeholder="1.2.3.4" required className="font-mono" />
+          </Field>
+          <Field label="Tanggal Expired" hint="Kosongkan untuk durasi default.">
+            <Input type="datetime-local" value={formState.expires_at} onChange={(e) => setFormState(s => ({...s, expires_at: e.target.value}))} />
+          </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Label">
+              <Input value={formState.label} onChange={(e) => setFormState(s => ({...s, label: e.target.value}))} placeholder="Server Name" />
+            </Field>
+            <Field label="Owner">
+              <Input value={formState.owner} onChange={(e) => setFormState(s => ({...s, owner: e.target.value}))} placeholder="Client Name" />
+            </Field>
+          </div>
+          <Field label="Catatan">
+            <Textarea value={formState.notes} onChange={(e) => setFormState(s => ({...s, notes: e.target.value}))} placeholder="Keterangan tambahan..." className="min-h-[80px]" />
+          </Field>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <Button type="button" variant="ghost" onClick={onClose}>Batal</Button>
+            <Button type="submit">Simpan Entry</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
