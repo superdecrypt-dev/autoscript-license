@@ -1059,6 +1059,14 @@ function AdminApp() {
       </nav>
 
       {/* Dialogs */}
+      <CreateEntryDialog
+        isOpen={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
+        formState={formState}
+        setFormState={setFormState}
+        onSubmit={handleCreateEntry}
+      />
+
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
