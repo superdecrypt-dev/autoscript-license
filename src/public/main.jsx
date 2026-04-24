@@ -50,7 +50,13 @@ function PublicApp() {
       if (!config.turnstileSiteKey || !turnstileSlotRef.current) return;
       const ready = await loadTurnstileScript();
       if (!ready || cancelled || !window.turnstile?.render) return;
-      if (turnstileWidgetIdRef.current !== null) return;
+
+      if (turnstileWidgetIdRef.current !== null) {
+        window.turnstile.remove(turnstileWidgetIdRef.current);
+        turnstileWidgetIdRef.current = null;
+        setTurnstileToken("");
+      }
+
       turnstileWidgetIdRef.current = window.turnstile.render(turnstileSlotRef.current, {
         sitekey: config.turnstileSiteKey,
         theme: "light",
@@ -65,11 +71,21 @@ function PublicApp() {
         },
       });
     }
-    initTurnstile();
+    
+    if (processMode !== "status") {
+      initTurnstile();
+    } else {
+      if (turnstileWidgetIdRef.current !== null && window.turnstile?.remove) {
+        window.turnstile.remove(turnstileWidgetIdRef.current);
+        turnstileWidgetIdRef.current = null;
+        setTurnstileToken("");
+      }
+    }
+    
     return () => {
       cancelled = true;
     };
-  }, [config.turnstileSiteKey]);
+  }, [config.turnstileSiteKey, processMode]);
 
   async function handleCreateSubmit(event) {
     event.preventDefault();
