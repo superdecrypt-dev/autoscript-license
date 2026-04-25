@@ -537,6 +537,30 @@ function AdminApp() {
     setConfirmDeleteOpen(true);
   }
 
+  function exportToCsv() {
+    if (!entries.length) return;
+    const headers = ["ID", "IP", "Label", "Owner", "Status", "Expires", "Notes"];
+    const rows = entries.map(e => [
+      e.id, 
+      e.ip, 
+      e.label || "", 
+      e.owner || "", 
+      e.effective_status, 
+      e.expires_at, 
+      (e.notes || "").replace(/\n/g, " ")
+    ]);
+    const csvContent = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `autoscript-licenses-${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    notify("ok", "Data lisensi berhasil diekspor ke CSV.");
+  }
+
   async function executeDeleteEntry() {
     if (!targetEntry) return;
     try {
@@ -811,6 +835,9 @@ function AdminApp() {
                       <CardDescription>Total {filteredEntries.length} data ditemukan.</CardDescription>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                      <Button variant="secondary" onClick={exportToCsv} disabled={!entries.length}>
+                        <Download className="size-4 mr-2" /> <span className="hidden sm:inline">Export CSV</span>
+                      </Button>
                       <div className="relative flex-1 md:w-64">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[var(--muted)]" />
                         <Input className="pl-9 w-full" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari IP, label..." />
@@ -1085,6 +1112,43 @@ function AdminApp() {
                          <Download className="size-4 mr-3" /> Import Backup File
                       </Button>
                     </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="shadow-sm border-[var(--line)]">
+                  <CardHeader className="bg-[var(--panel-strong)] border-b border-[var(--line)]">
+                    <CardTitle className="text-lg font-bold flex items-center gap-2">
+                      <ShieldCheck className="size-5 text-[var(--accent)]" />
+                      License Policy
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-5">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold uppercase text-[var(--muted)]">Default Duration (Hari)</label>
+                        <Input 
+                          type="number" 
+                          min="1" 
+                          value={sysSettings.license_duration_days} 
+                          onChange={(e) => updateSysSettings({ license_duration_days: e.target.value })}
+                          className="h-9"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold uppercase text-[var(--muted)]">Renew Window (Hari)</label>
+                        <Input 
+                          type="number" 
+                          min="0" 
+                          value={sysSettings.renew_open_before_days} 
+                          onChange={(e) => updateSysSettings({ renew_open_before_days: e.target.value })}
+                          className="h-9"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-[var(--muted)] leading-relaxed">
+                      * Durasi default diberikan pada registrasi baru. <br/>
+                      * Jendela perpanjangan adalah sisa hari minimum sebelum menu Renew dibuka.
+                    </p>
                   </CardContent>
                 </Card>
 
