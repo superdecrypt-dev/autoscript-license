@@ -88,6 +88,7 @@ function AdminApp() {
       setBanner({ tone: "muted", message: "Sistem siap." });
     }, 5000);
   }
+
   const [metrics, setMetrics] = useState(null);
   const [backups, setBackups] = useState([]);
   const [backupPreview, setBackupPreview] = useState(null);
@@ -99,7 +100,7 @@ function AdminApp() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [auditIp, setAuditIp] = useState("");
-  const [auditEvent, setAuditEvent] = useState("");
+  const [auditEvent, setAuditEvent] = useState("all");
   const [backupSearch, setBackupSearch] = useState("");
   const [backupSourceFilter, setBackupSourceFilter] = useState("all");
   const [backupSort, setBackupSort] = useState("created_desc");
@@ -301,7 +302,7 @@ function AdminApp() {
   async function fetchAuditLogs() {
     const params = new URLSearchParams({ limit: "120" });
     if (auditIp.trim()) params.set("ip", auditIp.trim());
-    if (auditEvent.trim()) params.set("event", auditEvent.trim());
+    if (auditEvent && auditEvent !== "all") params.set("event", auditEvent);
     return apiFetch(`/api/admin/audit-logs?${params.toString()}`);
   }
 
@@ -317,7 +318,7 @@ function AdminApp() {
   async function createBackup() {
     try {
       await apiFetch("/api/admin/backups", { method: "POST", body: JSON.stringify({}) });
-      setBanner({ tone: "ok", message: "Snapshot backup berhasil dibuat." });
+      notify("ok", "Snapshot backup berhasil dibuat.");
       await refreshBackups();
     } catch (error) {
       handleAuthFailure(error, "Gagal membuat snapshot backup.");
@@ -354,7 +355,7 @@ function AdminApp() {
         },
         body: rawPayload,
       });
-      setBanner({ tone: "ok", message: `Backup ${file.name} berhasil di-import.` });
+      notify("ok", `Backup ${file.name} berhasil di-import.`);
       await refreshDashboard();
     } catch (error) {
       handleAuthFailure(error, "Gagal import file backup.");
@@ -368,11 +369,11 @@ function AdminApp() {
       setBackups((current) =>
         current.map((item) =>
           item.key === payload.item?.key
-            ? { ...item, checksum_sha256: payload.item?.checksum_sha256 || item.checksum_sha256 || "" }
+            ? { ...item, checksum_sha256: payload.item?.checksum_sha256 || item.checksum_sha256 || "", row_counts: payload.item?.row_counts || item.row_counts }
             : item
         )
       );
-      if (!silent) setBanner({ tone: "ok", message: "Preview snapshot berhasil dimuat." });
+      if (!silent) notify("ok", "Preview snapshot berhasil dimuat.");
       return payload.item || null;
     } catch (error) {
       if (!silent) handleAuthFailure(error, "Gagal memuat preview snapshot backup.");
@@ -397,7 +398,7 @@ function AdminApp() {
         body: JSON.stringify({}),
       });
       const backup = backups.find((item) => item.key === backupKey) || {};
-      setBanner({ tone: "ok", message: `Dry-run OK: ${formatBackupRows(payload.row_counts)} • ${backup.created_by || "-"} • ${shortChecksum(payload.checksum_sha256)}` });
+      notify("ok", `Dry-run OK: ${formatBackupRows(payload.row_counts)} • ${backup.created_by || "-"} • ${shortChecksum(payload.checksum_sha256)}`);
     } catch (error) {
       handleAuthFailure(error, "Gagal validasi snapshot backup.");
     }
@@ -408,7 +409,7 @@ function AdminApp() {
     if (!backup || !backup.checksum_sha256) {
       backup = await loadBackupPreview(backupKey, true);
     }
-    const summary = [
+    const summaryStr = [
       `Created: ${formatDate(backup?.created_at)}`,
       `Actor: ${backup?.created_by || "-"}`,
       `Source: ${backup?.source || "-"}`,
@@ -416,13 +417,13 @@ function AdminApp() {
       `Size: ${formatBytes(backup?.size || 0)}`,
       `Checksum: ${backup?.checksum_sha256 || "-"}`,
     ].join("\n");
-    if (!window.confirm(`Restore snapshot berikut akan mengganti daftar license entries saat ini:\n\n${summary}\n\nLanjutkan?`)) return;
+    if (!window.confirm(`Restore snapshot berikut akan mengganti daftar license entries saat ini:\n\n${summaryStr}\n\nLanjutkan?`)) return;
     try {
       await apiFetch(`/api/admin/backups/${encodeURIComponent(backupKey)}/restore`, {
         method: "POST",
         body: JSON.stringify({}),
       });
-      setBanner({ tone: "ok", message: "Restore snapshot berhasil." });
+      notify("ok", "Sistem berhasil dipulihkan dari snapshot backup.");
       await refreshDashboard();
     } catch (error) {
       handleAuthFailure(error, "Gagal restore snapshot backup.");
@@ -433,7 +434,7 @@ function AdminApp() {
     if (!window.confirm(`Hapus snapshot ${backupKey}?`)) return;
     try {
       await apiFetch(`/api/admin/backups/${encodeURIComponent(backupKey)}`, { method: "DELETE" });
-      setBanner({ tone: "ok", message: "Snapshot backup berhasil dihapus." });
+      notify("ok", "Snapshot backup berhasil dihapus.");
       await refreshBackups();
     } catch (error) {
       handleAuthFailure(error, "Gagal menghapus snapshot backup.");
@@ -444,21 +445,17 @@ function AdminApp() {
     try {
       const response = await fetchAdminBlob(`/api/admin/backups/${encodeURIComponent(backupKey)}/download`);
       const blob = await response.blob();
-      triggerDownload(blob, backupKey.split("/").at(-1) || "autoscript-license-backup.json");
-      setBanner({ tone: "ok", message: "Snapshot backup berhasil diunduh." });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = backupKey.split("/").pop() || "backup.json";
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      notify("ok", "File backup berhasil diunduh.");
     } catch (error) {
-      handleAuthFailure(error, "Gagal mengunduh snapshot backup.");
-    }
-  }
-
-  async function downloadBackupManifest(backupKey) {
-    try {
-      const response = await fetchAdminBlob(`/api/admin/backups/${encodeURIComponent(backupKey)}/manifest`);
-      const blob = await response.blob();
-      triggerDownload(blob, `${backupKey.split("/").at(-1) || "autoscript-license-backup"}.manifest.json`);
-      setBanner({ tone: "ok", message: "Manifest backup berhasil diunduh." });
-    } catch (error) {
-      handleAuthFailure(error, "Gagal mengunduh manifest backup.");
+      handleAuthFailure(error, "Gagal mengunduh file backup.");
     }
   }
 
@@ -1078,13 +1075,14 @@ function AdminApp() {
                              </div>
                              <div className="text-xs font-mono text-[var(--muted)] mb-1">{backup.key}</div>
                              <div className="text-sm text-[var(--muted)] flex gap-3">
-                               <span>{formatBackupRows(backup.row_counts)} entries</span>
+                               <span>{formatBackupRows(backup.row_counts)}</span>
                                <span>&bull;</span>
                                <span>{formatBytes(backup.size)}</span>
                              </div>
                            </div>
                            <div className="flex flex-wrap gap-2">
-                             <Button size="sm" variant="secondary" onClick={() => loadBackupPreview(backup.key)}><Eye className="size-4 mr-1"/> Preview</Button>
+                             <Button size="sm" variant="secondary" onClick={() => openBackupPreviewDialog(backup.key)}><Eye className="size-4 mr-1"/> Preview</Button>
+                             <Button size="sm" variant="secondary" onClick={() => downloadBackup(backup.key)}><Download className="size-4 mr-1"/> Download</Button>
                              <Button size="sm" variant="outline" className="text-amber-500 border-amber-500/20 hover:bg-amber-500/10" onClick={() => restoreBackup(backup.key)}>Restore</Button>
                              <Button size="sm" variant="ghost" className="text-[var(--muted)] hover:text-red-500" onClick={() => deleteBackup(backup.key)}><Trash2 className="size-4" /></Button>
                            </div>
