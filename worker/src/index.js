@@ -1439,6 +1439,9 @@ async function handleAdminPatchEntry(request, env, actorEmail, entryId) {
 }
 
 async function handleAdminToggleEntry(request, env, actorEmail, entryId, targetStatus) {
+  const body = await parseJsonBody(request);
+  const notesAppend = normalizeShortText(body.data?.notes_append, 1024) || "";
+  
   const existing = await getLicenseEntryById(env, entryId);
   if (!existing) {
     return jsonResponse({ error: "not_found", message: "Entry tidak ditemukan" }, 404);
@@ -1446,15 +1449,19 @@ async function handleAdminToggleEntry(request, env, actorEmail, entryId, targetS
 
   const nowIso = nowIsoString();
   const revokedAt = targetStatus === "revoked" ? nowIso : null;
-  await runStatement(
-    env,
-    `
-      UPDATE license_entries
-      SET status = ?, revoked_at = ?, updated_at = ?, updated_by = ?
-      WHERE id = ?
-    `,
-    [targetStatus, revokedAt, nowIso, actorEmail, entryId]
-  );
+  
+  let sql = `UPDATE license_entries SET status = ?, revoked_at = ?, updated_at = ?, updated_by = ?`;
+  const binds = [targetStatus, revokedAt, nowIso, actorEmail];
+  
+  if (notesAppend) {
+    sql += `, notes = COALESCE(notes, '') || ?`;
+    binds.push(notesAppend);
+  }
+  
+  sql += ` WHERE id = ?`;
+  binds.push(entryId);
+  
+  await runStatement(env, sql, binds);
 
   await insertAuditLog(env, {
     eventType: targetStatus === "revoked" ? "admin_revoke" : "admin_reactivate",
@@ -1467,6 +1474,7 @@ async function handleAdminToggleEntry(request, env, actorEmail, entryId, targetS
     userAgent: getAdminUserAgent(request),
     payload: {
       target_status: targetStatus,
+      notes_append: notesAppend,
     },
   });
 
