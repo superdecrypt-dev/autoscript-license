@@ -1118,43 +1118,6 @@ function AdminApp() {
                 <Card className="shadow-sm border-[var(--line)]">
                   <CardHeader className="bg-[var(--panel-strong)] border-b border-[var(--line)]">
                     <CardTitle className="text-lg font-bold flex items-center gap-2">
-                      <ShieldCheck className="size-5 text-[var(--accent)]" />
-                      License Policy
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-6 space-y-5">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold uppercase text-[var(--muted)]">Default Duration (Hari)</label>
-                        <Input 
-                          type="number" 
-                          min="1" 
-                          value={sysSettings.license_duration_days} 
-                          onChange={(e) => updateSysSettings({ license_duration_days: e.target.value })}
-                          className="h-9"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold uppercase text-[var(--muted)]">Renew Window (Hari)</label>
-                        <Input 
-                          type="number" 
-                          min="0" 
-                          value={sysSettings.renew_open_before_days} 
-                          onChange={(e) => updateSysSettings({ renew_open_before_days: e.target.value })}
-                          className="h-9"
-                        />
-                      </div>
-                    </div>
-                    <p className="text-[10px] text-[var(--muted)] leading-relaxed">
-                      * Durasi default diberikan pada registrasi baru. <br/>
-                      * Jendela perpanjangan adalah sisa hari minimum sebelum menu Renew dibuka.
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card className="shadow-sm border-[var(--line)]">
-                  <CardHeader className="bg-[var(--panel-strong)] border-b border-[var(--line)]">
-                    <CardTitle className="text-lg font-bold flex items-center gap-2">
                       <Clock3 className="size-5 text-[var(--accent)]" />
                       Auto Backup Config
                     </CardTitle>

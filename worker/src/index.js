@@ -143,12 +143,11 @@ async function routeRequest(request, env) {
 }
 
 async function handlePublicConfig(_request, env) {
-  const settings = await getSystemSettings(env);
   return jsonResponse({
     ok: true,
     service: "public",
-    license_duration_days: getLicenseDurationDays(env, settings),
-    renew_open_before_days: getPublicRenewOpenBeforeDays(env, settings),
+    license_duration_days: getLicenseDurationDays(env),
+    renew_open_before_days: getPublicRenewOpenBeforeDays(env),
   });
 }
 
@@ -221,9 +220,8 @@ async function handlePublicActivate(request, env, options = {}) {
 
   const visitorIp = getVisitorIp(request);
   const nowIso = nowIsoString();
-  const settings = await getSystemSettings(env);
-  const durationDays = getLicenseDurationDays(env, settings);
-  const renewOpenBeforeDays = getPublicRenewOpenBeforeDays(env, settings);
+  const durationDays = getLicenseDurationDays(env);
+  const renewOpenBeforeDays = getPublicRenewOpenBeforeDays(env);
   const eventBase = normalizeShortText(options.eventBase, 64) || "public_activate";
   const limit = await enforcePublicRateLimit(
     env,
@@ -2410,8 +2408,6 @@ async function handleAdminGetSettings(_request, env) {
     backup_auto_enabled: settings.backup_auto_enabled === "true",
     backup_interval_hours: parseIntSafe(settings.backup_interval_hours, 24),
     backup_retention_days: parseIntSafe(settings.backup_retention_days, 30),
-    license_duration_days: parseIntSafe(settings.license_duration_days, 14),
-    renew_open_before_days: parseIntSafe(settings.renew_open_before_days, 3),
   });
 }
 
@@ -2427,12 +2423,6 @@ async function handleAdminUpdateSettings(request, env) {
   }
   if ("backup_retention_days" in data) {
     await setSystemSetting(env, "backup_retention_days", Math.max(1, parseIntSafe(data.backup_retention_days, 30)));
-  }
-  if ("license_duration_days" in data) {
-    await setSystemSetting(env, "license_duration_days", Math.max(1, parseIntSafe(data.license_duration_days, 14)));
-  }
-  if ("renew_open_before_days" in data) {
-    await setSystemSetting(env, "renew_open_before_days", Math.max(0, parseIntSafe(data.renew_open_before_days, 3)));
   }
   
   return handleAdminGetSettings(request, env);
@@ -2723,18 +2713,12 @@ function statementChanges(result) {
   return 0;
 }
 
-function getLicenseDurationDays(env, settings = null) {
-  if (settings && "license_duration_days" in settings) {
-    return parseIntSafe(settings.license_duration_days, 14);
-  }
+function getLicenseDurationDays(env) {
   return parseIntSafe(env.PUBLIC_LICENSE_DURATION_DAYS, 14);
 }
 
-function getPublicRenewOpenBeforeDays(env, settings = null) {
-  if (settings && "renew_open_before_days" in settings) {
-    return parseIntSafe(settings.renew_open_before_days, 3);
-  }
-  return parseIntSafe(env.PUBLIC_RENEW_OPEN_BEFORE_DAYS, 3);
+function getPublicRenewOpenBeforeDays(_env) {
+  return parseIntSafe(_env.PUBLIC_RENEW_OPEN_BEFORE_DAYS, 3);
 }
 
 function getPublicTurnstileSiteKey(env) {
