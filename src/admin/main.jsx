@@ -615,8 +615,16 @@ function AdminApp() {
 
   const summary = metrics?.summary || {};
   const topEvents = metrics?.top_events || [];
-  const checksTrend = metrics?.daily_checks || [];
-  const mutationsTrend = metrics?.daily_mutations || [];
+  const daily = metrics?.daily || [];
+  const checksTrend = daily.map(d => ({ 
+    allow: d.checks_allowed, 
+    deny: d.checks_denied 
+  }));
+  const mutationsTrend = daily.map(d => ({ 
+    admin_mutations: d.admin_mutations, 
+    public_activations: d.public_activations, 
+    public_renewals: d.public_renewals 
+  }));
   const filteredBackups = getFilteredBackups(backups, backupSearch, backupSourceFilter, backupSort);
   const latestChecks = checksTrend.at(-1) || {};
   const latestMutations = mutationsTrend.at(-1) || {};
