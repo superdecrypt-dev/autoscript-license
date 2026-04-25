@@ -327,29 +327,8 @@ async function handlePublicActivate(request, env, options = {}) {
           403
         );
       }
-      if (effectiveStatus === "expired") {
-        await insertAuditLog(env, {
-          eventType: `${eventBase}_expired_denied`,
-          ip: publicIp,
-          entryId: existing.id,
-          stage: "public",
-          decision: "deny",
-          actorEmail: "",
-          requestIp: visitorIp,
-          userAgent: request.headers.get("User-Agent") || "",
-          payload: {
-            source: "public-renew-expired",
-          },
-        });
-        return jsonResponse(
-          {
-            error: "expired",
-            message: "IP ini sudah expired. Lakukan aktivasi ulang, bukan renew.",
-          },
-          409
-        );
-      }
-      if (effectiveStatus !== "active" || daysRemaining > renewOpenBeforeDays) {
+      
+      if (effectiveStatus === "active" && daysRemaining > renewOpenBeforeDays) {
         await insertAuditLog(env, {
           eventType: `${eventBase}_too_early`,
           ip: publicIp,
@@ -368,7 +347,7 @@ async function handlePublicActivate(request, env, options = {}) {
         return jsonResponse(
           {
             error: "renew_not_open",
-            message: `Perpanjangan publik baru dibuka saat sisa aktif ${renewOpenBeforeDays} hari atau kurang.`,
+            message: `Perpanjangan publik baru dibuka saat sisa aktif ${renewOpenBeforeDays} hari atau kurang (atau sudah expired).`,
           },
           409
         );
