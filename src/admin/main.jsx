@@ -915,27 +915,40 @@ function AdminApp() {
           )}
 
           {activeView === "audit" && (
-            <Card className="border-slate-200 shadow-sm">
-              <CardHeader className="flex flex-col md:flex-row justify-between gap-4 bg-slate-50 border-b border-slate-200 pb-4">
-                <div>
-                  <CardTitle className="text-lg font-bold">Audit Logs</CardTitle>
-                  <CardDescription>Jejak digital seluruh aktivitas di dalam sistem.</CardDescription>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-                  <Input className="w-full sm:w-48 bg-white" value={auditIp} onChange={e => setAuditIp(e.target.value)} placeholder="Filter IP" />
-                  <Input className="w-full sm:w-48 bg-white" value={auditEvent} onChange={e => setAuditEvent(e.target.value)} placeholder="Filter Event" />
+            <Card className="shadow-sm border-[var(--line)]">
+              <CardHeader className="bg-[var(--panel-strong)] border-b border-[var(--line)] pb-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <CardTitle className="text-lg font-bold">Audit Log</CardTitle>
+                  <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                    <div className="relative flex-1 md:w-64">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[var(--muted)]" />
+                      <Input className="pl-9 w-full" value={auditIp} onChange={(e) => setAuditIp(e.target.value)} placeholder="Filter IP..." />
+                    </div>
+                    <Select value={auditEvent} onValueChange={setAuditEvent}>
+                      <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Event Type" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Semua Event</SelectItem>
+                        <SelectItem value="license_check">Check (Public)</SelectItem>
+                        <SelectItem value="license_activate">Activate (Public)</SelectItem>
+                        <SelectItem value="license_renew">Renew (Public)</SelectItem>
+                        <SelectItem value="admin_create">Create (Admin)</SelectItem>
+                        <SelectItem value="admin_update">Update (Admin)</SelectItem>
+                        <SelectItem value="admin_delete">Delete (Admin)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
                 {auditLoading ? (
-                  <LoadingState message="Memuat log..." />
+                  <LoadingState message="Memuat audit log..." />
                 ) : (
                   <>
                     {/* Desktop Table */}
                     <div className="hidden md:block overflow-x-auto">
                       <Table>
                         <TableHeader>
-                          <TableRow className="bg-slate-50 hover:bg-slate-50 border-slate-200">
+                          <TableRow className="bg-[var(--panel-strong)] border-[var(--line)]">
                             <TableHead>Waktu / IP</TableHead>
                             <TableHead>Event</TableHead>
                             <TableHead className="hidden md:table-cell">Actor</TableHead>
@@ -944,16 +957,16 @@ function AdminApp() {
                         </TableHeader>
                         <TableBody>
                           {auditLogs.length ? auditLogs.map((log) => (
-                            <TableRow key={log.id} className="hover:bg-slate-50 border-slate-100">
+                            <TableRow key={log.id} className="border-[var(--line)]">
                               <TableCell className="py-3 px-2 sm:px-4">
-                                <div className="text-[10px] sm:text-sm text-slate-600 font-medium">{formatDate(log.created_at)}</div>
-                                <div className="font-mono text-[10px] sm:text-xs font-bold text-blue-600 mt-0.5">{log.ip || "-"}</div>
+                                <div className="text-[10px] sm:text-sm text-[var(--muted)] font-medium">{formatDate(log.created_at)}</div>
+                                <div className="font-mono text-[10px] sm:text-xs font-bold text-[var(--accent)] mt-0.5">{log.ip || "-"}</div>
                               </TableCell>
                               <TableCell className="py-3 px-1 sm:px-4">
                                 <Badge variant={statusTone(log.decision)} className="text-[9px] sm:text-xs px-1.5 py-0 truncate max-w-[80px] sm:max-w-none">{log.event_type || "-"}</Badge>
                               </TableCell>
-                              <TableCell className="hidden md:table-cell text-sm text-slate-700">{log.actor_email || "worker"}</TableCell>
-                              <TableCell className="hidden lg:table-cell text-xs text-slate-500 font-mono truncate max-w-xs" title={JSON.stringify(log.payload_json)}>{JSON.stringify(log.payload_json || {})}</TableCell>
+                              <TableCell className="hidden md:table-cell text-sm opacity-80">{log.actor_email || "worker"}</TableCell>
+                              <TableCell className="hidden lg:table-cell text-xs text-[var(--muted)] font-mono truncate max-w-xs" title={JSON.stringify(log.payload_json)}>{JSON.stringify(log.payload_json || {})}</TableCell>
                             </TableRow>
                           )) : <TableRow><TableCell colSpan={5}><LoadingState message="Tidak ada log."/></TableCell></TableRow>}
                         </TableBody>
@@ -961,23 +974,23 @@ function AdminApp() {
                     </div>
 
                     {/* Mobile Log Feed */}
-                    <div className="md:hidden divide-y divide-slate-100">
+                    <div className="md:hidden divide-y divide-[var(--line)]">
                       {auditLogs.length ? auditLogs.map((log) => (
-                        <div key={log.id} className="p-4 flex gap-4 items-start active:bg-slate-50 transition-colors">
+                        <div key={log.id} className="p-4 flex gap-4 items-start active:bg-[var(--panel-strong)] transition-colors">
                           <div className={`mt-1 size-2 shrink-0 rounded-full ${log.decision === 'allow' || log.decision === 'ok' ? 'bg-emerald-500' : 'bg-rose-500'} shadow-[0_0_8px_rgba(0,0,0,0.1)]`} />
                           <div className="flex-1 space-y-1 min-w-0">
                             <div className="flex justify-between items-center gap-2">
-                              <div className="font-mono font-bold text-xs text-slate-900 truncate">{log.ip || "System"}</div>
-                              <div className="text-[10px] text-slate-400 font-medium whitespace-nowrap">{formatDate(log.created_at).split(',')[1]}</div>
+                              <div className="font-mono font-bold text-xs text-[var(--fg)] truncate">{log.ip || "System"}</div>
+                              <div className="text-[10px] text-[var(--muted)] font-medium whitespace-nowrap">{formatDate(log.created_at).split(',')[1]}</div>
                             </div>
                             <div className="flex items-center gap-2">
                               <Badge variant={statusTone(log.decision)} className="text-[9px] px-1 py-0">{log.event_type}</Badge>
-                              <span className="text-[10px] text-slate-500 truncate">{log.actor_email || "worker"}</span>
+                              <span className="text-[10px] text-[var(--muted)] truncate">{log.actor_email || "worker"}</span>
                             </div>
                           </div>
                         </div>
                       )) : (
-                        <div className="p-8 text-center text-slate-400 text-sm">Tidak ada log.</div>
+                        <div className="p-8 text-center text-[var(--muted)] text-sm">Tidak ada log.</div>
                       )}
                     </div>
                   </>
@@ -1042,6 +1055,14 @@ function AdminApp() {
             </div>
           )}
         </div>
+
+        {/* Mobile Navigation */}
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[var(--panel)] border-t border-[var(--line)] flex items-center justify-around z-20 shadow-lg px-2 safe-bottom pb-1">
+          <MobileNavButton icon={LayoutDashboard} active={activeView === "dashboard"} label="Home" onClick={() => setActiveView("dashboard")} />
+          <MobileNavButton icon={Database} active={activeView === "entries"} label="IPs" onClick={() => setActiveView("entries")} />
+          <MobileNavButton icon={Activity} active={activeView === "audit"} label="Logs" onClick={() => setActiveView("audit")} />
+          <MobileNavButton icon={Settings} active={activeView === "settings"} label="Settings" onClick={() => setActiveView("settings")} />
+        </nav>
       </main>
 
       {/* Entry Detail Dialog */}
