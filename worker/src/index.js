@@ -993,15 +993,12 @@ async function handleAdminCreateBackup(env, actorEmail) {
 
   return jsonResponse(
     {
-      item: {
-        ...serializeBackupObject({
-          key,
-          uploaded: new Date(snapshot.created_at),
-          size: body.length,
-          customMetadata: metadata,
-        }),
-        source: snapshot.source,
-      },
+      item: serializeBackupObject({
+        key,
+        uploaded: new Date(snapshot.created_at),
+        size: body.length,
+        customMetadata: metadata,
+      }),
     },
     201
   );
