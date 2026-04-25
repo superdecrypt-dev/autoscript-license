@@ -1832,6 +1832,7 @@ function serializePublicStatusEntry(row, nowIso = nowIsoString(), env = {}) {
     status: effectiveStatus,
     allowed: effectiveStatus === "active",
     ip: row.ip,
+    label: row.label || "",
     expires_at: row.expires_at || "",
     days_remaining: daysRemaining,
     renewable,
@@ -1846,6 +1847,7 @@ function serializePublicLookupStatusEntry(row, nowIso = nowIsoString(), env = {}
   if (!row) {
     return {
       ip: requestedIp,
+      label: "",
       status: "not_found",
       allowed: false,
       renewable: false,
@@ -1865,6 +1867,7 @@ function serializePublicLookupStatusEntry(row, nowIso = nowIsoString(), env = {}
     : 0;
   return {
     ip: row.ip || requestedIp,
+    label: row.label || "",
     status: effectiveStatus,
     allowed: effectiveStatus === "active",
     renewable,

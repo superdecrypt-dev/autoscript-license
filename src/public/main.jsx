@@ -379,6 +379,7 @@ function ResultPanel({ result }) {
       {item.ip && (
         <div className="grid gap-3 sm:grid-cols-2">
           <Stat label="IP" value={item.ip} mono />
+          {item.label && <Stat label="Label" value={item.label} />}
           {"expires_at" in item && <Stat label="Aktif Sampai" value={formatDate(item.expires_at)} />}
           {"days_remaining" in item && <Stat label="Sisa Waktu" value={formatDaysRemaining(item.days_remaining)} />}
           {"allowed" in item && <Stat label="Akses Publik" value={item.allowed ? "Diizinkan" : "Ditolak"} />}
@@ -415,6 +416,7 @@ function StatusResultPanel({ result, onAction }) {
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Stat label="IP Dicek" value={item.ip} mono />
+        {item.label && <Stat label="Label" value={item.label} />}
         <Stat label="Akses Publik" value={item.allowed ? "Diizinkan" : "Ditolak"} />
         <Stat label="Aktif Sampai" value={formatDate(item.expires_at)} />
         <Stat label="Sisa Waktu" value={formatDaysRemaining(item.days_remaining)} />
