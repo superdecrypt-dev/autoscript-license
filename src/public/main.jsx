@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, ThemeToggle } from "../shared/ui.jsx";
 import { getPublicConfig } from "../shared/config.js";
 import { formatDate, formatDaysRemaining, statusLabel, statusTone } from "../shared/utils.js";
-import { ArrowRight, Clock3, Cpu, RotateCcw, Search, ShieldCheck, Signal } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle2, Clock3, Cpu, Lock, RotateCcw, Search, ShieldCheck, Signal, XCircle } from "lucide-react";
 
 function PublicApp() {
   const config = useMemo(() => getPublicConfig(), []);
@@ -59,7 +59,7 @@ function PublicApp() {
 
       turnstileWidgetIdRef.current = window.turnstile.render(turnstileSlotRef.current, {
         sitekey: config.turnstileSiteKey,
-        theme: document.documentElement.classList.contains("dark") ? "dark" : "light",
+        theme: "dark",
         callback(token) {
           setTurnstileToken(String(token || "").trim());
         },
@@ -188,28 +188,28 @@ function PublicApp() {
           
           <div className="mt-16 space-y-4">
             <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30">License Portal</Badge>
-            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight leading-tight text-white">
+            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight leading-tight text-white animate-in fade-in slide-in-from-left-4 duration-700">
               Akses Instan ke <br />
               <span className="text-blue-400">Infrastruktur Anda.</span>
             </h1>
-            <p className="text-slate-400 text-lg max-w-md leading-relaxed">
+            <p className="text-slate-400 text-lg max-w-md leading-relaxed animate-in fade-in slide-in-from-left-6 duration-700 delay-150">
               Kelola lisensi IP VPS Anda dengan aman. Sistem terintegrasi dengan validasi otomatis khusus untuk repositori <a href="https://github.com/superdecrypt-dev/autoscript" target="_blank" rel="noreferrer" className="font-semibold text-blue-400 hover:text-blue-300 transition-colors">superdecrypt-dev/autoscript</a> dan <a href="https://github.com/superdecrypt-dev/autoscript-lite" target="_blank" rel="noreferrer" className="font-semibold text-blue-400 hover:text-blue-300 transition-colors">autoscript-lite</a>.
             </p>
           </div>
         </div>
 
-        <div className="relative z-10 mt-12 grid grid-cols-2 gap-4">
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur-sm">
+        <div className="relative z-10 mt-12 grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur-sm group hover:bg-white/10 transition-colors">
             <div className="flex items-center gap-2 text-slate-400 mb-2">
               <Cpu className="size-4 text-blue-400" />
               <span className="text-xs font-semibold uppercase tracking-wider">Worker Status</span>
             </div>
             <div className="font-medium flex items-center gap-2 text-white">
-              <div className={`size-2 rounded-full ${statusBadge.tone === 'emerald' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+              <div className={`size-2 rounded-full ${statusBadge.tone === 'emerald' ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_#10b981]' : 'bg-rose-500 shadow-[0_0_8px_#f43f5e]'}`} />
               {statusBadge.message}
             </div>
           </div>
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur-sm">
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur-sm group hover:bg-white/10 transition-colors">
             <div className="flex items-center gap-2 text-slate-400 mb-2">
               <Clock3 className="size-4 text-blue-400" />
               <span className="text-xs font-semibold uppercase tracking-wider">Default Duration</span>
@@ -221,27 +221,27 @@ function PublicApp() {
 
       {/* Right Interaction Panel */}
       <div className="flex-1 p-6 md:p-12 overflow-y-auto flex items-center justify-center">
-        <div className="w-full max-w-xl space-y-6">
+        <div className="w-full max-w-xl space-y-6 animate-in fade-in zoom-in-95 duration-500">
           <Alert tone={banner.tone} className="shadow-sm">
             {banner.message}
           </Alert>
 
-          <Card className="shadow-xl shadow-[var(--accent)]/5">
+          <Card id="process-card" className="shadow-xl shadow-blue-900/5">
             <div className="flex border-b border-[var(--line)] bg-[var(--panel-strong)] rounded-t-xl overflow-hidden">
                 <button 
-                  className={`flex-1 py-4 text-sm font-bold transition-colors ${processMode === "activate" ? 'bg-[var(--panel)] text-[var(--accent)] border-b-2 border-[var(--accent)]' : 'text-[var(--muted)] hover:bg-[var(--panel)]'}`}
+                  className={`flex-1 py-4 text-sm font-bold transition-all duration-300 ${processMode === "activate" ? 'bg-[var(--panel)] text-[var(--accent)] border-b-2 border-[var(--accent)]' : 'text-[var(--muted)] hover:bg-[var(--panel)]'}`}
                   onClick={() => { setProcessMode("activate"); setCreateResult(null); }}
                 >
                   Register IP
                 </button>
                 <button 
-                  className={`flex-1 py-4 text-sm font-bold transition-colors ${processMode === "renew" ? 'bg-[var(--panel)] text-[var(--accent)] border-b-2 border-[var(--accent)]' : 'text-[var(--muted)] hover:bg-[var(--panel)]'}`}
+                  className={`flex-1 py-4 text-sm font-bold transition-all duration-300 ${processMode === "renew" ? 'bg-[var(--panel)] text-[var(--accent)] border-b-2 border-[var(--accent)]' : 'text-[var(--muted)] hover:bg-[var(--panel)]'}`}
                   onClick={() => { setProcessMode("renew"); setCreateResult(null); }}
                 >
                   Perpanjang
                 </button>
                 <button 
-                  className={`flex-1 py-4 text-sm font-bold transition-colors ${processMode === "status" ? 'bg-[var(--panel)] text-[var(--accent)] border-b-2 border-[var(--accent)]' : 'text-[var(--muted)] hover:bg-[var(--panel)]'}`}
+                  className={`flex-1 py-4 text-sm font-bold transition-all duration-300 ${processMode === "status" ? 'bg-[var(--panel)] text-[var(--accent)] border-b-2 border-[var(--accent)]' : 'text-[var(--muted)] hover:bg-[var(--panel)]'}`}
                   onClick={() => setProcessMode("status")}
                 >
                   Status
@@ -250,7 +250,7 @@ function PublicApp() {
 
             <CardContent className="p-6 pt-8">
               {processMode !== "status" && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                <div key={processMode} className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-400">
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-lg font-bold text-[var(--fg)]">
@@ -272,12 +272,12 @@ function PublicApp() {
                         placeholder="e.g. 1.2.3.4" 
                         value={createIp}
                         onChange={e => setCreateIp(e.target.value)}
-                        className="font-mono text-lg py-6"
+                        className="font-mono text-lg py-6 focus:scale-[1.01] transition-transform"
                       />
                       <p className="text-xs text-[var(--muted)]">Masukkan IP publik VPS yang akan {processMode === "renew" ? "diperpanjang" : "didaftarkan"}.</p>
                     </div>
 
-                    <div className="bg-[var(--panel-strong)] border border-[var(--line-strong)] rounded-xl p-4 space-y-3">
+                    <div className="bg-[var(--panel-strong)] border border-[var(--line-strong)] rounded-xl p-4 space-y-3 shadow-inner">
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-semibold text-[var(--fg)] opacity-80">Verifikasi Keamanan</span>
                         <Badge variant={turnstileToken ? "emerald" : "slate"}>{turnstileToken ? "Verified" : "Pending"}</Badge>
@@ -285,7 +285,10 @@ function PublicApp() {
                       <div ref={turnstileSlotRef} className="min-h-[65px] flex justify-center" />
                     </div>
 
-                    <Button className="w-full h-12 text-base font-bold" disabled={createLoading || !turnstileToken}>
+                    <Button 
+                      className="w-full h-12 text-base font-bold shadow-lg shadow-blue-900/20 hover:shadow-blue-600/30 hover:-translate-y-0.5 active:translate-y-0 transition-all" 
+                      disabled={createLoading || !turnstileToken}
+                    >
                       {createLoading ? "Memproses..." : processMode === "renew" ? "Perpanjang Lisensi" : "Register Lisensi"}
                       <ArrowRight className="ml-2 size-4" />
                     </Button>
@@ -296,7 +299,7 @@ function PublicApp() {
               )}
 
               {processMode === "status" && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                <div key="status-view" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-400">
                   <div>
                     <h3 className="text-lg font-bold text-[var(--fg)]">Cek Status Lisensi</h3>
                     <p className="text-sm text-[var(--muted)]">Periksa detail masa aktif lisensi IP Anda.</p>
@@ -309,10 +312,10 @@ function PublicApp() {
                         placeholder="e.g. 1.2.3.4" 
                         value={statusIp}
                         onChange={e => setStatusIp(e.target.value)}
-                        className="font-mono text-lg py-6"
+                        className="font-mono text-lg py-6 focus:scale-[1.01] transition-transform"
                       />
                     </div>
-                    <Button variant="secondary" className="w-full h-12 text-base font-bold border-[var(--line-strong)]" disabled={statusLoading}>
+                    <Button variant="secondary" className="w-full h-12 text-base font-bold border-[var(--line-strong)] hover:bg-[var(--line)] transition-all" disabled={statusLoading}>
                       <Search className="mr-2 size-4" />
                       {statusLoading ? "Memeriksa..." : "Cek Status"}
                     </Button>
@@ -337,17 +340,23 @@ function ResultPanel({ result }) {
   if (!result) return null;
   const body = result.body || {};
   const item = body.item || body;
+  const status = item.status || result.tone;
+
   return (
-    <div className="space-y-4 rounded-xl border border-[var(--line)] bg-[var(--panel-strong)] p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Hasil</div>
-          <h3 className="mt-1 text-base font-bold text-[var(--fg)]">{result.title}</h3>
+    <div className="space-y-4 rounded-xl border border-[var(--line)] bg-[var(--panel-strong)] p-5 animate-in zoom-in-95 duration-300">
+      <div className="flex items-center gap-4 border-b border-[var(--line)] pb-4">
+        <StatusHeroIcon tone={result.tone} status={status} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--muted)] truncate">Hasil Operasi</div>
+            <Badge variant={result.tone}>{statusLabel(status)}</Badge>
+          </div>
+          <h3 className="text-lg font-bold text-[var(--fg)] leading-tight truncate">{result.title}</h3>
         </div>
-        <Badge variant={result.tone}>{statusLabel(item.status || result.tone)}</Badge>
       </div>
+      
       {item.message && (
-        <div className="rounded-lg bg-[var(--panel)] border border-[var(--line)] px-3 py-2 text-sm text-[var(--muted)]">
+        <div className="rounded-lg bg-[var(--panel)] border border-[var(--line)] px-3 py-2.5 text-sm text-[var(--muted)] leading-relaxed shadow-inner">
           {item.message}
         </div>
       )}
@@ -367,19 +376,23 @@ function StatusResultPanel({ result, onAction }) {
   if (!result) return null;
   const item = result.body || {};
   const nextAction = item.next_action || {};
-  const statusBadgeLabel = statusLabel(item.status || result.tone);
+  const status = item.status || result.tone;
+  
   return (
-    <div className="space-y-4 rounded-xl border border-[var(--line)] bg-[var(--panel-strong)] p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Status</div>
-          <h3 className="mt-1 text-base font-bold text-[var(--fg)]">{result.title}</h3>
+    <div className="space-y-5 rounded-xl border border-[var(--line)] bg-[var(--panel-strong)] p-5 animate-in zoom-in-95 duration-300">
+      <div className="flex items-center gap-4 border-b border-[var(--line)] pb-4">
+        <StatusHeroIcon tone={result.tone} status={status} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--muted)] truncate">Status Lisensi</div>
+            <Badge variant={result.tone}>{statusLabel(status)}</Badge>
+          </div>
+          <h3 className="text-lg font-bold text-[var(--fg)] leading-tight truncate">{result.title}</h3>
         </div>
-        <Badge variant={result.tone}>{statusBadgeLabel}</Badge>
       </div>
 
       {item.detail_message && (
-        <div className="rounded-lg bg-[var(--panel)] border border-[var(--line)] px-3 py-2 text-sm text-[var(--muted)]">
+        <div className="rounded-lg bg-[var(--panel)] border border-[var(--line)] px-3 py-2.5 text-sm text-[var(--muted)] leading-relaxed shadow-inner">
           {item.detail_message}
         </div>
       )}
@@ -393,27 +406,64 @@ function StatusResultPanel({ result, onAction }) {
         <Stat label="Jendela Renew" value={`${item.renew_open_before_days || 0} hari`} />
       </div>
 
-      <div className="rounded-lg border border-[var(--line)] bg-[var(--panel)] p-4">
-        <div className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Tindakan Berikutnya</div>
-        <div className="mt-1 text-sm text-[var(--muted)]">{nextAction.help || "Tidak ada tindakan lanjutan."}</div>
-        {nextAction.kind && nextAction.kind !== "none" && (
-          <div className="mt-4">
-            <Button type="button" size="sm" onClick={() => onAction?.(item)}>
-              {nextAction.kind === "renew" ? <RotateCcw className="size-4 mr-2" /> : <ArrowRight className="size-4 mr-2" />}
-              {nextAction.label || "Lanjut"}
-            </Button>
+      <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4 shadow-inner">
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-[var(--accent)]/10 rounded-lg shrink-0">
+             <AlertCircle className="size-4 text-[var(--accent)]" />
           </div>
-        )}
+          <div className="flex-1">
+            <div className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Tindakan Berikutnya</div>
+            <div className="mt-1 text-sm text-[var(--muted)] leading-relaxed">{nextAction.help || "Tidak ada tindakan lanjutan."}</div>
+            {nextAction.kind && nextAction.kind !== "none" && (
+              <div className="mt-4">
+                <Button type="button" size="sm" onClick={() => onAction?.(item)} className="hover:scale-105 transition-transform active:scale-95 shadow-md shadow-blue-900/10">
+                  {nextAction.kind === "renew" ? <RotateCcw className="size-4 mr-2" /> : <ArrowRight className="size-4 mr-2" />}
+                  {nextAction.label || "Lanjut"}
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
+    </div>
+  );
+}
+
+function StatusHeroIcon({ tone, status }) {
+  const iconClass = "size-8";
+  if (status === "active" || tone === "ok" || tone === "emerald") {
+    return (
+      <div className="p-3 bg-emerald-500/10 rounded-2xl border border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+        <CheckCircle2 className={`${iconClass} text-emerald-500`} />
+      </div>
+    );
+  }
+  if (status === "revoked" || tone === "error" || tone === "rose") {
+    return (
+      <div className="p-3 bg-rose-500/10 rounded-2xl border border-rose-500/20 shadow-[0_0_15px_rgba(244,63,94,0.1)]">
+        <Lock className={`${iconClass} text-rose-500`} />
+      </div>
+    );
+  }
+  if (status === "expired" || tone === "amber" || tone === "warn") {
+    return (
+      <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.1)]">
+        <Clock3 className={`${iconClass} text-amber-500`} />
+      </div>
+    );
+  }
+  return (
+    <div className="p-3 bg-slate-500/10 rounded-2xl border border-slate-500/20">
+      <AlertCircle className={`${iconClass} text-slate-500`} />
     </div>
   );
 }
 
 function Stat({ label, value, mono = false }) {
   return (
-    <div className="rounded-lg border border-[var(--line)] bg-[var(--panel)] px-3 py-2">
+    <div className="rounded-lg border border-[var(--line)] bg-[var(--panel)] px-3 py-2 shadow-sm">
       <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)]">{label}</div>
-      <div className={`mt-1 text-sm text-[var(--fg)] ${mono ? "font-mono" : "font-medium"}`}>{value || "-"}</div>
+      <div className={`mt-1 text-sm text-[var(--fg)] ${mono ? "font-mono font-bold text-blue-400" : "font-medium"}`}>{value || "-"}</div>
     </div>
   );
 }
