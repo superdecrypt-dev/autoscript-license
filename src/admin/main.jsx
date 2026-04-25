@@ -972,8 +972,8 @@ function AdminApp() {
                       <SelectContent>
                         <SelectItem value="all">Semua Event</SelectItem>
                         <SelectItem value="license_check">Check (Public)</SelectItem>
-                        <SelectItem value="license_activate">Activate (Public)</SelectItem>
-                        <SelectItem value="license_renew">Renew (Public)</SelectItem>
+                        <SelectItem value="public_activate">Activate (Public)</SelectItem>
+                        <SelectItem value="public_renew">Renew (Public)</SelectItem>
                         <SelectItem value="admin_create">Create (Admin)</SelectItem>
                         <SelectItem value="admin_update">Update (Admin)</SelectItem>
                         <SelectItem value="admin_delete">Delete (Admin)</SelectItem>
