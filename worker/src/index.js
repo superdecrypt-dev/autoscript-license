@@ -303,9 +303,6 @@ async function handlePublicActivate(request, env, options = {}) {
   }
 
   const existing = await getLicenseEntryByIp(env, publicIp);
-  const nowIso = nowIsoString();
-  const durationDays = getLicenseDurationDays(env);
-  const renewOpenBeforeDays = getPublicRenewOpenBeforeDays(env);
   const actionKind = normalizeShortText(options.actionKind, 32) === "renew" ? "renew" : "activate";
 
   if (existing) {
