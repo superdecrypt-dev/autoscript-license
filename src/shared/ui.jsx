@@ -2,7 +2,7 @@ import React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
-import { Check, ChevronDown, X, Sun, Moon } from "lucide-react";
+import { Check, ChevronDown, X, Sun, Moon, RefreshCw } from "lucide-react";
 import { cva } from "class-variance-authority";
 import { cn } from "./utils.js";
 
