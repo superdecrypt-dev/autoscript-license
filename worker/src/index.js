@@ -1828,6 +1828,8 @@ function serializePublicStatusEntry(row, nowIso = nowIsoString(), env = {}) {
   const renewOpensInDays = effectiveStatus === "active" && !renewable
     ? Math.max(daysRemaining - getPublicRenewOpenBeforeDays(env), 0)
     : 0;
+  const revokeReason = effectiveStatus === "revoked" ? extractRevokeReason(row.notes) : "";
+
   return {
     status: effectiveStatus,
     allowed: effectiveStatus === "active",
@@ -1838,7 +1840,7 @@ function serializePublicStatusEntry(row, nowIso = nowIsoString(), env = {}) {
     renewable,
     renew_open_before_days: getPublicRenewOpenBeforeDays(env),
     renew_opens_in_days: renewOpensInDays,
-    detail_message: buildPublicStatusMessage(effectiveStatus, daysRemaining, getPublicRenewOpenBeforeDays(env)),
+    detail_message: buildPublicStatusMessage(effectiveStatus, daysRemaining, getPublicRenewOpenBeforeDays(env), revokeReason),
     next_action: buildPublicStatusAction(effectiveStatus, renewable, env, renewOpensInDays),
   };
 }
@@ -1865,6 +1867,8 @@ function serializePublicLookupStatusEntry(row, nowIso = nowIsoString(), env = {}
   const renewOpensInDays = effectiveStatus === "active" && !renewable
     ? Math.max(daysRemaining - getPublicRenewOpenBeforeDays(env), 0)
     : 0;
+  const revokeReason = effectiveStatus === "revoked" ? extractRevokeReason(row.notes) : "";
+
   return {
     ip: row.ip || requestedIp,
     label: row.label || "",
@@ -1875,12 +1879,18 @@ function serializePublicLookupStatusEntry(row, nowIso = nowIsoString(), env = {}
     days_remaining: daysRemaining,
     renew_open_before_days: getPublicRenewOpenBeforeDays(env),
     renew_opens_in_days: renewOpensInDays,
-    detail_message: buildPublicStatusMessage(effectiveStatus, daysRemaining, getPublicRenewOpenBeforeDays(env)),
+    detail_message: buildPublicStatusMessage(effectiveStatus, daysRemaining, getPublicRenewOpenBeforeDays(env), revokeReason),
     next_action: buildPublicStatusAction(effectiveStatus, renewable, env, renewOpensInDays),
   };
 }
 
-function buildPublicStatusMessage(status, daysRemaining, renewOpenBeforeDays) {
+function extractRevokeReason(notes) {
+  if (!notes) return "";
+  const match = notes.match(/\[REVOKE REASON: (.*?)\]/);
+  return match ? match[1].trim() : "";
+}
+
+function buildPublicStatusMessage(status, daysRemaining, renewOpenBeforeDays, revokeReason = "") {
   if (status === "active" && daysRemaining <= renewOpenBeforeDays) {
     return `IP aktif. Renew publik sudah dibuka karena sisa aktif ${daysRemaining} hari.`;
   }
@@ -1891,7 +1901,7 @@ function buildPublicStatusMessage(status, daysRemaining, renewOpenBeforeDays) {
     return "IP sudah expired. Lakukan aktivasi ulang untuk memperpanjang masa aktif.";
   }
   if (status === "revoked") {
-    return `IP ini sedang diblokir. Hubungi ${PUBLIC_LICENSE_SUPPORT_EMAIL} untuk bantuan lebih lanjut.`;
+    return `IP ini sedang diblokir${revokeReason ? ` (Alasan: ${revokeReason})` : ""}. Hubungi ${PUBLIC_LICENSE_SUPPORT_EMAIL} untuk bantuan lebih lanjut.`;
   }
   return "IP ini belum terdaftar. Lanjutkan aktivasi untuk membuat lisensi baru.";
 }
