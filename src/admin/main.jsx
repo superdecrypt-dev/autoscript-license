@@ -997,40 +997,40 @@ function AdminApp() {
 
           {activeView === "settings" && (
             <div className="grid gap-6 xl:grid-cols-[1fr,2fr]">
-              <Card className="border-slate-200 shadow-sm h-fit">
-                <CardHeader className="bg-slate-50 border-b border-slate-200">
+              <Card className="shadow-sm h-fit border-[var(--line)]">
+                <CardHeader className="bg-[var(--panel-strong)] border-b border-[var(--line)]">
                   <CardTitle className="text-lg font-bold">System Actions</CardTitle>
                 </CardHeader>
                 <CardContent className="p-6 space-y-4">
                   <Button className="w-full justify-start" onClick={createBackup}><Database className="size-4 mr-3" /> Buat Snapshot Backup</Button>
-                  <Button variant="secondary" className="w-full justify-start bg-slate-100 border-slate-300" onClick={refreshBackups}><RefreshCw className="size-4 mr-3" /> Refresh List</Button>
+                  <Button variant="secondary" className="w-full justify-start" onClick={refreshBackups}><RefreshCw className="size-4 mr-3" /> Refresh List</Button>
                   
-                  <div className="pt-4 border-t border-slate-200">
+                  <div className="pt-4 border-t border-[var(--line)]">
                     <input id="import-backup-input" type="file" accept="application/json,.json" hidden onChange={handleImportBackupFile} />
-                    <Button variant="outline" className="w-full justify-start border-blue-200 text-blue-700 hover:bg-blue-50" onClick={() => document.getElementById("import-backup-input")?.click()}>
+                    <Button variant="outline" className="w-full justify-start" onClick={() => document.getElementById("import-backup-input")?.click()}>
                        <Download className="size-4 mr-3" /> Import Backup File
                     </Button>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="border-slate-200 shadow-sm">
-                <CardHeader className="bg-slate-50 border-b border-slate-200">
+              <Card className="shadow-sm border-[var(--line)]">
+                <CardHeader className="bg-[var(--panel-strong)] border-b border-[var(--line)]">
                   <CardTitle className="text-lg font-bold">Daftar Snapshot</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                   {backupsLoading ? <LoadingState message="Memuat..." /> : 
                    filteredBackups.length ? (
-                     <div className="divide-y divide-slate-100">
+                     <div className="divide-y divide-[var(--line)]">
                        {filteredBackups.map(backup => (
-                         <div key={backup.key} className="p-5 hover:bg-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                         <div key={backup.key} className="p-5 hover:bg-[var(--panel-strong)]/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
                            <div>
                              <div className="flex items-center gap-2 mb-1">
                                <Badge variant={backup.source === "scheduled" ? "amber" : "emerald"}>{humanizeBackupSource(backup.source)}</Badge>
-                               <span className="text-sm font-bold text-slate-900">{formatDate(backup.created_at)}</span>
+                               <span className="text-sm font-bold text-[var(--fg)]">{formatDate(backup.created_at)}</span>
                              </div>
-                             <div className="text-xs font-mono text-slate-500 mb-1">{backup.key}</div>
-                             <div className="text-sm text-slate-600 flex gap-3">
+                             <div className="text-xs font-mono text-[var(--muted)] mb-1">{backup.key}</div>
+                             <div className="text-sm text-[var(--muted)] flex gap-3">
                                <span>{formatBackupRows(backup.row_counts)} entries</span>
                                <span>&bull;</span>
                                <span>{formatBytes(backup.size)}</span>
@@ -1038,8 +1038,8 @@ function AdminApp() {
                            </div>
                            <div className="flex flex-wrap gap-2">
                              <Button size="sm" variant="secondary" onClick={() => loadBackupPreview(backup.key)}><Eye className="size-4 mr-1"/> Preview</Button>
-                             <Button size="sm" variant="outline" className="text-rose-600 border-rose-200 hover:bg-rose-50" onClick={() => restoreBackup(backup.key)}>Restore</Button>
-                             <Button size="sm" variant="ghost" className="text-slate-400 hover:text-rose-600" onClick={() => deleteBackup(backup.key)}><Trash2 className="size-4" /></Button>
+                             <Button size="sm" variant="outline" className="text-amber-500 border-amber-500/20 hover:bg-amber-500/10" onClick={() => restoreBackup(backup.key)}>Restore</Button>
+                             <Button size="sm" variant="ghost" className="text-[var(--muted)] hover:text-red-500" onClick={() => deleteBackup(backup.key)}><Trash2 className="size-4" /></Button>
                            </div>
                          </div>
                        ))}
