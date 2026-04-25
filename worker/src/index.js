@@ -936,9 +936,19 @@ async function handleAdminListBackups(env) {
     prefix: BACKUP_PREFIX,
     limit: 100,
   });
-  const items = (listed.objects || [])
-    .map((object) => serializeBackupObject(object))
-    .sort((left, right) => String(right.created_at || "").localeCompare(String(left.created_at || "")));
+
+  // Fetch full metadata for each object to get row_counts
+  const itemsWithMeta = await Promise.all(
+    (listed.objects || []).map(async (obj) => {
+      const fullObj = await bucket.head(obj.key);
+      return serializeBackupObject(fullObj || obj);
+    })
+  );
+
+  const items = itemsWithMeta.sort((left, right) => 
+    String(right.created_at || "").localeCompare(String(left.created_at || ""))
+  );
+  
   return jsonResponse({ items });
 }
 
