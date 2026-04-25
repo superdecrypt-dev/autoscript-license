@@ -733,12 +733,14 @@ function AdminApp() {
           )}
 
           {activeView === "entries" && (
-            <div className="grid gap-6 xl:grid-cols-[1.5fr,1fr]">
-              {/* Left Column: Table */}
+            <div className="space-y-6">
               <Card className="shadow-sm flex flex-col border-[var(--line)]">
                 <CardHeader className="bg-[var(--panel-strong)] border-b border-[var(--line)] pb-4">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <CardTitle className="text-lg font-bold">Daftar IP</CardTitle>
+                    <div>
+                      <CardTitle className="text-lg font-bold">Daftar IP</CardTitle>
+                      <CardDescription>Total {filteredEntries.length} data ditemukan.</CardDescription>
+                    </div>
                     <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                       <div className="relative flex-1 md:w-64">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[var(--muted)]" />
@@ -753,6 +755,9 @@ function AdminApp() {
                           <SelectItem value="revoked">Revoked</SelectItem>
                         </SelectContent>
                       </Select>
+                      <Button onClick={() => setCreateDialogOpen(true)}>
+                        <Plus className="size-4 mr-2" /> <span className="whitespace-nowrap">Tambah IP</span>
+                      </Button>
                     </div>
                   </div>
                 </CardHeader>
@@ -774,7 +779,7 @@ function AdminApp() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {entries.map((entry) => (
+                            {paginatedEntries.map((entry) => (
                               <TableRow key={entry.id} className="border-[var(--line)]">
                                 <TableCell>
                                   <div className="font-mono font-bold text-[var(--fg)]">{entry.ip}</div>
@@ -810,7 +815,7 @@ function AdminApp() {
 
                       {/* Mobile Card List */}
                       <div className="md:hidden divide-y divide-[var(--line)]">
-                        {entries.length ? entries.map((entry) => (
+                        {paginatedEntries.length ? paginatedEntries.map((entry) => (
                           <div key={entry.id} className="p-4 space-y-4 active:bg-[var(--panel-strong)] transition-colors">
                             <div className="flex justify-between items-start">
                               <div className="space-y-1">
@@ -862,40 +867,48 @@ function AdminApp() {
                           <div className="p-8 text-center text-[var(--muted)] text-sm">Tidak ada data.</div>
                         )}
                       </div>
+
+                      {/* Pagination Bar */}
+                      <div className="p-4 border-t border-[var(--line)] bg-[var(--panel-strong)]/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
+                          <span>Tampilkan</span>
+                          <select 
+                            className="bg-[var(--panel)] border border-[var(--line-strong)] rounded px-2 py-1 text-[var(--fg)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                            value={pageSize}
+                            onChange={(e) => setPageSize(Number(e.target.value))}
+                          >
+                            <option value={10}>10</option>
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                          </select>
+                          <span>baris</span>
+                        </div>
+                        
+                        <div className="flex items-center gap-4">
+                           <span className="text-sm text-[var(--muted)]">Halaman <b>{currentPage}</b> dari <b>{totalPages || 1}</b></span>
+                           <div className="flex items-center gap-2">
+                              <Button 
+                                variant="secondary" 
+                                size="sm" 
+                                disabled={currentPage === 1}
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                              >
+                                Prev
+                              </Button>
+                              <Button 
+                                variant="secondary" 
+                                size="sm" 
+                                disabled={currentPage >= totalPages}
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                              >
+                                Next
+                              </Button>
+                           </div>
+                        </div>
+                      </div>
                     </>
                   )}
-                </CardContent>
-              </Card>
-
-              {/* Right Column: Create Entry */}
-              <Card className="shadow-sm h-fit border-[var(--line)]">
-                <CardHeader className="bg-[var(--panel-strong)] border-b border-[var(--line)]">
-                  <CardTitle className="text-lg font-bold">Buat Entry Baru</CardTitle>
-                  <CardDescription>Tambahkan IP manual ke dalam sistem.</CardDescription>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <form className="space-y-4" onSubmit={handleCreateEntry}>
-                    <Field label="Alamat IPv4" hint="IP VPS tujuan.">
-                      <Input value={formState.ip} onChange={(e) => setFormState(s => ({...s, ip: e.target.value}))} placeholder="1.2.3.4" required className="font-mono" />
-                    </Field>
-                    <Field label="Tanggal Expired" hint="Kosongkan untuk durasi default.">
-                      <Input type="datetime-local" value={formState.expires_at} onChange={(e) => setFormState(s => ({...s, expires_at: e.target.value}))} />
-                    </Field>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Field label="Label">
-                        <Input value={formState.label} onChange={(e) => setFormState(s => ({...s, label: e.target.value}))} placeholder="Server Name" />
-                      </Field>
-                      <Field label="Owner">
-                        <Input value={formState.owner} onChange={(e) => setFormState(s => ({...s, owner: e.target.value}))} placeholder="Client Name" />
-                      </Field>
-                    </div>
-                    <Field label="Catatan">
-                      <Textarea value={formState.notes} onChange={(e) => setFormState(s => ({...s, notes: e.target.value}))} placeholder="Keterangan tambahan..." className="min-h-[80px]" />
-                    </Field>
-                    <div className="pt-2">
-                      <Button className="w-full" type="submit"><Plus className="size-4 mr-2"/> Simpan Entry</Button>
-                    </div>
-                  </form>
                 </CardContent>
               </Card>
             </div>
@@ -1031,84 +1044,125 @@ function AdminApp() {
         </div>
       </main>
 
-      {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 flex justify-around items-center p-2 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-        <MobileNavButton icon={LayoutDashboard} label="Dashboard" active={activeView === "dashboard"} onClick={() => setActiveView("dashboard")} />
-        <MobileNavButton icon={Database} label="Licenses" active={activeView === "entries"} onClick={() => setActiveView("entries")} />
-        <MobileNavButton icon={Activity} label="Audit" active={activeView === "audit"} onClick={() => setActiveView("audit")} />
-        <MobileNavButton icon={Settings} label="Settings" active={activeView === "settings"} onClick={() => setActiveView("settings")} />
-      </nav>
-
-      {/* Dialogs */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+      {/* Entry Detail Dialog */}
+      <Dialog open={entryDetailOpen} onOpenChange={setEntryDetailOpen}>
+        <DialogContent className="max-w-2xl border-[var(--line)] bg-[var(--panel)]">
           <DialogHeader>
-            <DialogTitle>Edit License Entry</DialogTitle>
+            <DialogTitle>Detail Lisensi: {entryDetail?.ip}</DialogTitle>
+            <DialogDescription>Informasi lengkap dan riwayat audit spesifik IP.</DialogDescription>
           </DialogHeader>
-          <form className="space-y-4 pt-4" onSubmit={handleUpdateEntry}>
-            <Field label="IPv4">
-              <Input value={editFormState.ip} onChange={e => setEditFormState(s => ({...s, ip: e.target.value}))} className="font-mono" required />
+          {entryDetail && (
+            <div className="space-y-6">
+               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <Stat label="IP" value={entryDetail.ip} mono />
+                  <Stat label="Status" value={statusLabel(entryDetail.effective_status)} />
+                  <Stat label="Label" value={entryDetail.label} />
+                  <Stat label="Owner" value={entryDetail.owner} />
+               </div>
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Stat label="Created" value={formatDate(entryDetail.created_at)} />
+                  <Stat label="Expires" value={formatDate(entryDetail.expires_at)} />
+               </div>
+               <div className="p-4 bg-[var(--panel-strong)] border border-[var(--line)] rounded-xl">
+                  <div className="text-xs font-bold text-[var(--muted)] uppercase mb-2">Internal Notes</div>
+                  <div className="text-sm">{entryDetail.notes || "Tidak ada catatan."}</div>
+               </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Entry Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="border-[var(--line)] bg-[var(--panel)]">
+          <DialogHeader>
+            <DialogTitle>Edit Entry: {editFormState.ip}</DialogTitle>
+            <DialogDescription>Perbarui informasi lisensi.</DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={handleUpdateEntry}>
+            <Field label="Alamat IPv4">
+              <Input value={editFormState.ip} disabled className="bg-[var(--panel-strong)] font-mono" />
             </Field>
-            <Field label="Label">
-              <Input value={editFormState.label} onChange={e => setEditFormState(s => ({...s, label: e.target.value}))} />
+            <Field label="Tanggal Expired">
+              <Input type="datetime-local" value={editFormState.expires_at} onChange={(e) => setEditFormState(s => ({...s, expires_at: e.target.value}))} />
             </Field>
-            <Field label="Owner">
-              <Input value={editFormState.owner} onChange={e => setEditFormState(s => ({...s, owner: e.target.value}))} />
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Label">
+                <Input value={editFormState.label} onChange={(e) => setEditFormState(s => ({...s, label: e.target.value}))} />
+              </Field>
+              <Field label="Owner">
+                <Input value={editFormState.owner} onChange={(e) => setEditFormState(s => ({...s, owner: e.target.value}))} />
+              </Field>
+            </div>
+            <Field label="Catatan">
+              <Textarea value={editFormState.notes} onChange={(e) => setEditFormState(s => ({...s, notes: e.target.value}))} className="min-h-[100px]" />
             </Field>
-            <Field label="Expires At">
-              <Input type="datetime-local" value={editFormState.expires_at} onChange={e => setEditFormState(s => ({...s, expires_at: e.target.value}))} />
-            </Field>
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button type="button" variant="ghost" onClick={() => setEditDialogOpen(false)}>Batal</Button>
+            <div className="flex justify-end gap-3 pt-4 border-t border-[var(--line)]">
+              <Button type="button" variant="secondary" onClick={() => setEditDialogOpen(false)}>Batal</Button>
               <Button type="submit">Simpan Perubahan</Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={entryDetailOpen} onOpenChange={setEntryDetailOpen}>
-        <DialogContent className="sm:max-w-md">
+      {/* Create Entry Dialog */}
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="border-[var(--line)] bg-[var(--panel)]">
           <DialogHeader>
-            <DialogTitle>Entry Detail</DialogTitle>
+            <DialogTitle>Buat Entry Baru</DialogTitle>
+            <DialogDescription>Tambahkan IP manual ke dalam sistem.</DialogDescription>
           </DialogHeader>
-          {entryDetail ? (
-            <div className="space-y-4 pt-4">
-              <div className="grid grid-cols-2 gap-4">
-                <StatBox label="IP" value={entryDetail.ip || "-"} />
-                <StatBox label="Status" value={statusLabel(entryDetail.effective_status)} />
-                <StatBox label="Label" value={entryDetail.label || "-"} />
-                <StatBox label="Owner" value={entryDetail.owner || "-"} />
-                <StatBox label="Expires" value={formatDate(entryDetail.expires_at)} />
-                <StatBox label="Updated" value={formatDate(entryDetail.updated_at)} />
-              </div>
-              <div className="border border-slate-200 rounded-xl p-3 bg-slate-50">
-                <div className="text-xs font-bold text-slate-500 uppercase">Notes</div>
-                <div className="mt-1 text-sm text-slate-900 whitespace-pre-wrap">{entryDetail.notes || "Tidak ada catatan."}</div>
-              </div>
+          <form className="space-y-4" onSubmit={async (e) => {
+            await handleCreateEntry(e);
+            setCreateDialogOpen(false);
+          }}>
+            <Field label="Alamat IPv4" hint="IP VPS tujuan.">
+              <Input value={formState.ip} onChange={(e) => setFormState(s => ({...s, ip: e.target.value}))} placeholder="1.2.3.4" required className="font-mono" />
+            </Field>
+            <Field label="Tanggal Expired" hint="Kosongkan untuk durasi default.">
+              <Input type="datetime-local" value={formState.expires_at} onChange={(e) => setFormState(s => ({...s, expires_at: e.target.value}))} />
+            </Field>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Label">
+                <Input value={formState.label} onChange={(e) => setFormState(s => ({...s, label: e.target.value}))} placeholder="Server Name" />
+              </Field>
+              <Field label="Owner">
+                <Input value={formState.owner} onChange={(e) => setFormState(s => ({...s, owner: e.target.value}))} placeholder="Client Name" />
+              </Field>
             </div>
-          ) : <LoadingState message="Memuat..." />}
+            <Field label="Catatan">
+              <Textarea value={formState.notes} onChange={(e) => setFormState(s => ({...s, notes: e.target.value}))} placeholder="Keterangan tambahan..." className="min-h-[80px]" />
+            </Field>
+            <div className="flex justify-end gap-3 pt-4 border-t border-[var(--line)]">
+              <Button type="button" variant="secondary" onClick={() => setCreateDialogOpen(false)}>Batal</Button>
+              <Button type="submit"><Plus className="size-4 mr-2"/> Simpan Entry</Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
 
+      {/* Backup Preview Dialog */}
       <Dialog open={backupPreviewOpen} onOpenChange={setBackupPreviewOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl border-[var(--line)] bg-[var(--panel)]">
           <DialogHeader>
-            <DialogTitle>Backup Preview</DialogTitle>
-            <DialogDescription>Sample data snapshot untuk validasi.</DialogDescription>
+            <DialogTitle>Snapshot Preview: {backupPreview?.key?.split('/').pop()}</DialogTitle>
+            <DialogDescription>Konten terenkripsi atau data pratinjau mentah.</DialogDescription>
           </DialogHeader>
           {backupPreview ? (
-            <div className="space-y-4 pt-4">
-              <div className="grid grid-cols-2 gap-4">
-                <StatBox label="Key" value={backupPreview.key} />
-                <StatBox label="Checksum" value={backupPreview.checksum_sha256 || "-"} />
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <Stat label="Checksum (SHA-256)" value={shortChecksum(backupPreview.checksum_sha256)} mono />
+                <Stat label="Rows" value={formatBackupRows(backupPreview.row_counts)} />
+                <Stat label="Size" value={formatBytes(backupPreview.size)} />
+                <Stat label="Created By" value={backupPreview.created_by} />
               </div>
-              <div className="border border-slate-200 rounded-xl p-4 bg-slate-50">
-                <div className="text-xs font-bold text-slate-500 uppercase mb-2">License Sample</div>
+              <div className="border border-[var(--line)] rounded-xl p-4 bg-[var(--panel-strong)]">
+                <div className="text-xs font-bold text-[var(--muted)] uppercase mb-2">License Sample</div>
                 <div className="space-y-2">
                   {(backupPreview.preview?.license_entries || []).map((item) => (
-                    <div key={`${item.id}-${item.ip}`} className="bg-white border border-slate-200 p-2 rounded-lg text-sm">
+                    <div key={`${item.id}-${item.ip}`} className="bg-[var(--panel)] border border-[var(--line)] p-2 rounded-lg text-sm">
                       <span className="font-mono font-bold mr-2">{item.ip}</span>
-                      <span className="text-slate-500">{item.status}</span>
+                      <span className="text-[var(--muted)]">{item.status}</span>
                     </div>
                   ))}
                 </div>
@@ -1123,7 +1177,7 @@ function AdminApp() {
 
 function SidebarButton({ icon: Icon, active, children, ...props }) {
   return (
-    <button className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${active ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white hover:bg-slate-800"}`} {...props}>
+    <button className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${active ? "bg-blue-600 text-white" : "text-[var(--muted)] hover:text-[var(--fg)] hover:bg-[var(--panel-strong)]"}`} {...props}>
       <Icon className="size-4" />
       <span>{children}</span>
     </button>
@@ -1143,11 +1197,11 @@ function MobileNavButton({ icon: Icon, active, label, ...props }) {
 
 function MetricCard({ title, value, tone, meta }) {
   return (
-    <Card className="border-slate-200 shadow-sm bg-white">
+    <Card className="shadow-sm border-[var(--line)]">
       <CardContent className="p-5">
-        <div className="text-xs font-bold uppercase text-slate-500 mb-2">{title}</div>
+        <div className="text-xs font-bold uppercase text-[var(--muted)] mb-2">{title}</div>
         <div className="flex items-end justify-between">
-          <div className="text-3xl font-extrabold text-slate-900">{value}</div>
+          <div className="text-3xl font-extrabold text-[var(--fg)]">{value}</div>
           <Badge variant={tone}>{meta}</Badge>
         </div>
       </CardContent>
@@ -1157,8 +1211,8 @@ function MetricCard({ title, value, tone, meta }) {
 
 function OperationalHealthCard({ latestChecks, latestMutations, summary }) {
   return (
-    <Card className="border-slate-200 shadow-sm">
-      <CardHeader className="bg-slate-50 border-b border-slate-200">
+    <Card className="shadow-sm border-[var(--line)]">
+      <CardHeader className="bg-[var(--panel-strong)] border-b border-[var(--line)]">
         <CardTitle className="text-base font-bold">Health Summary</CardTitle>
       </CardHeader>
       <CardContent className="p-5 grid grid-cols-2 gap-4">
@@ -1174,16 +1228,16 @@ function OperationalHealthCard({ latestChecks, latestMutations, summary }) {
 function RecentRecoveryCard({ backups, onOpenSettings }) {
   const recent = backups.slice(0, 2);
   return (
-    <Card className="border-slate-200 shadow-sm">
-      <CardHeader className="bg-slate-50 border-b border-slate-200">
+    <Card className="shadow-sm border-[var(--line)]">
+      <CardHeader className="bg-[var(--panel-strong)] border-b border-[var(--line)]">
         <CardTitle className="text-base font-bold">Recent Backups</CardTitle>
       </CardHeader>
       <CardContent className="p-5 space-y-3">
         {recent.map(b => (
-          <div key={b.key} className="flex justify-between items-center text-sm border border-slate-100 rounded-lg p-3">
+          <div key={b.key} className="flex justify-between items-center text-sm border border-[var(--line)] rounded-lg p-3">
             <div>
-              <div className="font-bold text-slate-900">{formatDate(b.created_at)}</div>
-              <div className="text-slate-500 font-mono text-xs">{b.key.split('/').pop()}</div>
+              <div className="font-bold text-[var(--fg)]">{formatDate(b.created_at)}</div>
+              <div className="text-[var(--muted)] font-mono text-xs">{b.key.split('/').pop()}</div>
             </div>
             <Badge variant="slate">{formatBytes(b.size)}</Badge>
           </div>
@@ -1196,10 +1250,10 @@ function RecentRecoveryCard({ backups, onOpenSettings }) {
 
 function TrendCard({ title, caption, loading, points, series }) {
   return (
-    <Card className="border-slate-200 shadow-sm flex flex-col">
-      <CardHeader className="bg-slate-50 border-b border-slate-200 flex flex-row justify-between items-center">
+    <Card className="shadow-sm flex flex-col border-[var(--line)]">
+      <CardHeader className="bg-[var(--panel-strong)] border-b border-[var(--line)] flex flex-row justify-between items-center">
         <CardTitle className="text-base font-bold">{title}</CardTitle>
-        <span className="text-xs text-slate-500 font-medium">{caption}</span>
+        <span className="text-xs text-[var(--muted)] font-medium">{caption}</span>
       </CardHeader>
       <CardContent className="p-5 flex-1">
         {loading ? <LoadingState message="Memuat grafik..." /> : (
@@ -1210,12 +1264,12 @@ function TrendCard({ title, caption, loading, points, series }) {
                return (
                  <div key={s.key}>
                    <div className="flex justify-between text-sm mb-1">
-                     <span className="font-bold text-slate-700">{s.label}</span>
-                     <span className="text-slate-500">{values.reduce((a,b)=>a+b,0)} total</span>
+                     <span className="font-bold text-[var(--fg)] opacity-80">{s.label}</span>
+                     <span className="text-[var(--muted)]">{values.reduce((a,b)=>a+b,0)} total</span>
                    </div>
                    <div className="flex items-end h-8 gap-1">
                      {values.slice(-14).map((v, i) => (
-                       <div key={i} className={`flex-1 rounded-t-sm ${s.tone === 'emerald' ? 'bg-emerald-400' : s.tone==='rose' ? 'bg-rose-400' : 'bg-slate-300'}`} style={{ height: `${(v/max)*100}%`, minHeight: '4px' }} title={String(v)} />
+                       <div key={i} className={`flex-1 rounded-t-sm ${s.tone === 'emerald' ? 'bg-emerald-400' : s.tone==='rose' ? 'bg-rose-400' : 'bg-[var(--line-strong)]'}`} style={{ height: `${(v/max)*100}%`, minHeight: '4px' }} title={String(v)} />
                      ))}
                    </div>
                  </div>
@@ -1230,9 +1284,9 @@ function TrendCard({ title, caption, loading, points, series }) {
 
 function StatBox({ label, value }) {
   return (
-    <div className="border border-slate-200 rounded-xl p-3 bg-slate-50">
-      <div className="text-xs font-bold text-slate-500 uppercase">{label}</div>
-      <div className="mt-1 text-xl font-extrabold text-slate-900 truncate">{value}</div>
+    <div className="border border-[var(--line)] rounded-xl p-3 bg-[var(--panel-strong)]">
+      <div className="text-xs font-bold text-[var(--muted)] uppercase">{label}</div>
+      <div className="mt-1 text-xl font-extrabold text-[var(--fg)] truncate">{value}</div>
     </div>
   );
 }
@@ -1240,16 +1294,16 @@ function StatBox({ label, value }) {
 function Field({ label, hint, children }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-sm font-bold text-slate-700">{label}</label>
+      <label className="text-sm font-bold text-[var(--fg)] opacity-80">{label}</label>
       {children}
-      {hint && <p className="text-xs text-slate-500">{hint}</p>}
+      {hint && <p className="text-xs text-[var(--muted)]">{hint}</p>}
     </div>
   );
 }
 
 function LoadingState({ message }) {
   return (
-    <div className="p-8 text-center text-slate-500 text-sm border border-dashed border-slate-300 rounded-xl bg-slate-50">
+    <div className="p-8 text-center text-[var(--muted)] text-sm border border-dashed border-[var(--line-strong)] rounded-xl bg-[var(--panel-strong)]">
       {message}
     </div>
   );
@@ -1261,6 +1315,15 @@ function getFilteredBackups(b, q, sf, sort) {
   const sq = (q||"").toLowerCase();
   let f = b.filter(x => (sf === 'all' || x.source === sf) && (!sq || x.key.toLowerCase().includes(sq) || x.created_by.toLowerCase().includes(sq)));
   return f.sort((a,c) => sort === 'created_asc' ? new Date(a.created_at) - new Date(c.created_at) : new Date(c.created_at) - new Date(a.created_at));
+}
+
+function Stat({ label, value, mono = false }) {
+  return (
+    <div className="space-y-1">
+      <div className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">{label}</div>
+      <div className={`text-sm font-semibold truncate ${mono ? "font-mono text-[var(--accent)]" : "text-[var(--fg)]"}`}>{value || "-"}</div>
+    </div>
+  );
 }
 
 createRoot(document.getElementById("root")).render(<AdminApp />);
