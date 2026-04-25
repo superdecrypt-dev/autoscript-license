@@ -30,7 +30,7 @@ function PublicApp() {
         if (!active) return;
         setLicenseDurationDays(Number(payload.license_duration_days || 14));
         setRenewOpenBeforeDays(Number(payload.renew_open_before_days || 3));
-        setBanner({ tone: "ok", message: "Konfigurasi Worker siap digunakan." });
+        setBanner({ tone: "ok", message: "Konfigurasi Lisensi siap digunakan." });
         setStatusBadge({ tone: "emerald", message: "Siap" });
       } catch (error) {
         if (!active) return;
@@ -202,7 +202,7 @@ function PublicApp() {
           <div className="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur-sm group hover:bg-white/10 transition-colors">
             <div className="flex items-center gap-2 text-slate-400 mb-2">
               <Cpu className="size-4 text-blue-400" />
-              <span className="text-xs font-semibold uppercase tracking-wider">Worker Status</span>
+              <span className="text-xs font-semibold uppercase tracking-wider">Lisensi Status</span>
             </div>
             <div className="font-medium flex items-center gap-2 text-white">
               <div className={`size-2 rounded-full ${statusBadge.tone === 'emerald' ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_#10b981]' : 'bg-rose-500 shadow-[0_0_8px_#f43f5e]'}`} />
