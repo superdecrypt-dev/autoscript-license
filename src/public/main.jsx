@@ -15,6 +15,7 @@ function PublicApp() {
   const [renewOpenBeforeDays, setRenewOpenBeforeDays] = useState(3);
   const [turnstileToken, setTurnstileToken] = useState("");
   const [createIp, setCreateIp] = useState("");
+  const [createLabel, setCreateLabel] = useState("");
   const [statusIp, setStatusIp] = useState("");
   const [createLoading, setCreateLoading] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
@@ -106,6 +107,7 @@ function PublicApp() {
         method: "POST",
         body: JSON.stringify({
           ip,
+          label: String(createLabel || "").trim(),
           turnstile_token: turnstileToken,
         }),
       });
@@ -116,6 +118,8 @@ function PublicApp() {
         body: payload,
       });
       setProcessMode("activate");
+      setCreateIp("");
+      setCreateLabel("");
       setTurnstileToken("");
       if (window.turnstile?.reset && turnstileWidgetIdRef.current !== null) {
         window.turnstile.reset(turnstileWidgetIdRef.current);
@@ -266,16 +270,28 @@ function PublicApp() {
                   </div>
 
                   <form onSubmit={handleCreateSubmit} className="space-y-5">
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-[var(--fg)] opacity-80">Alamat IPv4</label>
-                      <Input 
-                        placeholder="e.g. 1.2.3.4" 
-                        value={createIp}
-                        onChange={e => setCreateIp(e.target.value)}
-                        className="font-mono text-lg py-6 focus:scale-[1.01] transition-transform"
-                      />
-                      <p className="text-xs text-[var(--muted)]">Masukkan IP publik VPS yang akan {processMode === "renew" ? "diperpanjang" : "didaftarkan"}.</p>
+                    <div className="grid gap-5 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <label className="text-sm font-semibold text-[var(--fg)] opacity-80">Alamat IPv4</label>
+                        <Input 
+                          placeholder="e.g. 1.2.3.4" 
+                          value={createIp}
+                          onChange={e => setCreateIp(e.target.value)}
+                          className="font-mono text-lg py-6 focus:scale-[1.01] transition-transform"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-semibold text-[var(--fg)] opacity-80">Label (Opsional)</label>
+                        <Input 
+                          placeholder="Server Name / ID" 
+                          value={createLabel}
+                          onChange={e => setCreateLabel(e.target.value)}
+                          className="text-lg py-6 focus:scale-[1.01] transition-transform"
+                        />
+                      </div>
                     </div>
+                    <p className="text-xs text-[var(--muted)]">Masukkan IP publik VPS yang akan {processMode === "renew" ? "diperpanjang" : "didaftarkan"}.</p>
 
                     <div className="bg-[var(--panel-strong)] border border-[var(--line-strong)] rounded-xl p-4 space-y-3 shadow-inner">
                       <div className="flex justify-between items-center">

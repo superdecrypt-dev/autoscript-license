@@ -248,6 +248,7 @@ async function handlePublicActivate(request, env, options = {}) {
   if (!publicIp) {
     return jsonResponse({ error: "invalid_request", message: "IP harus IPv4 literal yang valid" }, 400);
   }
+  const publicLabel = normalizeShortText(body.data.label, 255) || "";
 
   const targetLimit = await enforcePublicTargetRateLimit(
     env,
@@ -534,9 +535,9 @@ async function handlePublicActivate(request, env, options = {}) {
         created_at, updated_at, created_by, updated_by, revoked_at,
         entry_source, renewal_token_hash, last_renewed_at, created_request_ip
       )
-      VALUES (?, ?, '', '', '', 'active', ?, ?, ?, 'public', 'public', NULL, 'public', '', NULL, ?)
+      VALUES (?, ?, ?, '', '', 'active', ?, ?, ?, 'public', 'public', NULL, 'public', '', NULL, ?)
     `,
-    [id, publicIp, expiresAt, nowIso, nowIso, visitorIp]
+    [id, publicIp, publicLabel, expiresAt, nowIso, nowIso, visitorIp]
   );
   if (statementChanges(insertResult) === 0) {
     const raced = await getLicenseEntryByIp(env, publicIp);
