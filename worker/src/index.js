@@ -435,9 +435,9 @@ async function handlePublicActivate(request, env, options = {}) {
         403
       );
     }
-    if (effectiveStatus === "active") {
+    if (effectiveStatus === "active" || effectiveStatus === "expired") {
       await insertAuditLog(env, {
-        eventType: `${eventBase}_active_denied`,
+        eventType: `${eventBase}_exists_denied`,
         ip: publicIp,
         entryId: existing.id,
         stage: "public",
@@ -446,15 +446,16 @@ async function handlePublicActivate(request, env, options = {}) {
         requestIp: visitorIp,
         userAgent: request.headers.get("User-Agent") || "",
         payload: {
+          effective_status: effectiveStatus,
           days_remaining: daysRemaining,
           renew_open_before_days: renewOpenBeforeDays,
-          source: "public-activate-active",
+          source: "public-activate-exists",
         },
       });
       return jsonResponse(
         {
-          error: "already_active",
-          message: "IP ini masih aktif. Aktivasi ulang ditolak sampai masa aktif habis.",
+          error: "already_registered",
+          message: `IP ${publicIp} sudah terdaftar di sistem. Gunakan menu 'Perpanjang' atau 'Cek Status' untuk memperbarui masa aktif.`,
         },
         409
       );
