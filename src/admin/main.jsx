@@ -79,6 +79,15 @@ function AdminApp() {
   const [session, setSession] = useState(null);
   const [entries, setEntries] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
+  const bannerTimeoutRef = React.useRef(null);
+
+  function notify(tone, message) {
+    if (bannerTimeoutRef.current) clearTimeout(bannerTimeoutRef.current);
+    setBanner({ tone, message });
+    bannerTimeoutRef.current = setTimeout(() => {
+      setBanner({ tone: "muted", message: "Sistem siap." });
+    }, 5000);
+  }
   const [metrics, setMetrics] = useState(null);
   const [backups, setBackups] = useState([]);
   const [backupPreview, setBackupPreview] = useState(null);
@@ -457,7 +466,7 @@ function AdminApp() {
     event.preventDefault();
     try {
       await apiFetch("/api/admin/license-entries", { method: "POST", body: JSON.stringify(formState) });
-      setBanner({ tone: "ok", message: `Entry ${formState.ip} berhasil dibuat.` });
+      notify("ok", `Sukses: IP ${formState.ip} berhasil didaftarkan.`);
       setFormState(emptyEntryForm());
       await refreshDashboard();
     } catch (error) {
@@ -469,7 +478,7 @@ function AdminApp() {
     event.preventDefault();
     try {
       await apiFetch(`/api/admin/license-entries/${encodeURIComponent(editFormState.id)}`, { method: "PATCH", body: JSON.stringify(editFormState) });
-      setBanner({ tone: "ok", message: `Entry ${editFormState.ip} berhasil diperbarui.` });
+      notify("ok", `Sukses: Perubahan IP ${editFormState.ip} berhasil disimpan.`);
       setEditDialogOpen(false);
       setEditFormState(emptyEntryForm());
       await refreshDashboard();
@@ -495,7 +504,7 @@ function AdminApp() {
         method: "POST", 
         body: JSON.stringify(body) 
       });
-      setBanner({ tone: "ok", message: `Entry ${entry.ip} berhasil di-${action}.` });
+      notify("ok", `Sukses: IP ${entry.ip} berhasil di-${action}.`);
       setRevokeDialogOpen(false);
       await refreshDashboard();
     } catch (error) {
@@ -511,8 +520,9 @@ function AdminApp() {
   async function executeDeleteEntry() {
     if (!targetEntry) return;
     try {
+      const deletedIp = targetEntry.ip;
       await apiFetch(`/api/admin/license-entries/${encodeURIComponent(targetEntry.id)}`, { method: "DELETE" });
-      setBanner({ tone: "ok", message: `Entry ${targetEntry.ip} berhasil dihapus.` });
+      notify("ok", `Sukses: Data IP ${deletedIp} telah dihapus permanen.`);
       setConfirmDeleteOpen(false);
       setTargetEntry(null);
       await refreshDashboard();
