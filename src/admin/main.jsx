@@ -804,6 +804,9 @@ function AdminApp() {
             <Button variant="secondary" onClick={refreshDashboard} className="h-9 px-3 sm:px-5">
               <RefreshCw className="size-4 sm:mr-2" /> <span className="hidden sm:inline">Refresh</span>
             </Button>
+            <Button variant="ghost" size="sm" onClick={logoutAccess} className="md:hidden h-9 px-2 text-rose-500 hover:bg-rose-500/10 border border-rose-500/20">
+              <LogOut className="size-4" />
+            </Button>
           </div>
         </header>
 
@@ -1166,6 +1169,25 @@ function AdminApp() {
                         />
                       </div>
                     </div>
+                  </CardContent>
+                </Card>
+
+                {/* Mobile Session Management */}
+                <Card className="md:hidden shadow-sm border-rose-500/20 bg-rose-500/5">
+                  <CardHeader className="bg-rose-500/10 border-b border-rose-500/10">
+                    <CardTitle className="text-sm font-bold flex items-center gap-2 text-rose-500">
+                      <ShieldCheck className="size-4" />
+                      Session Management
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 space-y-4">
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase text-rose-400/70 font-bold tracking-wider">Logged in as</div>
+                      <div className="text-sm font-bold text-[var(--fg)] truncate">{session?.admin_email || "Unknown User"}</div>
+                    </div>
+                    <Button variant="destructive" size="sm" className="w-full h-10" onClick={logoutAccess}>
+                      <LogOut className="size-4 mr-2" /> Keluar Sesi (Logout)
+                    </Button>
                   </CardContent>
                 </Card>
               </div>
