@@ -76,6 +76,7 @@ function AdminApp() {
   const [activeView, setActiveView] = useState(localStorage.getItem("autoscriptLicenseAdminActiveView") || "dashboard");
   const [authStatus, setAuthStatus] = useState("authenticating");
   const [banner, setBanner] = useState({ tone: "muted", message: "Memverifikasi akses Cloudflare..." });
+  const [toast, setToast] = useState({ show: false, tone: "muted", message: "" });
   const [session, setSession] = useState(null);
   const [entries, setEntries] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
@@ -83,9 +84,9 @@ function AdminApp() {
 
   function notify(tone, message) {
     if (bannerTimeoutRef.current) clearTimeout(bannerTimeoutRef.current);
-    setBanner({ tone, message });
+    setToast({ show: true, tone, message });
     bannerTimeoutRef.current = setTimeout(() => {
-      setBanner({ tone: "muted", message: "Sistem siap." });
+      setToast(prev => ({ ...prev, show: false }));
     }, 5000);
   }
 
@@ -731,7 +732,15 @@ function AdminApp() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 md:ml-64 min-h-screen flex flex-col pb-20 md:pb-0">
+      <main className="flex-1 md:ml-64 min-h-screen flex flex-col pb-20 md:pb-0 relative">
+        {/* Floating Toast Notification */}
+        <div className={`fixed top-4 left-4 right-4 z-[100] pointer-events-none flex justify-center md:left-[300px] transition-all duration-500 transform ${toast.show ? "translate-y-0 opacity-100" : "-translate-y-12 opacity-0"}`}>
+           <div className="w-full max-w-md pointer-events-auto">
+             <Alert tone={toast.tone} className="shadow-2xl border border-white/10 backdrop-blur-md">
+                {toast.message}
+             </Alert>
+           </div>
+        </div>
         <header className="bg-[var(--panel)] border-b border-[var(--line)] px-4 md:px-8 py-4 md:py-5 flex justify-between items-center sticky top-0 z-10 shadow-sm">
           <div>
             <h1 className="text-2xl font-bold">{VIEW_META[activeView].title}</h1>
@@ -745,8 +754,6 @@ function AdminApp() {
         </header>
 
         <div className="flex-1 p-4 md:p-8 overflow-y-auto page-enter">
-          <Alert className="mb-6 shadow-sm" tone={banner.tone}>{banner.message}</Alert>
-
           {activeView === "dashboard" && (
             <div className="space-y-6">
               {/* Top Stats */}
