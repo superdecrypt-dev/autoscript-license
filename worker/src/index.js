@@ -178,6 +178,7 @@ async function handleWorkerLicenseCheck(request, env) {
   const hostname = normalizeShortText(body.data.hostname, 255);
   const entry = await getLicenseEntryByIp(env, publicIp);
   const decision = buildLicenseDecision(entry, env);
+  const revokeReason = entry?.status === "revoked" ? extractRevokeReason(entry.notes) : "";
 
   await insertAuditLog(env, {
     eventType: "license_check",
@@ -202,6 +203,8 @@ async function handleWorkerLicenseCheck(request, env) {
   return jsonResponse({
     allowed: decision.allowed,
     reason: decision.reason,
+    revoke_reason: revokeReason,
+    label: entry?.label || "",
     cache_ttl_sec: parseIntSafe(env.CACHE_TTL_SEC_DEFAULT, 3600),
     public_ip: requestIp,
   });
