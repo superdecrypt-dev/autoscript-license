@@ -367,7 +367,7 @@ function ResultPanel({ result }) {
             <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--muted)] truncate">Hasil Operasi</div>
             <Badge variant={result.tone}>{statusLabel(status)}</Badge>
           </div>
-          <h3 className="text-lg font-bold text-[var(--fg)] leading-tight truncate">{result.title}</h3>
+          <h3 className="text-lg font-bold text-[var(--fg)] leading-tight">{result.title}</h3>
         </div>
       </div>
       
@@ -404,7 +404,7 @@ function StatusResultPanel({ result, onAction }) {
             <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--muted)] truncate">Status Lisensi</div>
             <Badge variant={result.tone}>{statusLabel(status)}</Badge>
           </div>
-          <h3 className="text-lg font-bold text-[var(--fg)] leading-tight truncate">{result.title}</h3>
+          <h3 className="text-lg font-bold text-[var(--fg)] leading-tight">{result.title}</h3>
         </div>
       </div>
 
