@@ -199,7 +199,7 @@ function AdminApp() {
   }
 
   function logoutAccess() {
-    const logoutUrl = new URL("/cdn-cgi/access/logout", adminApiOrigin);
+    const logoutUrl = new URL("/cdn-cgi/access/logout", window.location.origin);
     window.location.assign(logoutUrl.toString());
   }
 
@@ -673,10 +673,12 @@ function AdminApp() {
   }
 
   function redirectToAccessRelay() {
-    const relayUrl = new URL("/admin/", adminApiOrigin);
     const currentUrl = new URL(window.location.href);
     currentUrl.searchParams.delete("relay_failed");
-    relayUrl.searchParams.set("return_to", currentUrl.toString());
+    
+    // Redirect to local /admin/ path to trigger local Cloudflare Access first
+    const relayUrl = new URL("/admin/", window.location.origin);
+    relayUrl.searchParams.set("return_to", currentUrl.pathname + currentUrl.search);
     window.location.assign(relayUrl.toString());
   }
 
@@ -689,10 +691,16 @@ function AdminApp() {
     const returnTarget = currentUrl.searchParams.get("return_to");
     if (!returnTarget) return;
     try {
+      // If it's just a path, it's already local
+      if (returnTarget.startsWith("/")) {
+         currentUrl.searchParams.delete("return_to");
+         window.history.replaceState({}, "", returnTarget);
+         return;
+      }
       const targetUrl = new URL(returnTarget, window.location.origin);
       if (targetUrl.origin === window.location.origin) {
         currentUrl.searchParams.delete("return_to");
-        window.history.replaceState({}, "", currentUrl.toString());
+        window.history.replaceState({}, "", targetUrl.pathname + targetUrl.search);
         return;
       }
       targetUrl.searchParams.set("relay_failed", "0");
