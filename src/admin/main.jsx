@@ -537,6 +537,14 @@ function AdminApp() {
     setConfirmDeleteOpen(true);
   }
 
+  function formatDateSimple(iso) {
+    if (!iso) return "-";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
   function exportToCsv() {
     if (!entries.length) return;
     const headers = ["ID", "IP", "Label", "Owner", "Status", "Expires", "Notes"];
@@ -546,7 +554,7 @@ function AdminApp() {
       e.label || "", 
       e.owner || "", 
       e.effective_status, 
-      e.expires_at, 
+      formatDateSimple(e.expires_at), 
       (e.notes || "").replace(/\n/g, " ")
     ]);
     const csvContent = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");

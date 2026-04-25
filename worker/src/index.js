@@ -1579,6 +1579,14 @@ async function handleAdminListAuditLogs(request, env) {
   });
 }
 
+function formatDateSimple(iso) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 async function buildBackupSnapshot(env, actorEmail, source) {
   const createdAt = nowIsoString();
   const tables = {};
@@ -1596,7 +1604,7 @@ async function buildBackupSnapshot(env, actorEmail, source) {
   return {
     format: BACKUP_FORMAT,
     schema_version: BACKUP_SCHEMA_VERSION,
-    created_at: createdAt,
+    created_at: formatDateSimple(createdAt),
     created_by: actorEmail,
     source,
     row_counts: rowCounts,
@@ -1607,11 +1615,12 @@ async function buildBackupSnapshot(env, actorEmail, source) {
 function sanitizeBackupRow(row, columns) {
   const sanitized = {};
   for (const column of columns) {
-    if (Object.prototype.hasOwnProperty.call(row, column)) {
-      sanitized[column] = row[column];
-    } else {
-      sanitized[column] = null;
+    let value = row[column];
+    // Simple format for date columns in export
+    if (["expires_at", "created_at", "updated_at", "revoked_at", "last_renewed_at"].includes(column) && value) {
+      value = formatDateSimple(value);
     }
+    sanitized[column] = value;
   }
   return sanitized;
 }
