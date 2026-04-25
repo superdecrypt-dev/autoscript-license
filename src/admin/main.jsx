@@ -45,12 +45,14 @@ import {
 } from "../shared/utils.js";
 import {
   Activity,
+  AlertCircle,
   Clock3,
   Database,
   Download,
   Eye,
   FileJson,
   LayoutDashboard,
+  Lock,
   LogOut,
   Plus,
   RefreshCw,
