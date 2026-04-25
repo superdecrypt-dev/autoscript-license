@@ -269,7 +269,7 @@ function PublicApp() {
                     <div className="space-y-2">
                       <label className="text-sm font-semibold text-[var(--fg)] opacity-80">Alamat IPv4</label>
                       <Input 
-                        placeholder="e.g. 103.45.67.89" 
+                        placeholder="e.g. 1.2.3.4" 
                         value={createIp}
                         onChange={e => setCreateIp(e.target.value)}
                         className="font-mono text-lg py-6"
@@ -306,7 +306,7 @@ function PublicApp() {
                     <div className="space-y-2">
                       <label className="text-sm font-semibold text-[var(--fg)] opacity-80">Alamat IPv4</label>
                       <Input 
-                        placeholder="e.g. 103.45.67.89" 
+                        placeholder="e.g. 1.2.3.4" 
                         value={statusIp}
                         onChange={e => setStatusIp(e.target.value)}
                         className="font-mono text-lg py-6"
