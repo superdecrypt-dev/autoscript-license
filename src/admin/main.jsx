@@ -728,10 +728,11 @@ function AdminApp() {
                 <TrendCard title="Mutation Trend" caption={`Last ${metricsWindowDays} days`} loading={metricsLoading} points={mutationsTrend} series={[{ key: "admin_mutations", label: "Admin", tone: "amber" }, { key: "public_activations", label: "Activate", tone: "emerald" }, { key: "public_renewals", label: "Renew", tone: "slate" }]} />
               </div>
 
-              {/* Health & Backups */}
-              <div className="grid gap-6 xl:grid-cols-[1fr,1fr]">
+              {/* Health, Backups & Activity */}
+              <div className="grid gap-6 xl:grid-cols-3">
                 <OperationalHealthCard latestChecks={latestChecks} latestMutations={latestMutations} summary={summary} metricsWindowDays={metricsWindowDays} />
                 <RecentRecoveryCard backups={filteredBackups} onOpenSettings={() => setActiveView("settings")} />
+                <RecentActivityCard logs={auditLogs} onOpenAudit={() => setActiveView("audit")} />
               </div>
             </div>
           )}
@@ -1268,6 +1269,38 @@ function RecentRecoveryCard({ backups, onOpenSettings }) {
           </div>
         ))}
         <Button variant="outline" className="w-full mt-2" onClick={onOpenSettings}>Semua Backup</Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RecentActivityCard({ logs, onOpenAudit }) {
+  const recent = logs.slice(0, 5);
+  return (
+    <Card className="shadow-sm border-[var(--line)]">
+      <CardHeader className="bg-[var(--panel-strong)] border-b border-[var(--line)]">
+        <CardTitle className="text-base font-bold">Recent Activity</CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="divide-y divide-[var(--line)]">
+          {recent.length ? recent.map(log => (
+            <div key={log.id} className="p-3 flex items-start gap-3 hover:bg-[var(--panel-strong)]/30 transition-colors">
+               <div className={`mt-1 size-2 shrink-0 rounded-full ${statusTone(log.decision) === 'emerald' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]' : 'bg-rose-500'}`} />
+               <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="text-xs font-mono font-bold text-[var(--accent)] truncate">{log.ip || "System"}</span>
+                    <span className="text-[10px] text-[var(--muted)] whitespace-nowrap">{formatRelativeTime(log.created_at)}</span>
+                  </div>
+                  <div className="text-[10px] text-[var(--muted)] truncate uppercase tracking-tight font-medium">{log.event_type}</div>
+               </div>
+            </div>
+          )) : <div className="p-8 text-center text-xs text-[var(--muted)]">No recent activity.</div>}
+        </div>
+        {logs.length > 5 && (
+          <div className="p-2 border-t border-[var(--line)]">
+            <Button variant="ghost" size="sm" className="w-full text-xs font-bold" onClick={onOpenAudit}>View All Logs</Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
