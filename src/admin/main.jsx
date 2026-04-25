@@ -199,7 +199,8 @@ function AdminApp() {
   }
 
   function logoutAccess() {
-    const logoutUrl = new URL("/cdn-cgi/access/logout", window.location.origin);
+    // We MUST logout via the adminApiOrigin (primary domain) because that's where the cookie is stored
+    const logoutUrl = new URL("/cdn-cgi/access/logout", adminApiOrigin);
     window.location.assign(logoutUrl.toString());
   }
 
