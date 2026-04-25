@@ -184,7 +184,6 @@ function PublicApp() {
               </div>
               <span className="text-xl font-bold tracking-tight">Autoscript</span>
             </div>
-            <ThemeToggle />
           </div>
           
           <div className="mt-16 space-y-4">

@@ -8,19 +8,19 @@
 
 @layer base {
   :root {
-    --bg: #f8fafc;
-    --panel: #ffffff;
-    --panel-strong: #f1f5f9;
-    --input: #ffffff;
-    --fg: #0f172a;
-    --muted: #64748b;
-    --line: #f1f5f9;
-    --line-strong: #e2e8f0;
-    --accent: #0284c7;
-    --accent-glow: rgba(2, 132, 199, 0.08);
-    --accent-strong: #0369a1;
-    --danger: #e11d48;
-    --shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --bg: #020617;
+    --panel: #0f172a;
+    --panel-strong: #1e293b;
+    --input: #0f172a;
+    --fg: #f8fafc;
+    --muted: #94a3b8;
+    --line: #1e293b;
+    --line-strong: #334155;
+    --accent: #38bdf8;
+    --accent-glow: rgba(56, 189, 248, 0.15);
+    --accent-strong: #7dd3fc;
+    --danger: #fb7185;
+    --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
   }
 
   .dark {

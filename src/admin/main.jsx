@@ -650,9 +650,6 @@ function AdminApp() {
           </CardHeader>
           <CardContent className="pb-8">
             <Alert tone={banner.tone} className="shadow-sm">{banner.message}</Alert>
-            <div className="mt-6 flex justify-center">
-               <ThemeToggle />
-            </div>
           </CardContent>
         </Card>
       </div>
@@ -698,7 +695,6 @@ function AdminApp() {
             <p className="text-sm text-[var(--muted)] mt-1">{VIEW_META[activeView].description}</p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
-            <ThemeToggle />
             <Button variant="secondary" onClick={refreshDashboard} className="h-9 px-3 sm:px-5">
               <RefreshCw className="size-4 sm:mr-2" /> <span className="hidden sm:inline">Refresh</span>
             </Button>

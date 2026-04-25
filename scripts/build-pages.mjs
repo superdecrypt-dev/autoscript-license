@@ -183,11 +183,9 @@ function renderPublicHtml({ cssHref, jsHref, apiBaseUrl, turnstileSiteKey }) {
     <script>
       (function() {
         try {
-          var theme = localStorage.getItem('theme');
-          var supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
-          if (theme === 'dark' || (!theme && supportDarkMode)) {
-            document.documentElement.classList.add('dark');
-          }
+          // Force dark mode always
+          document.documentElement.classList.add('dark');
+          localStorage.setItem('theme', 'dark');
         } catch (e) {}
       })();
     </script>
@@ -217,11 +215,9 @@ function renderAdminHtml({ cssHref, jsHref, adminApiBaseUrl }) {
     <script>
       (function() {
         try {
-          var theme = localStorage.getItem('theme');
-          var supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
-          if (theme === 'dark' || (!theme && supportDarkMode)) {
-            document.documentElement.classList.add('dark');
-          }
+          // Force dark mode always
+          document.documentElement.classList.add('dark');
+          localStorage.setItem('theme', 'dark');
         } catch (e) {}
       })();
     </script>

@@ -8,21 +8,22 @@
 
 @layer base {
   :root {
-    --bg: #f9fafb;
-    --panel: #ffffff;
-    --panel-strong: #f3f4f6;
-    --input: #ffffff;
-    --fg: #111827;
-    --muted: #6b7280;
-    --line: #e5e7eb;
-    --line-strong: #d1d5db;
-    --accent: #2563eb;
-    --accent-glow: rgba(37, 99, 235, 0.1);
-    --accent-strong: #1d4ed8;
-    --danger: #ef4444;
-    --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+    --bg: #030712;
+    --panel: #111827;
+    --panel-strong: #1f2937;
+    --input: #111827;
+    --fg: #f9fafb;
+    --muted: #9ca3af;
+    --line: #374151;
+    --line-strong: #4b5563;
+    --accent: #3b82f6;
+    --accent-glow: rgba(59, 130, 246, 0.2);
+    --accent-strong: #60a5fa;
+    --danger: #f87171;
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
   }
 
+  /* Keeping .dark for compatibility but variables are now same as root */
   .dark {
     --bg: #030712;
     --panel: #111827;
