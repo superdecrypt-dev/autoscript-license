@@ -115,6 +115,8 @@ function AdminApp() {
   const [entryDetailOpen, setEntryDetailOpen] = useState(false);
   const [entryDetail, setEntryDetail] = useState(null);
   const [backupPreviewOpen, setBackupPreviewOpen] = useState(false);
+  const [sysSettings, setSysSettings] = useState({ backup_auto_enabled: true, backup_interval_hours: 24, backup_retention_days: 30 });
+  const [settingsLoading, setSettingsLoading] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [pageSize, setPageSize] = useState(10);
@@ -282,8 +284,12 @@ function AdminApp() {
     if (!ensureAuthenticated()) return;
     setBackupsLoading(true);
     try {
-      const payload = await fetchBackups();
+      const [payload, settings] = await Promise.all([
+        fetchBackups(),
+        apiFetch("/api/admin/settings")
+      ]);
       setBackups(payload.items || []);
+      setSysSettings(settings);
       setLastSyncedAt(new Date().toISOString());
     } catch (error) {
       handleAuthFailure(error, "Gagal refresh backup snapshot.");
@@ -439,6 +445,22 @@ function AdminApp() {
       await refreshBackups();
     } catch (error) {
       handleAuthFailure(error, "Gagal menghapus snapshot backup.");
+    }
+  }
+
+  async function updateSysSettings(updates) {
+    setSettingsLoading(true);
+    try {
+      const newSettings = await apiFetch("/api/admin/settings", {
+        method: "PATCH",
+        body: JSON.stringify(updates)
+      });
+      setSysSettings(newSettings);
+      notify("ok", "Pengaturan sistem berhasil diperbarui.");
+    } catch (error) {
+      handleAuthFailure(error, "Gagal memperbarui pengaturan.");
+    } finally {
+      setSettingsLoading(false);
     }
   }
 
@@ -1048,22 +1070,70 @@ function AdminApp() {
 
           {activeView === "settings" && (
             <div className="grid gap-6 xl:grid-cols-[1fr,2fr]">
-              <Card className="shadow-sm h-fit border-[var(--line)]">
-                <CardHeader className="bg-[var(--panel-strong)] border-b border-[var(--line)]">
-                  <CardTitle className="text-lg font-bold">System Actions</CardTitle>
-                </CardHeader>
-                <CardContent className="p-6 space-y-4">
-                  <Button className="w-full justify-start" onClick={createBackup}><Database className="size-4 mr-3" /> Buat Snapshot Backup</Button>
-                  <Button variant="secondary" className="w-full justify-start" onClick={refreshBackups}><RefreshCw className="size-4 mr-3" /> Refresh List</Button>
-                  
-                  <div className="pt-4 border-t border-[var(--line)]">
-                    <input id="import-backup-input" type="file" accept="application/json,.json" hidden onChange={handleImportBackupFile} />
-                    <Button variant="outline" className="w-full justify-start" onClick={() => document.getElementById("import-backup-input")?.click()}>
-                       <Download className="size-4 mr-3" /> Import Backup File
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="space-y-6">
+                <Card className="shadow-sm h-fit border-[var(--line)]">
+                  <CardHeader className="bg-[var(--panel-strong)] border-b border-[var(--line)]">
+                    <CardTitle className="text-lg font-bold">System Actions</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-4">
+                    <Button className="w-full justify-start" onClick={createBackup}><Database className="size-4 mr-3" /> Buat Snapshot Backup</Button>
+                    <Button variant="secondary" className="w-full justify-start" onClick={refreshBackups}><RefreshCw className="size-4 mr-3" /> Refresh List</Button>
+                    
+                    <div className="pt-4 border-t border-[var(--line)]">
+                      <input id="import-backup-input" type="file" accept="application/json,.json" hidden onChange={handleImportBackupFile} />
+                      <Button variant="outline" className="w-full justify-start" onClick={() => document.getElementById("import-backup-input")?.click()}>
+                         <Download className="size-4 mr-3" /> Import Backup File
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="shadow-sm border-[var(--line)]">
+                  <CardHeader className="bg-[var(--panel-strong)] border-b border-[var(--line)]">
+                    <CardTitle className="text-lg font-bold flex items-center gap-2">
+                      <Clock3 className="size-5 text-[var(--accent)]" />
+                      Auto Backup Config
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-5">
+                    <div className="flex items-center justify-between p-3 bg-[var(--panel-strong)] rounded-xl border border-[var(--line)]">
+                       <div className="space-y-0.5">
+                          <div className="text-sm font-bold">Backup Otomatis</div>
+                          <div className="text-xs text-[var(--muted)]">Jalankan snapshot terjadwal.</div>
+                       </div>
+                       <button 
+                        onClick={() => updateSysSettings({ backup_auto_enabled: !sysSettings.backup_auto_enabled })}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${sysSettings.backup_auto_enabled ? 'bg-emerald-500' : 'bg-[var(--line-strong)]'}`}
+                       >
+                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${sysSettings.backup_auto_enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                       </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold uppercase text-[var(--muted)]">Interval (Jam)</label>
+                        <Input 
+                          type="number" 
+                          min="1" 
+                          value={sysSettings.backup_interval_hours} 
+                          onChange={(e) => updateSysSettings({ backup_interval_hours: e.target.value })}
+                          className="h-9"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold uppercase text-[var(--muted)]">Retention (Hari)</label>
+                        <Input 
+                          type="number" 
+                          min="1" 
+                          value={sysSettings.backup_retention_days} 
+                          onChange={(e) => updateSysSettings({ backup_retention_days: e.target.value })}
+                          className="h-9"
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
 
               <Card className="shadow-sm border-[var(--line)]">
                 <CardHeader className="bg-[var(--panel-strong)] border-b border-[var(--line)]">

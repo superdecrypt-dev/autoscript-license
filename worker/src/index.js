@@ -725,6 +725,13 @@ async function routeAdminRequest(request, env, pathname) {
     return handleAdminToggleEntry(request, env, actorEmail, decodeURIComponent(toggleMatch[1]), targetStatus);
   }
 
+  if (pathname === "/api/admin/settings" && request.method === "GET") {
+    return handleAdminGetSettings(request, env);
+  }
+  if (pathname === "/api/admin/settings" && request.method === "PATCH") {
+    return handleAdminUpdateSettings(request, env);
+  }
+
   return jsonResponse({ error: "not_found", message: "Admin endpoint tidak ditemukan." }, 404);
 }
 
@@ -2373,15 +2380,64 @@ async function runStatement(env, sql, binds = []) {
   return stmt.run();
 }
 
+async function getSystemSettings(env) {
+  const rows = await allRows(env, "SELECT key, value FROM system_settings");
+  const settings = {};
+  for (const row of rows) {
+    settings[row.key] = row.value;
+  }
+  return settings;
+}
+
+async function setSystemSetting(env, key, value) {
+  return runStatement(
+    env,
+    "INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)",
+    [key, String(value)]
+  );
+}
+
+async function handleAdminGetSettings(_request, env) {
+  const settings = await getSystemSettings(env);
+  return jsonResponse({
+    backup_auto_enabled: settings.backup_auto_enabled === "true",
+    backup_interval_hours: parseIntSafe(settings.backup_interval_hours, 24),
+    backup_retention_days: parseIntSafe(settings.backup_retention_days, 30),
+  });
+}
+
+async function handleAdminUpdateSettings(request, env) {
+  const body = await parseJsonBody(request);
+  const data = body.data || {};
+  
+  if ("backup_auto_enabled" in data) {
+    await setSystemSetting(env, "backup_auto_enabled", data.backup_auto_enabled ? "true" : "false");
+  }
+  if ("backup_interval_hours" in data) {
+    await setSystemSetting(env, "backup_interval_hours", Math.max(1, parseIntSafe(data.backup_interval_hours, 24)));
+  }
+  if ("backup_retention_days" in data) {
+    await setSystemSetting(env, "backup_retention_days", Math.max(1, parseIntSafe(data.backup_retention_days, 30)));
+  }
+  
+  return handleAdminGetSettings(request, env);
+}
+
 async function runScheduledMaintenance(env, scheduledTimeMs) {
   const nowIso = new Date(scheduledTimeMs || Date.now()).toISOString();
+  const settings = await getSystemSettings(env);
+  
   const auditRetentionDays = parseIntSafe(env.AUDIT_LOG_RETENTION_DAYS, 30);
   const rateLimitRetentionDays = parseIntSafe(env.PUBLIC_RATE_LIMIT_RETENTION_DAYS, 7);
-  const backupRetentionDays = parseIntSafe(env.BACKUP_RETENTION_DAYS, 30);
+  
+  // Dynamic settings from D1
+  const backupRetentionDays = parseIntSafe(settings.backup_retention_days, parseIntSafe(env.BACKUP_RETENTION_DAYS, 30));
+  const backupAutoEnabled = settings.backup_auto_enabled === "true";
+  const backupAutoMinIntervalHours = Math.max(1, parseIntSafe(settings.backup_interval_hours, 24));
+  
   const backupRetentionDaysManual = parseIntSafe(env.BACKUP_RETENTION_DAYS_MANUAL, 90);
-  const backupRetentionDaysScheduled = parseIntSafe(env.BACKUP_RETENTION_DAYS_SCHEDULED, backupRetentionDays);
-  const backupAutoEnabled = String(env.BACKUP_AUTO_ENABLED || "true").trim().toLowerCase() !== "false";
-  const backupAutoMinIntervalHours = Math.max(1, parseIntSafe(env.BACKUP_AUTO_MIN_INTERVAL_HOURS, 24));
+  const backupRetentionDaysScheduled = backupRetentionDays;
+  
   const auditCutoffIso = addDaysIso(nowIso, -auditRetentionDays);
   const rateLimitCutoffIso = addDaysIso(nowIso, -rateLimitRetentionDays);
   const backupCutoffIso = addDaysIso(nowIso, -backupRetentionDays);
