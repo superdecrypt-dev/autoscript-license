@@ -1535,7 +1535,7 @@ function LoadingState({ message }) {
   );
 }
 
-function humanizeBackupSource(v) { return v === 'scheduled' ? 'Scheduled' : 'Manual'; }
+function humanizeBackupSource(v) { return v === 'scheduled' ? 'Auto Backup' : 'Manual'; }
 function emptyEntryForm() { return { id: "", ip: "", label: "", owner: "", notes: "", expires_at: "" }; }
 function getFilteredBackups(b, q, sf, sort) { 
   const sq = (q||"").toLowerCase();
