@@ -94,6 +94,10 @@ function AdminApp() {
   const [backupSort, setBackupSort] = useState("created_desc");
   const [formState, setFormState] = useState(emptyEntryForm());
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [revokeDialogOpen, setRevokeDialogOpen] = useState(false);
+  const [targetEntry, setTargetEntry] = useState(null);
+  const [revokeReason, setRevokeReason] = useState("");
   const [editFormState, setEditFormState] = useState(emptyEntryForm());
   const [entryDetailOpen, setEntryDetailOpen] = useState(false);
   const [entryDetail, setEntryDetail] = useState(null);
@@ -473,9 +477,24 @@ function AdminApp() {
   }
 
   async function toggleEntry(entry, action) {
+    if (action === "revoke") {
+      setTargetEntry(entry);
+      setRevokeReason("");
+      setRevokeDialogOpen(true);
+      return;
+    }
+    await executeToggleEntry(entry, action);
+  }
+
+  async function executeToggleEntry(entry, action, reason = "") {
     try {
-      await apiFetch(`/api/admin/license-entries/${encodeURIComponent(entry.id)}/${action}`, { method: "POST", body: JSON.stringify({}) });
+      const body = reason ? { notes_append: `\n[REVOKE REASON: ${reason}]` } : {};
+      await apiFetch(`/api/admin/license-entries/${encodeURIComponent(entry.id)}/${action}`, { 
+        method: "POST", 
+        body: JSON.stringify(body) 
+      });
       setBanner({ tone: "ok", message: `Entry ${entry.ip} berhasil di-${action}.` });
+      setRevokeDialogOpen(false);
       await refreshDashboard();
     } catch (error) {
       handleAuthFailure(error, `Gagal ${action} entry.`);
@@ -483,10 +502,17 @@ function AdminApp() {
   }
 
   async function deleteEntry(entry) {
-    if (!window.confirm(`Hapus entry ${entry.ip}?`)) return;
+    setTargetEntry(entry);
+    setConfirmDeleteOpen(true);
+  }
+
+  async function executeDeleteEntry() {
+    if (!targetEntry) return;
     try {
-      await apiFetch(`/api/admin/license-entries/${encodeURIComponent(entry.id)}`, { method: "DELETE" });
-      setBanner({ tone: "ok", message: `Entry ${entry.ip} berhasil dihapus.` });
+      await apiFetch(`/api/admin/license-entries/${encodeURIComponent(targetEntry.id)}`, { method: "DELETE" });
+      setBanner({ tone: "ok", message: `Entry ${targetEntry.ip} berhasil dihapus.` });
+      setConfirmDeleteOpen(false);
+      setTargetEntry(null);
       await refreshDashboard();
     } catch (error) {
       handleAuthFailure(error, "Gagal menghapus entry.");
@@ -1164,6 +1190,61 @@ function AdminApp() {
               <Button type="submit"><Plus className="size-4 mr-2"/> Simpan Entry</Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Revoke Reason Dialog */}
+      <Dialog open={revokeDialogOpen} onOpenChange={setRevokeDialogOpen}>
+        <DialogContent className="border-[var(--line)] bg-[var(--panel)]">
+          <DialogHeader>
+            <DialogTitle className="text-rose-500 flex items-center gap-2">
+              <Lock className="size-5" />
+              Revoke Lisensi
+            </DialogTitle>
+            <DialogDescription>
+              IP: <b>{targetEntry?.ip}</b> akan diblokir. Berikan alasan pemblokiran untuk catatan internal.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <Field label="Alasan Revoke (Wajib)">
+              <Textarea 
+                value={revokeReason} 
+                onChange={(e) => setRevokeReason(e.target.value)} 
+                placeholder="Misal: Pelanggaran TOS, Pembayaran Gagal, atau Penyalahgunaan..."
+                className="min-h-[100px]"
+                required
+              />
+            </Field>
+            <div className="flex justify-end gap-3 pt-4 border-t border-[var(--line)]">
+              <Button type="button" variant="secondary" onClick={() => setRevokeDialogOpen(false)}>Batal</Button>
+              <Button 
+                variant="destructive" 
+                onClick={() => executeToggleEntry(targetEntry, "revoke", revokeReason)}
+                disabled={!revokeReason.trim()}
+              >
+                Konfirmasi Blokir IP
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <DialogContent className="max-w-md border-[var(--line)] bg-[var(--panel)]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-rose-500">
+              <AlertCircle className="size-5" />
+              Hapus Lisensi Permanen?
+            </DialogTitle>
+            <DialogDescription>
+              Tindakan ini akan menghapus data IP <b>{targetEntry?.ip}</b> dari database. Data yang sudah dihapus tidak bisa dipulihkan.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button type="button" variant="secondary" onClick={() => setConfirmDeleteOpen(false)}>Batal</Button>
+            <Button variant="destructive" onClick={executeDeleteEntry}>Ya, Hapus Permanen</Button>
+          </div>
         </DialogContent>
       </Dialog>
 
