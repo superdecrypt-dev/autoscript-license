@@ -673,12 +673,13 @@ function AdminApp() {
   }
 
   function redirectToAccessRelay() {
+    // Redirect to the API origin's /admin/ path to trigger Cloudflare Access
+    const relayUrl = new URL("/admin/", adminApiOrigin);
     const currentUrl = new URL(window.location.href);
     currentUrl.searchParams.delete("relay_failed");
     
-    // Redirect to local /admin/ path to trigger local Cloudflare Access first
-    const relayUrl = new URL("/admin/", window.location.origin);
-    relayUrl.searchParams.set("return_to", currentUrl.pathname + currentUrl.search);
+    // Pass the full URL to return to after successful login
+    relayUrl.searchParams.set("return_to", currentUrl.toString());
     window.location.assign(relayUrl.toString());
   }
 
@@ -690,19 +691,17 @@ function AdminApp() {
     }
     const returnTarget = currentUrl.searchParams.get("return_to");
     if (!returnTarget) return;
+
     try {
-      // If it's just a path, it's already local
-      if (returnTarget.startsWith("/")) {
-         currentUrl.searchParams.delete("return_to");
-         window.history.replaceState({}, "", returnTarget);
-         return;
-      }
-      const targetUrl = new URL(returnTarget, window.location.origin);
+      // If we are at the target domain already, just clean the URL
+      const targetUrl = new URL(returnTarget);
       if (targetUrl.origin === window.location.origin) {
         currentUrl.searchParams.delete("return_to");
         window.history.replaceState({}, "", targetUrl.pathname + targetUrl.search);
         return;
       }
+      
+      // Otherwise, redirect back to the target domain
       targetUrl.searchParams.set("relay_failed", "0");
       window.location.replace(targetUrl.toString());
     } catch (_error) {
