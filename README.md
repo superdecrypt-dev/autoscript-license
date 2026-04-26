@@ -78,5 +78,12 @@ Sistem memiliki Cron Job otomatis yang berjalan setiap jam untuk:
 - Membuat snapshot backup otomatis ke R2.
 - Menghapus snapshot R2 yang sudah melewati masa simpan.
 
+## Lisensi
+
+Repo ini menggunakan lisensi `AGPL-3.0-or-later`.
+
+- detail lengkap tersedia di file [`LICENSE`](/root/project/autoscript-license/LICENSE)
+- lisensi ini dipilih karena repo ini beroperasi sebagai website/API layanan jaringan
+
 ---
 © 2026 Autoscript License Portal. Dirancang untuk stabilitas dan kemudahan pengelolaan infrastruktur.
